@@ -1,0 +1,450 @@
+CRITICAL - 2025-10-31 05:05:28 --> ErrorException: Undefined property: App\Controllers\Api\Login::$adminModel
+[Method: POST, Route: api/admin/login]
+in APPPATH\Controllers\Api\Login.php on line 11.
+ 1 APPPATH\Controllers\Api\Login.php(11): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined property: App\\Controllers\\Api\\Login::$adminModel', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 11)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-10-31 05:05:33 --> ErrorException: Undefined property: App\Controllers\Api\Login::$adminModel
+[Method: POST, Route: api/admin/login]
+in APPPATH\Controllers\Api\Login.php on line 11.
+ 1 APPPATH\Controllers\Api\Login.php(11): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined property: App\\Controllers\\Api\\Login::$adminModel', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 11)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-10-31 05:06:12 --> ErrorException: Undefined property: App\Controllers\Api\Login::$adminModel
+[Method: POST, Route: api/admin/login]
+in APPPATH\Controllers\Api\Login.php on line 11.
+ 1 APPPATH\Controllers\Api\Login.php(11): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined property: App\\Controllers\\Api\\Login::$adminModel', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 11)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-10-31 05:09:17 --> Error connecting to the database: mysqli_sql_exception: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'turn_up', 3306, '', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#4 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#6 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(34): CodeIgniter\BaseModel->first()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#9 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#10 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#11 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#12 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#13 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:246
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#3 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#4 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(34): CodeIgniter\BaseModel->first()
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+CRITICAL - 2025-10-31 05:09:17 --> CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.
+Main connection [MySQLi]: Unknown database 'turn_up'
+[Method: POST, Route: api/admin/login]
+in SYSTEMPATH\Database\BaseConnection.php on line 465.
+ 1 SYSTEMPATH\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+ 2 SYSTEMPATH\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *
+FROM `admin_users`
+WHERE `email` = :email:
+ LIMIT 1', [...], false)
+ 3 SYSTEMPATH\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+ 4 SYSTEMPATH\BaseModel.php(715): CodeIgniter\Model->doFirst()
+ 5 APPPATH\Controllers\Api\Login.php(34): CodeIgniter\BaseModel->first()
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-10-31 05:10:01 --> Error connecting to the database: mysqli_sql_exception: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'turn_up', 3306, '', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#4 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#6 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(34): CodeIgniter\BaseModel->first()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#9 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#10 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#11 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#12 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#13 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:246
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#3 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#4 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(34): CodeIgniter\BaseModel->first()
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+CRITICAL - 2025-10-31 05:10:01 --> CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.
+Main connection [MySQLi]: Unknown database 'turn_up'
+[Method: POST, Route: api/admin/login]
+in SYSTEMPATH\Database\BaseConnection.php on line 465.
+ 1 SYSTEMPATH\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+ 2 SYSTEMPATH\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *
+FROM `admin_users`
+WHERE `email` = :email:
+ LIMIT 1', [...], false)
+ 3 SYSTEMPATH\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+ 4 SYSTEMPATH\BaseModel.php(715): CodeIgniter\Model->doFirst()
+ 5 APPPATH\Controllers\Api\Login.php(34): CodeIgniter\BaseModel->first()
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-10-31 05:11:15 --> Error connecting to the database: mysqli_sql_exception: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'turn_up', 3306, '', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#4 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#6 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#9 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#10 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#11 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#12 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#13 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:246
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#3 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#4 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+CRITICAL - 2025-10-31 05:11:15 --> CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.
+Main connection [MySQLi]: Unknown database 'turn_up'
+[Method: POST, Route: api/admin/login]
+in SYSTEMPATH\Database\BaseConnection.php on line 465.
+ 1 SYSTEMPATH\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+ 2 SYSTEMPATH\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *
+FROM `admin_users`
+WHERE `email` = :email:
+ LIMIT 1', [...], false)
+ 3 SYSTEMPATH\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+ 4 SYSTEMPATH\BaseModel.php(715): CodeIgniter\Model->doFirst()
+ 5 APPPATH\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-10-31 05:12:37 --> Error connecting to the database: mysqli_sql_exception: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'turn_up', 3306, '', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#4 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#6 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#9 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#10 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#11 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#12 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#13 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:246
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#3 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#4 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+CRITICAL - 2025-10-31 05:12:37 --> CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.
+Main connection [MySQLi]: Unknown database 'turn_up'
+[Method: POST, Route: api/admin/login]
+in SYSTEMPATH\Database\BaseConnection.php on line 465.
+ 1 SYSTEMPATH\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+ 2 SYSTEMPATH\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *
+FROM `admin_users`
+WHERE `email` = :email:
+ LIMIT 1', [...], false)
+ 3 SYSTEMPATH\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+ 4 SYSTEMPATH\BaseModel.php(715): CodeIgniter\Model->doFirst()
+ 5 APPPATH\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-10-31 05:12:53 --> Error connecting to the database: mysqli_sql_exception: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'turn_up', 3306, '', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#4 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#6 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#9 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#10 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#11 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#12 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#13 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:246
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#3 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#4 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+CRITICAL - 2025-10-31 05:12:53 --> CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.
+Main connection [MySQLi]: Unknown database 'turn_up'
+[Method: POST, Route: api/admin/login]
+in SYSTEMPATH\Database\BaseConnection.php on line 465.
+ 1 SYSTEMPATH\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+ 2 SYSTEMPATH\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *
+FROM `admin_users`
+WHERE `email` = :email:
+ LIMIT 1', [...], false)
+ 3 SYSTEMPATH\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+ 4 SYSTEMPATH\BaseModel.php(715): CodeIgniter\Model->doFirst()
+ 5 APPPATH\Controllers\Api\Login.php(33): CodeIgniter\BaseModel->first()
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-10-31 05:14:02 --> Error connecting to the database: mysqli_sql_exception: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'turn_up', 3306, '', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#4 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#6 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#9 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#10 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#11 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#12 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#13 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:246
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#3 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#4 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+CRITICAL - 2025-10-31 05:14:02 --> CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.
+Main connection [MySQLi]: Unknown database 'turn_up'
+[Method: POST, Route: api/admin/login]
+in SYSTEMPATH\Database\BaseConnection.php on line 465.
+ 1 SYSTEMPATH\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+ 2 SYSTEMPATH\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *
+FROM `admin_users`
+WHERE `email` = :email:
+ LIMIT 1', [...], false)
+ 3 SYSTEMPATH\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+ 4 SYSTEMPATH\BaseModel.php(715): CodeIgniter\Model->doFirst()
+ 5 APPPATH\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-10-31 05:14:07 --> Error connecting to the database: mysqli_sql_exception: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'turn_up', 3306, '', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#4 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#6 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#9 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#10 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#11 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#12 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#13 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:246
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#3 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#4 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+CRITICAL - 2025-10-31 05:14:07 --> CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.
+Main connection [MySQLi]: Unknown database 'turn_up'
+[Method: POST, Route: api/admin/login]
+in SYSTEMPATH\Database\BaseConnection.php on line 465.
+ 1 SYSTEMPATH\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+ 2 SYSTEMPATH\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *
+FROM `admin_users`
+WHERE `email` = :email:
+ LIMIT 1', [...], false)
+ 3 SYSTEMPATH\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+ 4 SYSTEMPATH\BaseModel.php(715): CodeIgniter\Model->doFirst()
+ 5 APPPATH\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-10-31 05:14:42 --> Error connecting to the database: mysqli_sql_exception: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'turn_up', 3306, '', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#4 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#6 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#9 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#10 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#11 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#12 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#13 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Unknown database 'turn_up' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:246
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *\nFROM `...', Array, false)
+#3 C:\wamp64\www\turn-up\system\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+#4 C:\wamp64\www\turn-up\system\BaseModel.php(715): CodeIgniter\Model->doFirst()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+CRITICAL - 2025-10-31 05:14:42 --> CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.
+Main connection [MySQLi]: Unknown database 'turn_up'
+[Method: POST, Route: api/admin/login]
+in SYSTEMPATH\Database\BaseConnection.php on line 465.
+ 1 SYSTEMPATH\Database\BaseConnection.php(614): CodeIgniter\Database\BaseConnection->initialize()
+ 2 SYSTEMPATH\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT *
+FROM `admin_users`
+WHERE `email` = :email:
+ LIMIT 1', [...], false)
+ 3 SYSTEMPATH\Model.php(330): CodeIgniter\Database\BaseBuilder->get()
+ 4 SYSTEMPATH\BaseModel.php(715): CodeIgniter\Model->doFirst()
+ 5 APPPATH\Controllers\Api\Login.php(31): CodeIgniter\BaseModel->first()
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-10-31 05:15:12 --> ErrorException: Undefined property: App\Controllers\Api\Login::$adminModel
+[Method: POST, Route: api/admin/login]
+in APPPATH\Controllers\Api\Login.php on line 11.
+ 1 APPPATH\Controllers\Api\Login.php(11): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined property: App\\Controllers\\Api\\Login::$adminModel', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 11)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-10-31 05:20:06 --> ErrorException: Undefined array key "email"
+[Method: POST, Route: api/admin/login]
+in APPPATH\Controllers\Api\Login.php on line 15.
+ 1 APPPATH\Controllers\Api\Login.php(15): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined array key "email"', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 15)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->adminLogin()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
