@@ -1,9 +1,12 @@
 <?php
 namespace App\Controllers\Api;
 
+require_once ROOTPATH . 'vendor/autoload.php';
+
 use App\Controllers\BaseController;
 use App\Models\AdminModel;
-use App\Libraries\Jwt;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 
 class Login extends BaseController
 {
@@ -16,97 +19,69 @@ class Login extends BaseController
 
     public function adminLogin()
     {
-        $data = $this->request->getJSON(true);
+        try {
+            $data = $this->request->getJSON(true);
 
-        // 🔹 Step 1: Validate input
-        if (empty($data['email']) || empty($data['password'])) {
+            $email = $data['email'] ?? $this->request->getPost('email');
+            $password = $data['password'] ?? $this->request->getPost('password');
+
+            if (empty($email) || empty($password)) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'Email and Password are required.'
+                ]);
+            }
+
+            $result = $this->adminModel->verifyAdmin($email, $password);
+            if (isset($result['error']) && $result['error'] === true) {
+                return $this->response->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => $result['message']
+                ]);
+            }
+
+            $admin = $result['data'];
+
+            // Use .env secret key
+            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+            $payload = [
+                'iss' => 'turn-up',            
+                'iat' => time(),              
+                'exp' => time() + 3600,         // Expiration time (1 hour)
+                'data' => [
+                    'admin_id' => $admin['admin_id'],
+                    'email' => $admin['email']
+                ]
+            ];
+
+            $token = JWT::encode($payload, $key, 'HS256');
+
+            // Make sure token column is allowed and admin_id exists
+            if (!empty($admin['admin_id'])) {
+                $updated = $this->adminModel->update($admin['admin_id'], ['token' => $token]);
+                if (!$updated) {
+                    log_message('error', 'Failed to update token: ' . json_encode($this->adminModel->errors()));
+                }
+            }
+
             return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'data' => $admin,
+                'message' => 'Login successful',
+                'token' => $token,
+              
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setJSON([
+                'status' => 500,
                 'success' => false,
-                'message' => 'Email and Password are required.',
-                'data'    => []
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
         }
-
-        // 🔹 Step 2: Check if admin exists
-        $admin = $this->adminModel
-            ->where('email', $data['email'])
-            ->where('status !=', 3) // 3 = deleted
-            ->first();
-
-        if (!$admin) {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'Invalid email or password.',
-                'data'    => []
-            ]);
-        }
-
-        // 🔹 Step 3: Handle account status
-        if ($admin['status'] == 2) { // 2 = suspended
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'Your account has been suspended by the admin.',
-                'data'    => []
-            ]);
-        }
-
-        if ($admin['status'] == 3) { // 3 = deleted
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'This account has been deleted.',
-                'data'    => []
-            ]);
-        }
-
-        // 🔹 Step 4: Verify password
-        $inputPassword = $data['password'];
-        $dbPassword    = $admin['password'];
-        $isValid = false;
-
-        if (password_verify($inputPassword, $dbPassword)) {
-            $isValid = true;
-        } elseif (md5($inputPassword) === $dbPassword) { 
-            $isValid = true;
-        }
-
-        if (!$isValid) {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'Invalid email or password.',
-                'data'    => []
-            ]);
-        }
-
-        // 🔹 Step 5: Generate JWT token
-        $jwt = new Jwt();
-        $now = date('Y-m-d H:i:s');
-        $token = $jwt->encode([
-            'admin_id' => $admin['admin_id'],
-            'email'    => $admin['email'],
-            'role_id'  => $admin['role_id']
-        ]);
-
-        // 🔹 Step 6: Update token & last login
-        $this->adminModel->update($admin['admin_id'], [
-            'token'       => $token,
-            'updated_at'  => $now
-        ]);
-
-        // 🔹 Step 7: Success response
-        return $this->response->setJSON([
-            'success' => true,
-            'message' => 'Login successful.',
-            'data' => [
-                'admin_id'  => $admin['admin_id'],
-                'name'      => $admin['name'] ?? '',
-                'email'     => $admin['email'],
-                'phone'     => $admin['phone'] ?? '',
-                'role_id'   => $admin['role_id'] ?? null,
-                'status'    => $admin['status'],
-                'token'     => $token,
-                'created_at'=> $admin['created_at'] ?? '',
-                'updated_at'=> $now
-            ]
-        ]);
     }
 }
