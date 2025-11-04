@@ -13,11 +13,11 @@ $routes->post('api/admin/login', 'Api\Login::adminLogin');
 //user login
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
 
-//registration
+//registration/user management
 $routes->post('api/user/register', 'Api\AppUser::register');
 $routes->post('api/user/getuser', 'Api\AppUser::getUserById');
 $routes->post('api/user/update', 'Api\AppUser::updateUser');
-
+$routes->post('api/user/delete', 'Api\AppUser::deleteUser');
 
 
 //Event Api 
