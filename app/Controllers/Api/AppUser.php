@@ -281,5 +281,39 @@ class AppUser extends BaseController
             'message' => 'User updated successfully.'
         ]);
     }
+    // DELETE USER (soft delete)
+    public function deleteUser()
+    {
+        $user_id = $this->request->getJSON(true);
+
+        if (empty($user_id)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'user_id is required.'
+            ]);
+        }
+
+        $user = $this->appUserModel->find($user_id);
+        if (!$user) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'User not found.'
+            ]);
+        }
+
+        // Soft delete (mark as deleted)
+        $this->appUserModel->update($user_id, [
+            'status' => 4,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'User deleted successfully.'
+        ]);
+    }
 
 }
