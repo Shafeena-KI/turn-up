@@ -1,0 +1,145 @@
+<?php
+namespace App\Controllers\Api;
+
+use App\Controllers\BaseController;
+use App\Models\Api\EventInviteModel;
+use CodeIgniter\HTTP\ResponseInterface;
+
+class EventInvite extends BaseController
+{
+    protected $inviteModel;
+
+    public function __construct()
+    {
+        $this->inviteModel = new EventInviteModel();
+    }
+
+    // Create an invite
+    public function createInvite()
+    {
+        $data = $this->request->getJSON(true);
+
+        if (empty($data['event_id']) || empty($data['user_id'])) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'event_id and user_id are required.'
+            ])->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST);
+        }
+
+        $insertData = [
+            'event_id' => $data['event_id'],
+            'user_id' => $data['user_id'],
+            'event_type' => $data['event_type'],
+            'invite' => 1,
+            'status' => 1, // pending/approved default
+            'approval_type' => $data['approval_type'] ?? 1, // auto
+            'requested_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($insertData['approval_type'] == 1) {
+            $insertData['status'] = 1; // auto-approve
+            $insertData['approved_at'] = date('Y-m-d H:i:s');
+        }
+
+        $this->inviteModel->insert($insertData);
+
+        return $this->response->setJSON([
+            'status' => true,
+            'message' => 'Invite created successfully.',
+            'data' => $insertData
+        ]);
+    }
+
+    // Approve or Reject Invite (manual)
+    public function updateInviteStatus()
+    {
+        $data = $this->request->getJSON(true);
+        $invite_id = $data['invite_id'] ?? null;
+        $status = $data['status'] ?? null;
+
+        if (!$invite_id || !in_array($status, [1, 2])) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'invite_id and valid status (1=approved, 2=rejected) are required.'
+            ]);
+        }
+
+        $invite = $this->inviteModel->find($invite_id);
+        if (!$invite) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Invite not found.'
+            ]);
+        }
+
+        $updateData = [
+            'status' => $status,
+            'approved_at' => date('Y-m-d H:i:s')
+        ];
+
+        $this->inviteModel->update($invite_id, $updateData);
+
+        return $this->response->setJSON([
+            'status' => true,
+            'message' => 'Invite updated successfully.'
+        ]);
+    }
+
+    public function getInvitesByEvent()
+    {
+        $event_id = $this->request->getJSON(true);
+        if (!$event_id) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'event_id is required.'
+            ]);
+        }
+
+        $invites = $this->inviteModel->getInvitesByEvent($event_id);
+        return $this->response->setJSON([
+            'status' => true,
+            'data' => $invites
+        ]);
+    }
+
+    public function getInvitesByUser()
+    {
+        $user_id = $this->request->getJSON(true);
+        if (!$user_id) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'user_id is required.'
+            ]);
+        }
+
+        $invites = $this->inviteModel->getInvitesByUser($user_id);
+        return $this->response->setJSON([
+            'status' => true,
+            'data' => $invites
+        ]);
+    }
+    // Expire old invites automatically (example endpoint)
+    public function expireOldInvites()
+    {
+        // Define the conditions
+        $conditions = [
+            'status' => 0,
+            'requested_at <' => date('Y-m-d H:i:s', strtotime('-7 days'))
+        ];
+
+        // Count matching invites first
+        $count = $this->inviteModel->where($conditions)->countAllResults();
+
+        // Then update them
+        if ($count > 0) {
+            $this->inviteModel->where($conditions)->set(['status' => 3])->update();
+        }
+
+        return $this->response->setJSON([
+            'status' => true,
+            'message' => $count . ' pending invite(s) expired successfully.'
+        ]);
+    }
+
+
+}

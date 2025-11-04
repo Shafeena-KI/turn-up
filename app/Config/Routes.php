@@ -34,3 +34,12 @@ $routes->get('api/roles/(:num)', 'Api\RoleController::show/$1');
 $routes->post('api/roles/create', 'Api\RoleController::create');
 $routes->post('api/roles/update', 'Api\RoleController::update');
 $routes->delete('api/roles/delete', 'Api\RoleController::delete');
+
+
+// Event Invites
+$routes->post('api/event/invite/create', 'Api\EventInvite::createInvite');
+$routes->post('api/event/invite/update-status', 'Api\EventInvite::updateInviteStatus');
+$routes->get('api/event/invite/by-event', 'Api\EventInvite::getInvitesByEvent');
+$routes->get('api/event/invite/by-user', 'Api\EventInvite::getInvitesByUser');
+$routes->post('api/event/invite/expire-old', 'Api\EventInvite::expireOldInvites');
+
