@@ -18,6 +18,11 @@ $routes->post('api/user/register', 'Api\AppUser::register');
 $routes->post('api/user/getuser', 'Api\AppUser::getUserById');
 $routes->post('api/user/update', 'Api\AppUser::updateUser');
 $routes->post('api/user/delete', 'Api\AppUser::deleteUser');
+$routes->get('api/user/list', 'Api\AppUser::listUsers');
+$routes->post('api/user/profile-status', 'Api\AppUser::updateProfileStatus');
+$routes->post('api/user/account-status', 'Api\AppUser::updateAccountStatus');
+
+
 
 
 //Event Api 
