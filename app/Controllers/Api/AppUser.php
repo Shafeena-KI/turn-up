@@ -315,5 +315,161 @@ class AppUser extends BaseController
             'message' => 'User deleted successfully.'
         ]);
     }
+    // listing users, deleted users are not bieng listed
+    public function listUsers()
+    {
+        $page   = (int) $this->request->getGet('page') ?: 1;
+        $limit  = (int) $this->request->getGet('limit') ?: 10;
+        $search = trim($this->request->getGet('search') ?? '');
+
+        $offset = ($page - 1) * $limit;
+
+        // Base query
+        $builder = $this->appUserModel
+            ->where('status !=', 4); // exclude deleted users
+
+        // Apply search filter
+        if (!empty($search)) {
+            $builder->groupStart()
+                ->like('name', $search)
+                ->orLike('email', $search)
+                ->orLike('phone', $search)
+                ->groupEnd();
+        }
+
+        // Count total records
+        $total = $builder->countAllResults(false); // false → don’t reset query
+
+        // Apply pagination
+        $users = $builder
+            ->orderBy('user_id', 'DESC')
+            ->findAll($limit, $offset);
+
+        // Format image URLs
+        foreach ($users as &$user) {
+            if (!empty($user['profile_image'])) {
+                $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+            }
+        }
+
+        // Total pages
+        $totalPages = ceil($total / $limit);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'data' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'total_records' => $total,
+                'total_pages' => $totalPages,
+                'users' => $users
+            ]
+        ]);
+    }
+    //profile status 
+    public function updateProfileStatus()
+{
+    $userId = $this->request->getVar('user_id');
+    $status = $this->request->getVar('profile_status');
+
+    // Validate input
+    if (empty($userId) || empty($status)) {
+        return $this->response->setJSON([
+            'status' => 400,
+            'success' => false,
+            'message' => 'User ID and profile status are required'
+        ]);
+    }
+
+    // Ensure valid status values (1=pending, 2=verified, 3=rejected)
+    if (!in_array($status, [1, 2, 3])) {
+        return $this->response->setJSON([
+            'status' => 400,
+            'success' => false,
+            'message' => 'Invalid profile status value'
+        ]);
+    }
+
+    // Check if user exists
+    $user = $this->appUserModel->find($userId);
+    if (!$user) {
+        return $this->response->setJSON([
+            'status' => 404,
+            'success' => false,
+            'message' => 'User not found'
+        ]);
+    }
+
+    // Update profile status
+    $update = $this->appUserModel->update($userId, ['profile_status' => $status]);
+
+    if ($update) {
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Profile status updated successfully'
+        ]);
+    }
+
+    return $this->response->setJSON([
+        'status' => 500,
+        'success' => false,
+        'message' => 'Failed to update profile status'
+    ]);
+}
+//Account status Updates 
+public function updateAccountStatus()
+{
+    $userId = $this->request->getVar('user_id');
+    $status = $this->request->getVar('status');
+
+    // Validate inputs
+    if (empty($userId) || empty($status)) {
+        return $this->response->setJSON([
+            'status' => 400,
+            'success' => false,
+            'message' => 'User ID and account status are required'
+        ]);
+    }
+
+    // Ensure valid status values (1=active, 2=suspended, 3=blocked, 4=deleted)
+    if (!in_array($status, [1, 2, 3, 4])) {
+        return $this->response->setJSON([
+            'status' => 400,
+            'success' => false,
+            'message' => 'Invalid account status value'
+        ]);
+    }
+
+    // Check if user exists
+    $user = $this->appUserModel->find($userId);
+    if (!$user) {
+        return $this->response->setJSON([
+            'status' => 404,
+            'success' => false,
+            'message' => 'User not found'
+        ]);
+    }
+
+    // Update account status
+    $update = $this->appUserModel->update($userId, ['status' => $status]);
+
+    if ($update) {
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Account status updated successfully'
+        ]);
+    }
+
+    return $this->response->setJSON([
+        'status' => 500,
+        'success' => false,
+        'message' => 'Failed to update account status'
+    ]);
+}
+
+
 
 }
