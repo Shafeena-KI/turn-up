@@ -316,57 +316,55 @@ class AppUser extends BaseController
         ]);
     }
     // listing users, deleted users are not bieng listed
-    public function listUsers()
-    {
-        $page   = (int) $this->request->getGet('page') ?: 1;
-        $limit  = (int) $this->request->getGet('limit') ?: 10;
-        $search = trim($this->request->getGet('search') ?? '');
+public function listUsers($search = '')
+{
+    $page   = (int) $this->request->getGet('page') ?: 1;
+    $limit  = (int) $this->request->getGet('limit') ?: 10;
 
-        $offset = ($page - 1) * $limit;
+    $offset = ($page - 1) * $limit;
 
-        // Base query
-        $builder = $this->appUserModel
-            ->where('status !=', 4); // exclude deleted users
+    // Base query
+    $builder = $this->appUserModel->where('status !=', 4);
 
-        // Apply search filter
-        if (!empty($search)) {
-            $builder->groupStart()
-                ->like('name', $search)
-                ->orLike('email', $search)
-                ->orLike('phone', $search)
-                ->groupEnd();
-        }
-
-        // Count total records
-        $total = $builder->countAllResults(false); // false → don’t reset query
-
-        // Apply pagination
-        $users = $builder
-            ->orderBy('user_id', 'DESC')
-            ->findAll($limit, $offset);
-
-        // Format image URLs
-        foreach ($users as &$user) {
-            if (!empty($user['profile_image'])) {
-                $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
-            }
-        }
-
-        // Total pages
-        $totalPages = ceil($total / $limit);
-
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'data' => [
-                'current_page' => $page,
-                'per_page' => $limit,
-                'total_records' => $total,
-                'total_pages' => $totalPages,
-                'users' => $users
-            ]
-        ]);
+    // Apply search filter if provided
+    if (!empty($search)) {
+        $builder->groupStart()
+            ->like('name', $search)
+            ->orLike('email', $search)
+            ->orLike('location', $search)
+            ->groupEnd();
     }
+
+    // Count total results
+    $total = $builder->countAllResults(false);
+
+    // Fetch data
+    $users = $builder
+        ->orderBy('user_id', 'DESC')
+        ->findAll($limit, $offset);
+
+    // Add base URL to images
+    foreach ($users as &$user) {
+        if (!empty($user['profile_image'])) {
+            $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+        }
+    }
+
+    $totalPages = ceil($total / $limit);
+
+    return $this->response->setJSON([
+        'status' => 200,
+        'success' => true,
+        'data' => [
+            'current_page' => $page,
+            'per_page' => $limit,
+            'total_records' => $total,
+            'total_pages' => $totalPages,
+            'users' => $users
+        ]
+    ]);
+}
+
     //profile status 
     public function updateProfileStatus()
 {
