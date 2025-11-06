@@ -29,17 +29,49 @@ class RoleController extends BaseController
         return $this->response->setJSON(['status' => true, 'data' => $role]);
     }
 
+    // public function create()
+    // {
+    //     $data = $this->request->getJSON(true);
+
+    //     if (empty($data['role_name'])) {
+    //         return $this->response->setJSON(['status' => false, 'message' => 'Role name is required']);
+    //     }
+
+    //     $this->roleModel->createRole($data);
+    //     return $this->response->setJSON([
+    //         'status' => true, 
+    //         'message' => 'Role created successfully',
+    //         'data'    => $createdRole
+
+    //     ]);
+    // }
+
     public function create()
-    {
-        $data = $this->request->getJSON(true);
+{
+    // Get JSON or form data
+    $data = $this->request->getJSON(true);
 
-        if (empty($data['role_name'])) {
-            return $this->response->setJSON(['status' => false, 'message' => 'Role name is required']);
-        }
-
-        $this->roleModel->createRole($data);
-        return $this->response->setJSON(['status' => true, 'message' => 'Role created successfully']);
+    if (empty($data['role_name'])) {
+        return $this->response->setJSON([
+            'status'  => false,
+            'message' => 'Role name is required'
+        ]);
     }
+
+    // Insert the role
+    $roleId = $this->roleModel->createRole($data);
+
+    // Fetch the created record (optional but recommended)
+    $createdRole = $this->roleModel->find($roleId);
+
+    // Return success response with data
+    return $this->response->setJSON([
+        'status'  => true,
+        'message' => 'Role created successfully',
+        'data'    => $createdRole
+    ]);
+}
+
 
     public function update()
     {
