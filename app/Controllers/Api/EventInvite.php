@@ -29,7 +29,7 @@ class EventInvite extends BaseController
         $insertData = [
             'event_id' => $data['event_id'],
             'user_id' => $data['user_id'],
-            'event_type' => $data['event_type'],
+            'invite_type' => $data['invite_type'],
             'invite' => 1,
             'status' => 1, // pending/approved default
             'approval_type' => $data['approval_type'] ?? 1, // auto
@@ -39,6 +39,16 @@ class EventInvite extends BaseController
         if ($insertData['approval_type'] == 1) {
             $insertData['status'] = 1; // auto-approve
             $insertData['approved_at'] = date('Y-m-d H:i:s');
+        }
+        $exists = $this->inviteModel
+            ->where(['event_id' => $data['event_id'], 'user_id' => $data['user_id']])
+            ->countAllResults();
+
+        if ($exists > 0) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'User already invited for this event.'
+            ]);
         }
 
         $this->inviteModel->insert($insertData);
@@ -87,7 +97,9 @@ class EventInvite extends BaseController
 
     public function getInvitesByEvent()
     {
-        $event_id = $this->request->getJSON(true);
+        $json = $this->request->getJSON(true);
+        $event_id = $json['event_id'] ?? null;
+
         if (!$event_id) {
             return $this->response->setJSON([
                 'status' => false,
@@ -104,7 +116,8 @@ class EventInvite extends BaseController
 
     public function getInvitesByUser()
     {
-        $user_id = $this->request->getJSON(true);
+        $json = $this->request->getJSON(true);
+        $user_id = $json['user_id'] ?? null;
         if (!$user_id) {
             return $this->response->setJSON([
                 'status' => false,
