@@ -9,7 +9,7 @@ class EventInviteModel extends Model
     protected $primaryKey = 'invite_id';
 
     protected $allowedFields = [
-        'event_id', 'user_id', 'event_type',
+        'event_id', 'user_id', 'invite_type',
         'status', 'approval_type', 'requested_at', 'approved_at'
     ];
 
