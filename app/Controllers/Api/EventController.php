@@ -54,6 +54,7 @@ class EventController extends BaseController
             'tag_id'            => $this->request->getVar('tag_id'),
             'total_seats'       => $this->request->getVar('total_seats'),
             'status'            => $this->request->getVar('status'),
+            'event_type'        => $this->request->getVar('event_type'),
             'created_by'        => $this->request->getVar('created_by'),
         ];
 
@@ -135,7 +136,7 @@ public function update()
     $fields = [
         'event_name', 'event_description', 'event_location', 'event_map',
         'event_date_start', 'event_date_end', 'dress_code', 'age_limit',
-        'host_id', 'tag_id', 'total_seats', 'status'
+        'host_id', 'tag_id', 'total_seats', 'status', 'event_type'
     ];
 
     $data = [];

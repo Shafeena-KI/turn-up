@@ -22,6 +22,7 @@ class EventModel extends Model
         'gallery_images',
         'total_seats',
         'status',
+        'event_type',
         'created_by',
         'created_at',
         'updated_at'
