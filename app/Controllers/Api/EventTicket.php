@@ -33,7 +33,7 @@ class EventTicket extends BaseController
         $dummy_booked_seats = isset($data['dummy_booked_seats']) ? (int) $data['dummy_booked_seats'] : 0;
         $total_seats = (int) $data['total_seats'];
 
-        // ✅ Calculate balance seats
+        //Calculate balance seats
         $balance_seats = $total_seats - ($actual_booked_seats + $dummy_booked_seats);
         if ($balance_seats < 0)
             $balance_seats = 0; // prevent negative
@@ -115,14 +115,14 @@ class EventTicket extends BaseController
 
         $updateData = [];
 
-        // ✅ Allow updates for all fields
+        // Allow updates for all fields
         foreach (['ticket_category', 'total_seats', 'ticket_price', 'status', 'actual_booked_seats', 'dummy_booked_seats'] as $field) {
             if (isset($data[$field])) {
                 $updateData[$field] = $data[$field];
             }
         }
 
-        // ✅ Calculate balance seats accurately
+        // Calculate balance seats accurately
         $total_seats = $updateData['total_seats'] ?? $ticket['total_seats'];
         $actual_booked_seats = $updateData['actual_booked_seats'] ?? $ticket['actual_booked_seats'];
         $dummy_booked_seats = $updateData['dummy_booked_seats'] ?? $ticket['dummy_booked_seats'];

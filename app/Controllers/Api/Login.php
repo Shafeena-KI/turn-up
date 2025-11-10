@@ -33,7 +33,6 @@ class Login extends BaseController
                     'message' => 'Email and Password are required.'
                 ]);
             }
-
             $result = $this->adminModel->verifyAdmin($email, $password);
             if (isset($result['error']) && $result['error'] === true) {
                 return $this->response->setJSON([
@@ -42,7 +41,6 @@ class Login extends BaseController
                     'message' => $result['message']
                 ]);
             }
-
             $admin = $result['data'];
 
             // Use .env secret key
