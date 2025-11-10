@@ -121,61 +121,145 @@ class AppUser extends BaseController
     public function UserLogin()
     {
         $data = $this->request->getJSON(true);
+        $phone = $data['phone'] ?? $this->request->getPost('phone');
 
-        $email = $data['email'] ?? $this->request->getPost('email');
-        $password = $data['password'] ?? $this->request->getPost('password');
-
-        if (empty($email) || empty($password)) {
+        if (empty($phone)) {
             return $this->response->setJSON([
                 'status' => 400,
                 'success' => false,
-                'message' => 'Email and Password are required.'
+                'message' => 'Phone number is required.'
             ]);
         }
 
-        $result = $this->appUserModel->verifyUser($email, $password);
+        // Check if user exists
+        $user = $this->appUserModel->where('phone', $phone)->first();
 
-        if (isset($result['error']) && $result['error'] === true) {
+        // Generate OTP
+        $otp = rand(100000, 999999);
+
+        if ($user) {
+            // Update existing user OTP
+            $this->appUserModel->update($user['user_id'], [
+                'otp' => $otp,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+        } else {
+            // Register new user with phone only
+            $this->appUserModel->insert([
+                'phone' => $phone,
+                'otp' => $otp,
+                'profile_status' => 1,
+                'status' => 1,
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+            $user['user_id'] = $this->appUserModel->getInsertID();
+        }
+
+        // ✅ Send OTP via WhatsApp (TurboDev Webhook)
+        $this->sendWhatsAppOtp($phone, $otp);
+
+        // ✅ (Optional) Send OTP via SMS
+        // $this->sendSmsOtp($phone, $otp);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'OTP sent successfully. Please verify OTP to continue.',
+            'data' => [
+                'user_id' => $user['user_id'],
+                'otp' => $otp // ⚠️ For testing only — remove in production
+            ]
+        ]);
+    }
+    public function verifyOtp()
+    {
+        $data = $this->request->getJSON(true);
+        $phone = $data['phone'] ?? $this->request->getPost('phone');
+        $otp = $data['otp'] ?? $this->request->getPost('otp');
+
+        if (empty($phone) || empty($otp)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Phone and OTP are required.'
+            ]);
+        }
+
+        $user = $this->appUserModel->where('phone', $phone)->first();
+
+        if (!$user) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'User not found.'
+            ]);
+        }
+
+        if ($user['otp'] != $otp) {
             return $this->response->setJSON([
                 'status' => 401,
                 'success' => false,
-                'message' => $result['message']
+                'message' => 'Invalid OTP.'
             ]);
         }
 
-        $user = $result['data'];
+        // Generate login token
+        $token = bin2hex(random_bytes(16));
 
-        // Create JWT Token
-        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+        // Clear OTP after verification
+        $this->appUserModel->update($user['user_id'], [
+            'otp' => null,
+            'token' => $token,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
 
-        $payload = [
-            'iss' => 'turn-up',
-            'iat' => time(),
-            'exp' => time() + 3600,   // Expiration (1 hour)
-            'data' => [
-                'user_id' => $user['user_id'],
-                'email' => $user['email']
-            ]
-        ];
-
-        $token = JWT::encode($payload, $key, 'HS256');
-
-        // Update token in DB
-        if (!empty($user['user_id'])) {
-            $this->appUserModel->update($user['user_id'], ['token' => $token, 'updated_at' => date('Y-m-d H:i:s')]);
-        }
-
-        // Remove password before sending response
         unset($user['password']);
 
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'Login Successful',
-            'data' => $user,
-            'token' => $token
+            'message' => 'Login successful.',
+            'token' => $token,
+            'data' => $user
         ]);
     }
+    private function sendWhatsAppOtp($phone, $otp)
+    {
+        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute";
+
+        $payload = [
+            "to" => "91" . $phone,
+            "type" => "template",
+            "template" => [
+                "name" => "login_template",
+                "language" => "en",
+                "components" => [
+                    [
+                        "type" => "body",
+                        "parameters" => [
+                            ["type" => "text", "text" => $name ?? 'User'],
+                            ["type" => "text", "text" => $otp],
+                            ["type" => "text", "text" => "5"],
+                            ["type" => "text", "text" => "TURN UP"]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return json_decode($response, true);
+    }
+
+
     public function getUserById()
     {
         $user_id = $this->request->getJSON(true);
@@ -316,157 +400,157 @@ class AppUser extends BaseController
         ]);
     }
     // listing users, deleted users are not bieng listed
-public function listUsers($search = '')
-{
-    $page   = (int) $this->request->getGet('page') ?: 1;
-    $limit  = (int) $this->request->getGet('limit') ?: 10;
+    public function listUsers($search = '')
+    {
+        $page = (int) $this->request->getGet('page') ?: 1;
+        $limit = (int) $this->request->getGet('limit') ?: 10;
 
-    $offset = ($page - 1) * $limit;
+        $offset = ($page - 1) * $limit;
 
-    // Base query
-    $builder = $this->appUserModel->where('status !=', 4);
+        // Base query
+        $builder = $this->appUserModel->where('status !=', 4);
 
-    // Apply search filter if provided
-    if (!empty($search)) {
-        $builder->groupStart()
-            ->like('name', $search)
-            ->orLike('email', $search)
-            ->orLike('location', $search)
-            ->groupEnd();
-    }
-
-    // Count total results
-    $total = $builder->countAllResults(false);
-
-    // Fetch data
-    $users = $builder
-        ->orderBy('user_id', 'DESC')
-        ->findAll($limit, $offset);
-
-    // Add base URL to images
-    foreach ($users as &$user) {
-        if (!empty($user['profile_image'])) {
-            $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+        // Apply search filter if provided
+        if (!empty($search)) {
+            $builder->groupStart()
+                ->like('name', $search)
+                ->orLike('email', $search)
+                ->orLike('location', $search)
+                ->groupEnd();
         }
+
+        // Count total results
+        $total = $builder->countAllResults(false);
+
+        // Fetch data
+        $users = $builder
+            ->orderBy('user_id', 'DESC')
+            ->findAll($limit, $offset);
+
+        // Add base URL to images
+        foreach ($users as &$user) {
+            if (!empty($user['profile_image'])) {
+                $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+            }
+        }
+
+        $totalPages = ceil($total / $limit);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'data' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'total_records' => $total,
+                'total_pages' => $totalPages,
+                'users' => $users
+            ]
+        ]);
     }
-
-    $totalPages = ceil($total / $limit);
-
-    return $this->response->setJSON([
-        'status' => 200,
-        'success' => true,
-        'data' => [
-            'current_page' => $page,
-            'per_page' => $limit,
-            'total_records' => $total,
-            'total_pages' => $totalPages,
-            'users' => $users
-        ]
-    ]);
-}
 
     //profile status 
     public function updateProfileStatus()
-{
-    $userId = $this->request->getVar('user_id');
-    $status = $this->request->getVar('profile_status');
+    {
+        $userId = $this->request->getVar('user_id');
+        $status = $this->request->getVar('profile_status');
 
-    // Validate input
-    if (empty($userId) || empty($status)) {
+        // Validate input
+        if (empty($userId) || empty($status)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'User ID and profile status are required'
+            ]);
+        }
+
+        // Ensure valid status values (1=pending, 2=verified, 3=rejected)
+        if (!in_array($status, [1, 2, 3])) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Invalid profile status value'
+            ]);
+        }
+
+        // Check if user exists
+        $user = $this->appUserModel->find($userId);
+        if (!$user) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'User not found'
+            ]);
+        }
+
+        // Update profile status
+        $update = $this->appUserModel->update($userId, ['profile_status' => $status]);
+
+        if ($update) {
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Profile status updated successfully'
+            ]);
+        }
+
         return $this->response->setJSON([
-            'status' => 400,
+            'status' => 500,
             'success' => false,
-            'message' => 'User ID and profile status are required'
+            'message' => 'Failed to update profile status'
         ]);
     }
+    //Account status Updates 
+    public function updateAccountStatus()
+    {
+        $userId = $this->request->getVar('user_id');
+        $status = $this->request->getVar('status');
 
-    // Ensure valid status values (1=pending, 2=verified, 3=rejected)
-    if (!in_array($status, [1, 2, 3])) {
+        // Validate inputs
+        if (empty($userId) || empty($status)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'User ID and account status are required'
+            ]);
+        }
+
+        // Ensure valid status values (1=active, 2=suspended, 3=blocked, 4=deleted)
+        if (!in_array($status, [1, 2, 3, 4])) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Invalid account status value'
+            ]);
+        }
+
+        // Check if user exists
+        $user = $this->appUserModel->find($userId);
+        if (!$user) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'User not found'
+            ]);
+        }
+
+        // Update account status
+        $update = $this->appUserModel->update($userId, ['status' => $status]);
+
+        if ($update) {
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Account status updated successfully'
+            ]);
+        }
+
         return $this->response->setJSON([
-            'status' => 400,
+            'status' => 500,
             'success' => false,
-            'message' => 'Invalid profile status value'
+            'message' => 'Failed to update account status'
         ]);
     }
-
-    // Check if user exists
-    $user = $this->appUserModel->find($userId);
-    if (!$user) {
-        return $this->response->setJSON([
-            'status' => 404,
-            'success' => false,
-            'message' => 'User not found'
-        ]);
-    }
-
-    // Update profile status
-    $update = $this->appUserModel->update($userId, ['profile_status' => $status]);
-
-    if ($update) {
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Profile status updated successfully'
-        ]);
-    }
-
-    return $this->response->setJSON([
-        'status' => 500,
-        'success' => false,
-        'message' => 'Failed to update profile status'
-    ]);
-}
-//Account status Updates 
-public function updateAccountStatus()
-{
-    $userId = $this->request->getVar('user_id');
-    $status = $this->request->getVar('status');
-
-    // Validate inputs
-    if (empty($userId) || empty($status)) {
-        return $this->response->setJSON([
-            'status' => 400,
-            'success' => false,
-            'message' => 'User ID and account status are required'
-        ]);
-    }
-
-    // Ensure valid status values (1=active, 2=suspended, 3=blocked, 4=deleted)
-    if (!in_array($status, [1, 2, 3, 4])) {
-        return $this->response->setJSON([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Invalid account status value'
-        ]);
-    }
-
-    // Check if user exists
-    $user = $this->appUserModel->find($userId);
-    if (!$user) {
-        return $this->response->setJSON([
-            'status' => 404,
-            'success' => false,
-            'message' => 'User not found'
-        ]);
-    }
-
-    // Update account status
-    $update = $this->appUserModel->update($userId, ['status' => $status]);
-
-    if ($update) {
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Account status updated successfully'
-        ]);
-    }
-
-    return $this->response->setJSON([
-        'status' => 500,
-        'success' => false,
-        'message' => 'Failed to update account status'
-    ]);
-}
 
 
 

@@ -12,6 +12,7 @@ $routes->post('api/admin/login', 'Api\Login::adminLogin');
 
 //user login
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
+$routes->post('api/user/verifyotp', 'Api\AppUser::verifyOtp');
 
 //registration/user management
 $routes->post('api/user/register', 'Api\AppUser::register');
