@@ -155,22 +155,21 @@ class AppUser extends BaseController
             $user['user_id'] = $this->appUserModel->getInsertID();
         }
 
-        // ✅ Send OTP via WhatsApp (TurboDev Webhook)
-        $this->sendWhatsAppOtp($phone, $otp);
-
-        // ✅ (Optional) Send OTP via SMS
-        // $this->sendSmsOtp($phone, $otp);
+        // Send OTP via WhatsApp
+        $whatsappResponse = $this->sendWhatsAppOtp($phone, $otp);
 
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'OTP sent successfully. Please verify OTP to continue.',
+            'message' => 'OTP sent successfully via WhatsApp. Please verify OTP to continue.',
             'data' => [
                 'user_id' => $user['user_id'],
-                'otp' => $otp // ⚠️ For testing only — remove in production
+                'otp' => $otp, // for testing only
+                'whatsapp_response' => $whatsappResponse
             ]
         ]);
     }
+
     public function verifyOtp()
     {
         $data = $this->request->getJSON(true);
@@ -226,25 +225,14 @@ class AppUser extends BaseController
     private function sendWhatsAppOtp($phone, $otp)
     {
         $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute";
+        if (strpos($phone, '+91') !== 0) {
+            $phone = '+91' . ltrim($phone, '0');
+        }
 
         $payload = [
-            "to" => "91" . $phone,
-            "type" => "template",
-            "template" => [
-                "name" => "login_template",
-                "language" => "en",
-                "components" => [
-                    [
-                        "type" => "body",
-                        "parameters" => [
-                            ["type" => "text", "text" => $name ?? 'User'],
-                            ["type" => "text", "text" => $otp],
-                            ["type" => "text", "text" => "5"],
-                            ["type" => "text", "text" => "TURN UP"]
-                        ]
-                    ]
-                ]
-            ]
+            "phone" => $phone,
+            "name" => "Test",
+            "otp" => (string) $otp
         ];
 
 
@@ -253,9 +241,20 @@ class AppUser extends BaseController
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        $response = curl_exec($ch);
-        curl_close($ch);
 
+        // TEMPORARY FIX — disable SSL certificate verification
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+        $response = curl_exec($ch);
+
+        if (curl_errno($ch)) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            return ["success" => false, "error" => $error];
+        }
+
+        curl_close($ch);
         return json_decode($response, true);
     }
 
