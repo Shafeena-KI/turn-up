@@ -31,6 +31,7 @@ class EventTicket extends BaseController
 
         $actual_booked_seats = isset($data['actual_booked_seats']) ? (int) $data['actual_booked_seats'] : 0;
         $dummy_booked_seats = isset($data['dummy_booked_seats']) ? (int) $data['dummy_booked_seats'] : 0;
+        $dummy_invites = isset($data['dummy_invites']) ? (int) $data['dummy_invites'] : 0;
         $total_seats = (int) $data['total_seats'];
 
         //Calculate balance seats
@@ -44,6 +45,7 @@ class EventTicket extends BaseController
             'total_seats' => $total_seats,
             'actual_booked_seats' => $actual_booked_seats,
             'dummy_booked_seats' => $dummy_booked_seats,
+            'dummy_invites' => $dummy_invites,
             'balance_seats' => $balance_seats,
             'ticket_price' => $data['ticket_price'],
             'status' => 1, // active by default
