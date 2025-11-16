@@ -11,6 +11,7 @@ class EventModel extends Model
         'event_name',
         'event_description',
         'event_location',
+        'event_city',
         'event_map',
         'event_date_start',
         'event_time_start',

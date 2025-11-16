@@ -30,16 +30,9 @@ class EventInvite extends BaseController
             'event_id' => $data['event_id'],
             'user_id' => $data['user_id'],
             'invite_type' => $data['invite_type'],
-            'invite' => 1,
-            'status' => 1, // pending/approved default
-            'approval_type' => $data['approval_type'] ?? 1, // auto
+            'status' => 0, 
             'requested_at' => date('Y-m-d H:i:s'),
         ];
-
-        if ($insertData['approval_type'] == 1) {
-            $insertData['status'] = 1; // auto-approve
-            $insertData['approved_at'] = date('Y-m-d H:i:s');
-        }
         $exists = $this->inviteModel
             ->where(['event_id' => $data['event_id'], 'user_id' => $data['user_id']])
             ->countAllResults();
