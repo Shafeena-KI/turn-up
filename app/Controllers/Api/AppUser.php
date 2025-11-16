@@ -148,7 +148,7 @@ class AppUser extends BaseController
             $this->appUserModel->insert([
                 'phone' => $phone,
                 'otp' => $otp,
-                'profile_status' => 1,
+                'profile_status' => 0,
                 'status' => 1,
                 'created_at' => date('Y-m-d H:i:s')
             ]);
@@ -172,55 +172,81 @@ class AppUser extends BaseController
 
     public function verifyOtp()
     {
-        $data = $this->request->getJSON(true);
-        $phone = $data['phone'] ?? $this->request->getPost('phone');
-        $otp = $data['otp'] ?? $this->request->getPost('otp');
+        try {
+            $data = $this->request->getJSON(true) ?? $this->request->getPost();
 
-        if (empty($phone) || empty($otp)) {
+            $phone = trim($data['phone'] ?? '');
+            $otp = trim($data['otp'] ?? '');
+
+            if (empty($phone) || empty($otp)) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'Phone and OTP are required.'
+                ]);
+            }
+
+            // Fetch user by phone
+            $user = $this->appUserModel->where('phone', $phone)->first();
+
+            if (!$user) {
+                return $this->response->setJSON([
+                    'status' => 404,
+                    'success' => false,
+                    'message' => 'User not found.'
+                ]);
+            }
+
+            // Verify OTP
+            if ((string) $user['otp'] !== (string) $otp) {
+                return $this->response->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Invalid OTP.'
+                ]);
+            }
+
+            // Generate JWT Token (same format as adminLogin)
+            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+            $payload = [
+                'iss' => 'turn-up',           // Issuer
+                'iat' => time(),              // Issued at
+                'exp' => time() + 3600,       // Expires in 1 hour
+                'data' => [
+                    'user_id' => $user['user_id'],
+                    'phone' => $user['phone']
+                ]
+            ];
+
+            $token = \Firebase\JWT\JWT::encode($payload, $key, 'HS256');
+
+            // Clear OTP and update token
+            $this->appUserModel->update($user['user_id'], [
+                'otp' => null,
+                'token' => $token,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+
+            unset($user['password']); // Remove sensitive data
+            $user['token'] = $token;  // Include token in response
+
             return $this->response->setJSON([
-                'status' => 400,
+                'status' => 200,
+                'success' => true,
+                'message' => 'Login successful.',
+                'token' => $token,
+                'data' => $user
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', 'OTP Verification Error: ' . $e->getMessage());
+
+            return $this->response->setJSON([
+                'status' => 500,
                 'success' => false,
-                'message' => 'Phone and OTP are required.'
+                'message' => 'Internal Server Error: ' . $e->getMessage()
             ]);
         }
-
-        $user = $this->appUserModel->where('phone', $phone)->first();
-
-        if (!$user) {
-            return $this->response->setJSON([
-                'status' => 404,
-                'success' => false,
-                'message' => 'User not found.'
-            ]);
-        }
-
-        if ($user['otp'] != $otp) {
-            return $this->response->setJSON([
-                'status' => 401,
-                'success' => false,
-                'message' => 'Invalid OTP.'
-            ]);
-        }
-
-        // Generate login token
-        $token = bin2hex(random_bytes(16));
-
-        // Clear OTP after verification
-        $this->appUserModel->update($user['user_id'], [
-            'otp' => null,
-            'token' => $token,
-            'updated_at' => date('Y-m-d H:i:s')
-        ]);
-
-        unset($user['password']);
-
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Login successful.',
-            'token' => $token,
-            'data' => $user
-        ]);
     }
     private function sendWhatsAppOtp($phone, $otp)
     {
@@ -258,7 +284,6 @@ class AppUser extends BaseController
         return json_decode($response, true);
     }
 
-
     public function getUserById()
     {
         $user_id = $this->request->getJSON(true);
@@ -293,7 +318,7 @@ class AppUser extends BaseController
         ]);
     }
     // UPDATE USER DETAILS
-    public function updateUser()
+    public function completeProfile()
     {
         $data = $this->request->getPost();
         $user_id = $data['user_id'] ?? null;
@@ -306,6 +331,7 @@ class AppUser extends BaseController
             ]);
         }
 
+        // Find existing user
         $user = $this->appUserModel->find($user_id);
         if (!$user) {
             return $this->response->setJSON([
@@ -315,10 +341,9 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Handle profile image update
+        // Handle profile image upload
         $profileImage = $user['profile_image'];
         $file = $this->request->getFile('profile_image');
-
         if ($file && $file->isValid() && !$file->hasMoved()) {
             $newName = 'user_' . time() . '.' . $file->getExtension();
             $uploadPath = FCPATH . 'public/uploads/profile_images/';
@@ -335,13 +360,27 @@ class AppUser extends BaseController
             }
         }
 
-        // If password is sent, hash it
-        if (!empty($data['password'])) {
-            $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
-        } else {
-            unset($data['password']);
-        }
+        // ✅ Calculate profile score dynamically
+        $profile_score = 0;
 
+        if (!empty($data['phone']) || !empty($user['phone']))
+            $profile_score += 25; // phone verified
+        if (!empty($data['insta_id']) || !empty($user['insta_id']))
+            $profile_score += 20; // instagram added
+        if (!empty($data['email']) || !empty($user['email']))
+            $profile_score += 15; // email verified
+        if (!empty($profileImage))
+            $profile_score += 10; // profile image uploaded
+        if (!empty($data['interest_id']) || !empty($user['interest_id']))
+            $profile_score += 10; // interest selected
+        if (!empty($data['linkedin_id']) || !empty($user['linkedin_id']))
+            $profile_score += 5; // linkedin added
+        if (!empty($data['location']) && strtolower($data['location']) === 'kochi')
+            $profile_score += 10; // Kochi verified
+        if (!empty($data['dob']) || !empty($user['dob']))
+            $profile_score += 5; // DOB added
+
+        // Prepare data for update
         $updateData = [
             'name' => $data['name'] ?? $user['name'],
             'gender' => $data['gender'] ?? $user['gender'],
@@ -353,17 +392,26 @@ class AppUser extends BaseController
             'location' => $data['location'] ?? $user['location'],
             'interest_id' => $data['interest_id'] ?? $user['interest_id'],
             'profile_image' => $profileImage,
+            'profile_status' => 2, // Mark as completed
+            'profile_score' => $profile_score,
             'updated_at' => date('Y-m-d H:i:s')
         ];
 
+        // Update user
         $this->appUserModel->update($user_id, $updateData);
 
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'User updated successfully.'
+            'message' => 'Profile Completed successfully.',
+            'data' => [
+                'user_id' => $user_id,
+                'profile_image' => base_url('public/uploads/profile_images/' . $profileImage),
+                'profile_score' => $profile_score
+            ]
         ]);
     }
+
     // DELETE USER (soft delete)
     public function deleteUser()
     {
@@ -401,15 +449,18 @@ class AppUser extends BaseController
     // listing users, deleted users are not bieng listed
     public function listUsers($search = '')
     {
-        $page = (int) $this->request->getGet('page') ?: 1;
-        $limit = (int) $this->request->getGet('limit') ?: 10;
+        $page = (int) $this->request->getGet('current_page') ?: 1;
+        $limit = (int) $this->request->getGet('per_page') ?: 10;
+
+        // Accept both keyword and search
+        $search = $this->request->getGet('keyword') ?? $this->request->getGet('search');
 
         $offset = ($page - 1) * $limit;
 
         // Base query
         $builder = $this->appUserModel->where('status !=', 4);
 
-        // Apply search filter if provided
+        // Apply search filter
         if (!empty($search)) {
             $builder->groupStart()
                 ->like('name', $search)
@@ -441,12 +492,14 @@ class AppUser extends BaseController
             'data' => [
                 'current_page' => $page,
                 'per_page' => $limit,
+                'keyword' => $search,
                 'total_records' => $total,
                 'total_pages' => $totalPages,
                 'users' => $users
             ]
         ]);
     }
+
 
     //profile status 
     public function updateProfileStatus()
