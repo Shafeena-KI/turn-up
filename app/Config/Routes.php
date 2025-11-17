@@ -50,6 +50,9 @@ $routes->post('api/event/invite/update-status', 'Api\EventInvite::updateInviteSt
 $routes->post('api/event/invite/by-event', 'Api\EventInvite::getInvitesByEvent');
 $routes->post('api/event/invite/by-user', 'Api\EventInvite::getInvitesByUser');
 $routes->post('api/event/invite/expire-old', 'Api\EventInvite::expireOldInvites');
+$routes->get('api/event/invites', 'Api\EventInvite::listInvites'); 
+$routes->get('api/event/invites/(:any)', 'Api\EventInvite::listInvites/$1'); 
+
 
 // Event Category
  $routes->post('api/category/create', 'Api\EventCategory::createCategory');

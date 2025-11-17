@@ -14,12 +14,15 @@ class Login extends BaseController
 
     public function __construct()
     {
+        header('Access-Control-Allow-Origin: *');
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->adminModel = new AdminModel();
     }
 
     public function adminLogin()
     {
-        
+
         try {
             $data = $this->request->getJSON(true);
 
@@ -47,8 +50,8 @@ class Login extends BaseController
             $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
 
             $payload = [
-                'iss' => 'turn-up',            
-                'iat' => time(),              
+                'iss' => 'turn-up',
+                'iat' => time(),
                 'exp' => time() + 3600,         // Expiration time (1 hour)
                 'data' => [
                     'admin_id' => $admin['admin_id'],
@@ -72,7 +75,7 @@ class Login extends BaseController
                 'data' => $admin,
                 'message' => 'Login successful',
                 'token' => $token,
-              
+
             ]);
         } catch (\Throwable $e) {
             return $this->response->setJSON([

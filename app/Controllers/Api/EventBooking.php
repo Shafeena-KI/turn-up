@@ -4,39 +4,42 @@ namespace App\Controllers\Api;
 use App\Controllers\BaseController;
 use App\Models\Api\EventBookingModel;
 use App\Models\Api\EventInviteModel;
-use App\Models\Api\EventTicketModel;
+use App\Models\Api\EventCategoryModel;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class EventBooking extends BaseController
 {
     protected $bookingModel;
     protected $inviteModel;
-    protected $ticketModel;
+    protected $categoryModel;
 
     public function __construct()
     {
+        header('Access-Control-Allow-Origin: *');
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->bookingModel = new EventBookingModel();
         $this->inviteModel = new EventInviteModel();
-        $this->ticketModel = new EventTicketModel();
+        $this->categoryModel = new EventCategoryModel();
     }
 
-    // ✅ Create Booking
+    // Create Booking
     public function createBooking()
     {
         $data = $this->request->getJSON(true);
 
-        if (empty($data['user_id']) || empty($data['event_id']) || empty($data['ticket_id']) || empty($data['invite_id'])) {
+        if (empty($data['user_id']) || empty($data['event_id']) || empty($data['category_id']) || empty($data['invite_id'])) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST)
                 ->setJSON([
                     'status' => false,
-                    'message' => 'user_id, event_id, ticket_id, and invite_id are required.'
+                    'message' => 'user_id, event_id, category_id, and invite_id are required.'
                 ]);
         }
 
-        // 1️⃣ Verify Invite
+        // Verify Approved Invite
         $invite = $this->inviteModel
             ->where('invite_id', $data['invite_id'])
-            ->where('status', 1) // only approved invites
+            ->where('status', 1)
             ->first();
 
         if (!$invite) {
@@ -46,7 +49,7 @@ class EventBooking extends BaseController
             ]);
         }
 
-        // 2️⃣ Check if user already booked
+        // Check duplicate booking
         $existing = $this->bookingModel
             ->where('user_id', $data['user_id'])
             ->where('event_id', $data['event_id'])
@@ -60,45 +63,49 @@ class EventBooking extends BaseController
             ]);
         }
 
-        // 3️⃣ Check Ticket Availability
-        $ticket = $this->ticketModel->find($data['ticket_id']);
-        if (!$ticket || $ticket['status'] != 1) {
+        // Check Ticket Category Availability
+        $category = $this->categoryModel->find($data['category_id']);
+        if (!$category || $category['status'] != 1) {
             return $this->response->setJSON([
                 'status' => false,
-                'message' => 'Invalid or inactive ticket.'
+                'message' => 'Invalid or inactive ticket category.'
             ]);
         }
 
-        if ($ticket['balance_seats'] <= 0) {
+        if ($category['balance_seats'] <= 0) {
             return $this->response->setJSON([
                 'status' => false,
                 'message' => 'No seats available for this ticket category.'
             ]);
         }
 
-        // 4️⃣ Calculate Total & Create Booking
-        $quantity = 1; // only 1 booking per user
-        $total_price = $ticket['ticket_price'] * $quantity;
+        // One booking = 1 quantity
+        $quantity = 1;
+        $total_price = $category['price'] * $quantity;
 
+        // Automatically set booking_type
+        $bookingType = "OFFLINE";  // fixed for now
+
+        // Save Booking
         $insertData = [
             'user_id' => $data['user_id'],
             'event_id' => $data['event_id'],
-            'ticket_id' => $data['ticket_id'],
+            'category_id' => $data['category_id'],
             'invite_id' => $data['invite_id'],
-            'booking_type' => $data['booking_type'] ?? 'NORMAL',
+            'booking_type' => $bookingType, // no user input allowed
             'total_price' => $total_price,
             'quantity' => $quantity,
-            'status' => 1, // booked
+            'status' => 1,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s')
         ];
 
         $this->bookingModel->insert($insertData);
 
-        // 5️⃣ Update Ticket availability
-        $this->ticketModel->update($data['ticket_id'], [
-            'actual_booked_seats' => $ticket['actual_booked_seats'] + 1,
-            'balance_seats' => $ticket['balance_seats'] - 1,
+        // Reduce Available Seat
+        $this->categoryModel->update($data['category_id'], [
+            'actual_booked_seats' => $category['actual_booked_seats'] + 1,
+            'balance_seats' => $category['balance_seats'] - 1,
         ]);
 
         return $this->response->setJSON([
@@ -108,7 +115,8 @@ class EventBooking extends BaseController
         ]);
     }
 
-    // ✅ Get all bookings by Event
+
+    // Get all bookings by Event
     public function getBookingsByEvent()
     {
         $data = $this->request->getJSON(true);
@@ -129,7 +137,7 @@ class EventBooking extends BaseController
         ]);
     }
 
-    // ✅ Get all bookings by User
+    // Get all bookings by User
     public function getBookingsByUser()
     {
         $data = $this->request->getJSON(true);
@@ -150,7 +158,7 @@ class EventBooking extends BaseController
         ]);
     }
 
-    // ✅ Cancel Booking
+    // Cancel Booking
     public function cancelBooking()
     {
         $data = $this->request->getJSON(true);
@@ -185,11 +193,11 @@ class EventBooking extends BaseController
         ]);
 
         // Restore seat to ticket
-        $ticket = $this->ticketModel->find($booking['ticket_id']);
-        if ($ticket) {
-            $this->ticketModel->update($ticket['ticket_id'], [
-                'actual_booked_seats' => max(0, $ticket['actual_booked_seats'] - 1),
-                'balance_seats' => $ticket['balance_seats'] + 1,
+        $category = $this->categoryModel->find($booking['category_id']);
+        if ($category) {
+            $this->categoryModel->update($category['category_id'], [
+                'actual_booked_seats' => max(0, $category['actual_booked_seats'] - 1),
+                'balance_seats' => $category['balance_seats'] + 1,
             ]);
         }
 

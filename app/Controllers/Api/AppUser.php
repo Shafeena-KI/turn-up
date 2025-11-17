@@ -11,6 +11,9 @@ class AppUser extends BaseController
 
     public function __construct()
     {
+        header('Access-Control-Allow-Origin: *');
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->appUserModel = new AppUserModel();
     }
 
@@ -603,7 +606,4 @@ class AppUser extends BaseController
             'message' => 'Failed to update account status'
         ]);
     }
-
-
-
 }
