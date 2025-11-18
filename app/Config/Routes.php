@@ -52,6 +52,7 @@ $routes->post('api/event/invite/by-user', 'Api\EventInvite::getInvitesByUser');
 $routes->post('api/event/invite/expire-old', 'Api\EventInvite::expireOldInvites');
 $routes->get('api/event/invites', 'Api\EventInvite::listInvites'); 
 $routes->get('api/event/invites/(:any)', 'Api\EventInvite::listInvites/$1'); 
+$routes->get('api/event/totalinvitescount', 'Api\EventInvite::getAllEventInviteCounts'); 
 
 
 // Event Category
@@ -61,7 +62,9 @@ $routes->post('api/category/update', 'Api\EventCategory::updatecategory');
 $routes->post('api/category/delete', 'Api\EventCategory::deletecategory');
 
 // Event Bookings
-$routes->post('api/booking/create', 'Api\EventBooking::createBooking');
+$routes->get('api/event/booking/list', 'Api\EventBooking::listBookings');
+$routes->get('api/event/booking/list/(:any)', 'Api\EventBooking::listBookings/$1'); 
+$routes->get('api/event/totalbookingscount', 'Api\EventBooking::getAllEventBookingCounts');
 $routes->post('api/booking/event', 'Api\EventBooking::getBookingsByEvent');
 $routes->post('api/booking/user', 'Api\EventBooking::getBookingsByUser');
 $routes->post('api/booking/cancel', 'Api\EventBooking::cancelBooking');     
