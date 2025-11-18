@@ -226,7 +226,7 @@ class AppUser extends BaseController
 
             // Clear OTP and update token
             $this->appUserModel->update($user['user_id'], [
-                'otp' => null,
+                'otp' => $otp,
                 'token' => $token,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
@@ -508,27 +508,8 @@ class AppUser extends BaseController
     public function updateProfileStatus()
     {
         $userId = $this->request->getVar('user_id');
-        $status = $this->request->getVar('profile_status');
 
-        // Validate input
-        if (empty($userId) || empty($status)) {
-            return $this->response->setJSON([
-                'status' => 400,
-                'success' => false,
-                'message' => 'User ID and profile status are required'
-            ]);
-        }
-
-        // Ensure valid status values (1=pending, 2=verified, 3=rejected)
-        if (!in_array($status, [1, 2, 3])) {
-            return $this->response->setJSON([
-                'status' => 400,
-                'success' => false,
-                'message' => 'Invalid profile status value'
-            ]);
-        }
-
-        // Check if user exists
+        // Check user exists
         $user = $this->appUserModel->find($userId);
         if (!$user) {
             return $this->response->setJSON([
@@ -538,23 +519,62 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Update profile status
-        $update = $this->appUserModel->update($userId, ['profile_status' => $status]);
+        // Check mandatory fields
+        $name = $this->request->getVar('name');
+        $dob = $this->request->getVar('dob');
+        $gender = $this->request->getVar('gender');
+        $insta_id = $this->request->getVar('insta_id');
+
+        // If ANY mandatory field missing → profile incomplete
+        if (empty($name) || empty($dob) || empty($gender) || empty($insta_id)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Please complete the mandatory fields.'
+            ]);
+        }
+        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+        $payload = [
+            'iss' => 'turn-up',           // Issuer
+            'iat' => time(),              // Issued at
+            'exp' => time() + 3600,       // Expires in 1 hour
+            'data' => [
+                'user_id' => $user['user_id'],
+                'phone' => $user['phone']
+            ]
+        ];
+        $token = JWT::encode($payload, $key, 'HS256');
+        // If mandatory fields completed → change to pending (1)
+        $update = $this->appUserModel->update($userId, [
+            'name' => $name,
+            'dob' => $dob,
+            'gender' => $gender,
+            'insta_id' => $insta_id,
+            'profile_status' => 1 // pending
+        ]);
 
         if ($update) {
+
+            // Re-fetch updated data (important!)
+            $updatedUser = $this->appUserModel->find($userId);
+
             return $this->response->setJSON([
                 'status' => 200,
                 'success' => true,
-                'message' => 'Profile status updated successfully'
+                'message' => 'Profile updated successfully.',
+                'token' => $token,
+                'data' => $updatedUser   // return updated user
             ]);
         }
 
         return $this->response->setJSON([
             'status' => 500,
             'success' => false,
-            'message' => 'Failed to update profile status'
+            'message' => 'Failed to update profile'
         ]);
     }
+
     //Account status Updates 
     public function updateAccountStatus()
     {
