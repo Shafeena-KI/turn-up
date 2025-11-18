@@ -108,7 +108,9 @@ class AppUser extends BaseController
         $this->appUserModel->insert($insertData);
 
         $userId = $this->appUserModel->getInsertID();
-
+        $fullImageURL = $profileImage
+            ? base_url('uploads/profile_images/' . $profileImage)
+            : null;
         // Success Response
         return $this->response->setJSON([
             'status' => 200,
@@ -117,7 +119,8 @@ class AppUser extends BaseController
             'data' => [
                 'user_id' => $userId,
                 'otp' => $otp,// Include only for testing; hide in production
-                'profile_score' => $profile_score
+                'profile_score' => $profile_score,
+                 'profile_image' => $fullImageURL
             ]
         ]);
     }
@@ -233,7 +236,7 @@ class AppUser extends BaseController
 
             unset($user['password']); // Remove sensitive data
             $user['token'] = $token;  // Include token in response
-
+            
             return $this->response->setJSON([
                 'status' => 200,
                 'success' => true,
@@ -503,7 +506,6 @@ class AppUser extends BaseController
         ]);
     }
 
-
     //profile status 
     public function updateProfileStatus()
     {
@@ -519,52 +521,66 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Check mandatory fields
+        // Mandatory fields
         $name = $this->request->getVar('name');
         $dob = $this->request->getVar('dob');
         $gender = $this->request->getVar('gender');
         $insta_id = $this->request->getVar('insta_id');
+        $profile_image = $this->request->getFile('profile_image');
 
-        // If ANY mandatory field missing → profile incomplete
-        if (empty($name) || empty($dob) || empty($gender) || empty($insta_id)) {
+        // Mandatory validation
+        if (
+            empty($name) ||
+            empty($dob) ||
+            empty($gender) ||
+            empty($insta_id) ||
+            !$profile_image || !$profile_image->isValid()
+        ) {
             return $this->response->setJSON([
                 'status' => 400,
                 'success' => false,
-                'message' => 'Please complete the mandatory fields.'
+                'message' => 'Please complete all mandatory fields including profile image.'
             ]);
         }
-        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
 
-        $payload = [
-            'iss' => 'turn-up',           // Issuer
-            'iat' => time(),              // Issued at
-            'exp' => time() + 3600,       // Expires in 1 hour
-            'data' => [
-                'user_id' => $user['user_id'],
-                'phone' => $user['phone']
-            ]
-        ];
-        $token = JWT::encode($payload, $key, 'HS256');
-        // If mandatory fields completed → change to pending (1)
-        $update = $this->appUserModel->update($userId, [
+        // Upload image
+        $newName = 'user_' . time() . '.' . $profile_image->getExtension();
+        $profile_image->move('uploads/profile_images/', $newName);
+
+        // Base data
+        $updateData = [
             'name' => $name,
             'dob' => $dob,
             'gender' => $gender,
             'insta_id' => $insta_id,
-            'profile_status' => 1 // pending
-        ]);
+            'profile_image' => $newName,
+            'profile_status' => 1
+        ];
+
+        // Optional fields
+        $optionalFields = ['email', 'linkedin_id', 'location', 'interest_id'];
+
+        foreach ($optionalFields as $field) {
+            $value = $this->request->getVar($field);
+            if (!empty($value)) {
+                $updateData[$field] = $value;
+            }
+        }
+
+        // Update user
+        $update = $this->appUserModel->update($userId, $updateData);
 
         if ($update) {
-
-            // Re-fetch updated data (important!)
             $updatedUser = $this->appUserModel->find($userId);
+
+            // Add FULL IMAGE URL
+            $updatedUser['profile_image_url'] = base_url('uploads/profile_images/' . $updatedUser['profile_image']);
 
             return $this->response->setJSON([
                 'status' => 200,
                 'success' => true,
                 'message' => 'Profile updated successfully.',
-                'token' => $token,
-                'data' => $updatedUser   // return updated user
+                'data' => $updatedUser
             ]);
         }
 
@@ -574,6 +590,8 @@ class AppUser extends BaseController
             'message' => 'Failed to update profile'
         ]);
     }
+
+
 
     //Account status Updates 
     public function updateAccountStatus()

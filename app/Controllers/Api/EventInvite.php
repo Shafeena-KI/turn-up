@@ -433,7 +433,6 @@ class EventInvite extends BaseController
             'message' => 'Invite updated successfully.'
         ]);
     }
-
     public function getInvitesByEvent()
     {
         $json = $this->request->getJSON(true);
@@ -469,6 +468,84 @@ class EventInvite extends BaseController
             'data' => $invites
         ]);
     }
+    public function getAllEventInviteCounts()
+    {
+        $builder = $this->db->table('event_counts ec');
+        $builder->select("
+        ec.event_id,
+        e.event_name,
+        e.event_location,
+        e.event_city,
+        e.event_date_start,
+        e.event_time_start,
+        e.event_date_end,
+        e.event_time_end,
+        c.category_id,
+        c.category_name,
+        c.total_seats,
+        SUM(ec.total_invites) AS total_invites,
+        SUM(ec.total_male_invites) AS total_male,
+        SUM(ec.total_female_invites) AS total_female,
+        SUM(ec.total_couple_invites) AS total_couple
+    ");
+        $builder->join('events e', 'e.event_id = ec.event_id', 'left');
+        $builder->join('event_ticket_category c', 'c.category_id = ec.category_id', 'left');
+        $builder->groupBy('ec.event_id, ec.category_id');
+
+        $rows = $builder->get()->getResultArray();
+        $finalData = [];
+
+        foreach ($rows as $row) {
+
+            $eventId = $row['event_id'];
+            $categoryKey = strtolower($row['category_name']);
+
+            if (!isset($finalData[$eventId])) {
+                $finalData[$eventId] = [
+                    'event_id' => $eventId,
+                    'event_name' => $row['event_name'],
+                    'event_location' => $row['event_location'],
+                    'event_city' => $row['event_city'],
+                    'event_date_start' => $row['event_date_start'],
+                    'event_time_start' => $row['event_time_start'],
+                    'event_date_end' => $row['event_date_end'],
+                    'event_time_end' => $row['event_time_end'],
+
+                    'categories' => [],
+                    'overall_total' => [
+                        'total_seats' => 0,
+                        'total_invites' => 0,
+                        'total_male' => 0,
+                        'total_female' => 0,
+                        'total_couple' => 0,
+                    ]
+                ];
+            }
+
+            // CATEGORY WISE DATA
+            $finalData[$eventId]['categories'][$categoryKey] = [
+                'seats' => (int) $row['total_seats'],
+                'total_invites' => (int) $row['total_invites'],
+                'total_male' => (int) $row['total_male'],
+                'total_female' => (int) $row['total_female'],
+                'total_couple' => (int) $row['total_couple'],
+            ];
+
+            // OVERALL TOTAL CALCULATION
+            $finalData[$eventId]['overall_total']['total_seats'] += (int) $row['total_seats'];
+            $finalData[$eventId]['overall_total']['total_invites'] += (int) $row['total_invites'];
+            $finalData[$eventId]['overall_total']['total_male'] += (int) $row['total_male'];
+            $finalData[$eventId]['overall_total']['total_female'] += (int) $row['total_female'];
+            $finalData[$eventId]['overall_total']['total_couple'] += (int) $row['total_couple'];
+        }
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'message' => 'All event invite counts fetched successfully',
+            'data' => array_values($finalData)
+        ]);
+    }
+
     // Expire old invites automatically (example endpoint)
     public function expireOldInvites()
     {
