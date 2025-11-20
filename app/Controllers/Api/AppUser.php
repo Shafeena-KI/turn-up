@@ -3,6 +3,7 @@ namespace App\Controllers\Api;
 require_once ROOTPATH . 'vendor/autoload.php';
 use App\Controllers\BaseController;
 use App\Models\Api\AppUserModel;
+
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 class AppUser extends BaseController
@@ -56,7 +57,7 @@ class AppUser extends BaseController
         $file = $this->request->getFile('profile_image');
         if ($file && $file->isValid() && !$file->hasMoved()) {
             $newName = 'user_' . time() . '.' . $file->getExtension();
-            $uploadPath = FCPATH . 'public/uploads/profile_images/';
+            $uploadPath = FCPATH . 'uploads/profile_images/';
             if (!is_dir($uploadPath)) {
                 mkdir($uploadPath, 0777, true);
             }
@@ -137,44 +138,45 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Check if user exists
+        // Check existing user
         $user = $this->appUserModel->where('phone', $phone)->first();
-
-        // Generate OTP
         $otp = rand(100000, 999999);
 
         if ($user) {
-            // Update existing user OTP
+            // Only update OTP
             $this->appUserModel->update($user['user_id'], [
                 'otp' => $otp,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
         } else {
-            // Register new user with phone only
+            // New user = store phone_verified score 25
             $this->appUserModel->insert([
                 'phone' => $phone,
                 'otp' => $otp,
                 'profile_status' => 0,
+                'profile_score' => 25, // PHONE VERIFIED SCORE
                 'status' => 1,
                 'created_at' => date('Y-m-d H:i:s')
             ]);
+
             $user['user_id'] = $this->appUserModel->getInsertID();
         }
 
-        // Send OTP via WhatsApp
+        // WhatsApp OTP
         $whatsappResponse = $this->sendWhatsAppOtp($phone, $otp);
 
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'OTP sent successfully via WhatsApp. Please verify OTP to continue.',
+            'message' => 'OTP sent successfully.',
             'data' => [
                 'user_id' => $user['user_id'],
-                'otp' => $otp, // for testing only
+                'otp' => $otp,
                 'whatsapp_response' => $whatsappResponse
             ]
         ]);
     }
+
 
     public function verifyOtp()
     {
@@ -236,13 +238,20 @@ class AppUser extends BaseController
 
             unset($user['password']); // Remove sensitive data
             $user['token'] = $token;  // Include token in response
-            // *********** ADD FULL PROFILE IMAGE URL ***********
+            // *********** SAFE FULL URL HANDLING FOR PROFILE IMAGE ***********
             if (!empty($user['profile_image'])) {
-                $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+
+                // If already full URL, use as-is
+                if (filter_var($user['profile_image'], FILTER_VALIDATE_URL)) {
+                    $user['profile_image'] = $user['profile_image'];
+                } else {
+                    // If only filename, append base URL
+                    $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
+                }
+
             } else {
                 $user['profile_image'] = "";
             }
-
             return $this->response->setJSON([
                 'status' => 200,
                 'success' => true,
@@ -324,7 +333,7 @@ class AppUser extends BaseController
 
             // Add base_url only if image is NOT already full URL
             if (!preg_match('/^https?:\/\//', $user['profile_image'])) {
-                $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+                $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
             }
         }
 
@@ -334,8 +343,6 @@ class AppUser extends BaseController
             'data' => $user
         ]);
     }
-
-
     // UPDATE USER DETAILS
     public function updateUser()
     {
@@ -401,13 +408,16 @@ class AppUser extends BaseController
             'linkedin_id' => $data['linkedin_id'] ?? $user['linkedin_id'],
             'location' => $data['location'] ?? $user['location'],
             'interest_id' => $data['interest_id'] ?? $user['interest_id'],
-            'profile_image' => !empty($profileImage)
-                ? base_url('uploads/profile_images/' . $profileImage)
-                : "",
+            'profile_image' => $profileImage,
             'updated_at' => date('Y-m-d H:i:s')
         ];
 
         $this->appUserModel->update($user_id, $updateData);
+
+        // Build full image URL for response
+        $updateData['profile_image'] = !empty($profileImage)
+            ? base_url('uploads/profile_images/' . $profileImage)
+            : "";
 
         return $this->response->setJSON([
             'status' => 200,
@@ -415,8 +425,9 @@ class AppUser extends BaseController
             'message' => 'User updated successfully.',
             'data' => $updateData
         ]);
-    }
 
+
+    }
     public function completeProfile()
     {
         $data = $this->request->getPost();
@@ -430,7 +441,7 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Find existing user
+        // Fetch user
         $user = $this->appUserModel->find($user_id);
         if (!$user) {
             return $this->response->setJSON([
@@ -440,75 +451,105 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Handle profile image upload
-        $profileImage = $user['profile_image'];
-        $file = $this->request->getFile('profile_image');
-        if ($file && $file->isValid() && !$file->hasMoved()) {
-            $newName = 'user_' . time() . '.' . $file->getExtension();
-            $uploadPath = FCPATH . 'public/uploads/profile_images/';
-            if (!is_dir($uploadPath)) {
-                mkdir($uploadPath, 0777, true);
-            }
-            $file->move($uploadPath, $newName);
-            $profileImage = $newName;
+        // ----------- Mandatory Fields Validation ------------
+        $required_fields = ['name', 'dob', 'insta_id'];
 
-            // delete old image if exists
-            $oldImagePath = $uploadPath . $user['profile_image'];
-            if (is_file($oldImagePath)) {
-                unlink($oldImagePath);
+        foreach ($required_fields as $f) {
+            if (empty($data[$f])) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => "$f is required."
+                ]);
             }
         }
 
-        // ✅ Calculate profile score dynamically
-        $profile_score = 0;
+        // ----------- Profile Image Upload --------------
+        $profileImage = $user['profile_image'];
+        $file = $this->request->getFile('profile_image');
 
-        if (!empty($data['phone']) || !empty($user['phone']))
-            $profile_score += 25; // phone verified
-        if (!empty($data['insta_id']) || !empty($user['insta_id']))
-            $profile_score += 20; // instagram added
-        if (!empty($data['email']) || !empty($user['email']))
-            $profile_score += 15; // email verified
-        if (!empty($profileImage))
-            $profile_score += 10; // profile image uploaded
-        if (!empty($data['interest_id']) || !empty($user['interest_id']))
-            $profile_score += 10; // interest selected
-        if (!empty($data['linkedin_id']) || !empty($user['linkedin_id']))
-            $profile_score += 5; // linkedin added
-        if (!empty($data['location']) && strtolower($data['location']) === 'kochi')
-            $profile_score += 10; // Kochi verified
-        if (!empty($data['dob']) || !empty($user['dob']))
-            $profile_score += 5; // DOB added
+        if ($file && $file->isValid() && !$file->hasMoved()) {
+            $newName = 'user_' . time() . '.' . $file->getExtension();
+            $uploadPath = FCPATH . 'uploads/profile_images/';
 
-        // Prepare data for update
+            if (!is_dir($uploadPath))
+                mkdir($uploadPath, 0777, true);
+
+            $file->move($uploadPath, $newName);
+            $profileImage = $newName;
+
+            if (!empty($user['profile_image']) && is_file($uploadPath . $user['profile_image'])) {
+                unlink($uploadPath . $user['profile_image']);
+            }
+        }
+
+        // -------- Profile Score Calculation ----------
+
+        // If this is FIRST TIME completing profile → set to 60
+        if ($user['profile_status'] != 2) {
+            $newScore = 60;
+        } else {
+            // otherwise start from stored score
+            $newScore = $user['profile_score'];
+        }
+
+        // Optional fields give bonus ONLY if newly added
+
+        if (empty($user['email']) && !empty($data['email']))
+            $newScore += 15;
+
+        if (empty($user['profile_image']) && !empty($profileImage))
+            $newScore += 10;
+
+        if (empty($user['interest_id']) && !empty($data['interest_id']))
+            $newScore += 10;
+
+        if (empty($user['linkedin_id']) && !empty($data['linkedin_id']))
+            $newScore += 5;
+
+        if (
+            (empty($user['location']) || strtolower($user['location']) != 'kochi') &&
+            !empty($data['location']) && strtolower($data['location']) == 'kochi'
+        )
+            $newScore += 10;
+
+        if (empty($user['dob']) && !empty($data['dob']))
+            $newScore += 5;
+
+        // max score limit
+        $newScore = min(100, $newScore);
+
+        // -------- Update DB --------------
         $updateData = [
-            'name' => $data['name'] ?? $user['name'],
+            'name' => $data['name'],
             'gender' => $data['gender'] ?? $user['gender'],
-            'dob' => $data['dob'] ?? $user['dob'],
+            'dob' => $data['dob'],
             'email' => $data['email'] ?? $user['email'],
-            'phone' => $data['phone'] ?? $user['phone'],
-            'insta_id' => $data['insta_id'] ?? $user['insta_id'],
+            'insta_id' => $data['insta_id'],
             'linkedin_id' => $data['linkedin_id'] ?? $user['linkedin_id'],
             'location' => $data['location'] ?? $user['location'],
             'interest_id' => $data['interest_id'] ?? $user['interest_id'],
             'profile_image' => $profileImage,
-            'profile_status' => 2, // Mark as completed
-            'profile_score' => $profile_score,
+            'profile_status' => 2,
+            'profile_score' => $newScore,
             'updated_at' => date('Y-m-d H:i:s')
         ];
 
-        // Update user
+        // -------- Update DB --------------
         $this->appUserModel->update($user_id, $updateData);
+
+        $responseData = $updateData;
+
+        // Convert image to full URL
+        $responseData['profile_image'] = base_url('uploads/profile_images/' . $profileImage);
 
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'Profile Completed successfully.',
-            'data' => [
-                'user_id' => $user_id,
-                'profile_image' => base_url('public/uploads/profile_images/' . $profileImage),
-                'profile_score' => $profile_score
-            ]
+            'message' => 'Profile completed successfully.',
+            'data' => array_merge(['user_id' => $user_id], $responseData)
         ]);
+
     }
 
     // DELETE USER (soft delete)
@@ -579,7 +620,7 @@ class AppUser extends BaseController
         // Add base URL to images
         foreach ($users as &$user) {
             if (!empty($user['profile_image'])) {
-                $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+                $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
             }
         }
 
@@ -665,8 +706,8 @@ class AppUser extends BaseController
         if ($update) {
             $updatedUser = $this->appUserModel->find($userId);
 
-            // Add FULL IMAGE URL
-            $updatedUser['profile_image_url'] = base_url('uploads/profile_images/' . $updatedUser['profile_image']);
+            // Replace filename with full URL
+            $updatedUser['profile_image'] = base_url('uploads/profile_images/' . $updatedUser['profile_image']);
 
             return $this->response->setJSON([
                 'status' => 200,

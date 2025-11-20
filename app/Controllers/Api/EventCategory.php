@@ -16,99 +16,94 @@ class EventCategory extends BaseController
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->categoryModel = new EventCategoryModel();
-        $this->eventModel = new EventModel();  
+        $this->eventModel = new EventModel();
     }
-
-    /**
-     * Create Category
-     */
+    //  Create Category
     public function createCategory()
-{
-    $data = $this->request->getJSON(true);
+    {
+        $data = $this->request->getJSON(true);
 
-    // Check event_id
-    if (empty($data['event_id'])) {
-        return $this->response->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST)
-            ->setJSON([
-                'status' => false,
-                'message' => 'event_id is required.'
-            ]);
-    }
-
-    // Check categories array
-    if (empty($data['categories']) || !is_array($data['categories'])) {
-        return $this->response->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST)
-            ->setJSON([
-                'status' => false,
-                'message' => 'categories array is required.'
-            ]);
-    }
-
-    $event_id = $data['event_id'];
-    $categories = $data['categories'];
-    $savedCategories = [];
-
-    $totalSeatsSum = 0; // <-- NEW
-
-    foreach ($categories as $cat) {
-
-        // Validate each category
-        if (empty($cat['category_name']) || empty($cat['total_seats']) || empty($cat['price'])) {
-            continue; // skip invalid
+        // Check event_id
+        if (empty($data['event_id'])) {
+            return $this->response->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST)
+                ->setJSON([
+                    'status' => false,
+                    'message' => 'event_id is required.'
+                ]);
         }
 
-        $actual_booked = isset($cat['actual_booked_seats']) ? (int) $cat['actual_booked_seats'] : 0;
-        $dummy_booked = isset($cat['dummy_booked_seats']) ? (int) $cat['dummy_booked_seats'] : 0;
-        $dummy_invites = isset($cat['dummy_invites']) ? (int) $cat['dummy_invites'] : 0;
+        // Check categories array
+        if (empty($data['categories']) || !is_array($data['categories'])) {
+            return $this->response->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST)
+                ->setJSON([
+                    'status' => false,
+                    'message' => 'categories array is required.'
+                ]);
+        }
 
-        $total_seats = (int) $cat['total_seats'];
+        $event_id = $data['event_id'];
+        $categories = $data['categories'];
+        $savedCategories = [];
 
-        // add to total event seats
-        $totalSeatsSum += $total_seats;   // <-- NEW
+        $totalSeatsSum = 0; // <-- NEW
 
-        // Calculate balance seats
-        $balance = $total_seats - ($actual_booked + $dummy_booked);
-        if ($balance < 0)
-            $balance = 0;
+        foreach ($categories as $cat) {
 
-        // Prepare insert data
-        $insertData = [
-            'event_id' => $event_id,
-            'category_name' => strtoupper($cat['category_name']),
-            'total_seats' => $total_seats,
-            'actual_booked_seats' => $actual_booked,
-            'dummy_booked_seats' => $dummy_booked,
-            'dummy_invites' => $dummy_invites,
-            'balance_seats' => $balance,
-            'price' => $cat['price'],
-            'status' => $cat['status'] ?? 1, // Default active
-        ];
+            // Validate each category
+            if (empty($cat['category_name']) || empty($cat['total_seats']) || empty($cat['price'])) {
+                continue; // skip invalid
+            }
 
-        // Insert into DB
-        $category_id = $this->categoryModel->insert($insertData);
+            $actual_booked = isset($cat['actual_booked_seats']) ? (int) $cat['actual_booked_seats'] : 0;
+            $dummy_booked = isset($cat['dummy_booked_seats']) ? (int) $cat['dummy_booked_seats'] : 0;
+            $dummy_invites = isset($cat['dummy_invites']) ? (int) $cat['dummy_invites'] : 0;
 
-        // Add to output
-        $savedCategories[] = array_merge(
-            ['category_id' => $category_id],
-            $insertData
-        );
+            $total_seats = (int) $cat['total_seats'];
+
+            // add to total event seats
+            $totalSeatsSum += $total_seats;   // <-- NEW
+
+            // Calculate balance seats
+            $balance = $total_seats - ($actual_booked + $dummy_booked);
+            if ($balance < 0)
+                $balance = 0;
+
+            // Prepare insert data
+            $insertData = [
+                'event_id' => $event_id,
+                'category_name' => strtoupper($cat['category_name']),
+                'total_seats' => $total_seats,
+                'actual_booked_seats' => $actual_booked,
+                'dummy_booked_seats' => $dummy_booked,
+                'dummy_invites' => $dummy_invites,
+                'balance_seats' => $balance,
+                'price' => $cat['price'],
+                'status' => $cat['status'] ?? 1, // Default active
+            ];
+
+            // Insert into DB
+            $category_id = $this->categoryModel->insert($insertData);
+
+            // Add to output
+            $savedCategories[] = array_merge(
+                ['category_id' => $category_id],
+                $insertData
+            );
+        }
+
+        // 🔥🔥🔥 UPDATE EVENT TOTAL SEATS 🔥🔥🔥
+        $this->eventModel
+            ->where('event_id', $event_id)
+            ->set(['total_seats' => $totalSeatsSum])
+            ->update();
+
+        return $this->response->setJSON([
+            'status' => true,
+            'message' => 'Categories created successfully.',
+            'data' => $savedCategories,
+            'event_total_seats' => $totalSeatsSum // optional return
+        ]);
     }
-
-    // 🔥🔥🔥 UPDATE EVENT TOTAL SEATS 🔥🔥🔥
-    $this->eventModel
-        ->where('event_id', $event_id)
-        ->set(['total_seats' => $totalSeatsSum])
-        ->update();
-
-    return $this->response->setJSON([
-        'status' => true,
-        'message' => 'Categories created successfully.',
-        'data' => $savedCategories,
-        'event_total_seats' => $totalSeatsSum // optional return
-    ]);
-}
-
-
     public function getCategoryByEvent()
     {
         $data = $this->request->getJSON(true);
@@ -135,11 +130,7 @@ class EventCategory extends BaseController
             'data' => $category
         ]);
     }
-
-
-    /**
-     * Update Category
-     */
+    //   Update Category
     public function updateCategory()
     {
         $data = $this->request->getJSON(true);
@@ -244,11 +235,7 @@ class EventCategory extends BaseController
             'data' => $updatedList
         ]);
     }
-
-
-    /**s
-     * Delete Category
-     */
+    // Delete Category
     public function deleteCategory()
     {
         $data = $this->request->getJSON(true);
