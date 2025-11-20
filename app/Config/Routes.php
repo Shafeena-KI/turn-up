@@ -14,10 +14,12 @@ $routes->post('api/admin/login', 'Api\Login::adminLogin');
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
 $routes->post('api/user/verifyotp', 'Api\AppUser::verifyOtp');
 
+
 //registration/user management
 $routes->post('api/user/register', 'Api\AppUser::register');
 $routes->post('api/user/getuser', 'Api\AppUser::getUserById');
 $routes->post('api/user/completeprofile', 'Api\AppUser::completeProfile');
+$routes->post('api/update-user', 'Api\AppUser::updateUser');
 $routes->post('api/user/delete', 'Api\AppUser::deleteUser');
 $routes->get('api/user/list', 'Api\AppUser::listUsers'); // default (no search)
 $routes->get('api/user/list/(:any)', 'Api\AppUser::listUsers/$1'); // with search term
@@ -56,15 +58,17 @@ $routes->get('api/event/totalinvitescount', 'Api\EventInvite::getAllEventInviteC
 
 
 // Event Category
- $routes->post('api/category/create', 'Api\EventCategory::createCategory');
-$routes->post('api/category/event', 'Api\EventCategory::getcategorysByEvent');
+$routes->post('api/category/create', 'Api\EventCategory::createCategory');
+$routes->post('api/category/event', 'Api\EventCategory::getCategoryByEvent');
 $routes->post('api/category/update', 'Api\EventCategory::updatecategory');
 $routes->post('api/category/delete', 'Api\EventCategory::deletecategory');
+
 
 // Event Bookings
 $routes->get('api/event/booking/list', 'Api\EventBooking::listBookings');
 $routes->get('api/event/booking/list/(:any)', 'Api\EventBooking::listBookings/$1'); 
 $routes->get('api/event/totalbookingscount', 'Api\EventBooking::getAllEventBookingCounts');
+$routes->get('api/total-booking-counts/(:num)', 'Api\EventBooking::getTotalBookingCounts/$1');
 $routes->post('api/booking/event', 'Api\EventBooking::getBookingsByEvent');
 $routes->post('api/booking/user', 'Api\EventBooking::getBookingsByUser');
 $routes->post('api/booking/cancel', 'Api\EventBooking::cancelBooking');     
