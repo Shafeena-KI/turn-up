@@ -11,7 +11,7 @@ class EventController extends BaseController
     public function __construct()
     {
         header('Access-Control-Allow-Origin: *');
-		header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->eventModel = new EventModel();
         helper(['form', 'url']);
@@ -26,6 +26,7 @@ class EventController extends BaseController
     public function show($id)
     {
         $event = $this->eventModel->find($id);
+
         if (!$event) {
             return $this->response->setJSON([
                 'status' => false,
@@ -33,207 +34,314 @@ class EventController extends BaseController
             ]);
         }
 
+        // Base URL for images
+        $baseUrl = base_url('public/uploads/events/');
+
+        // --- POSTER IMAGE FULL URL ---
+        $event['poster_image'] = !empty($event['poster_image'])
+            ? $baseUrl . 'poster_images/' . $event['poster_image']
+            : null;
+
+        // --- GALLERY IMAGES FULL URLs ---
+        $gallery = json_decode($event['gallery_images'], true);
+
+        if (is_array($gallery)) {
+            $event['gallery_images'] = array_map(function ($img) use ($baseUrl) {
+                return $baseUrl . 'gallery_images/' . $img;
+            }, $gallery);
+        } else {
+            $event['gallery_images'] = [];
+        }
+
         return $this->response->setJSON([
             'status' => true,
             'data' => $event
-        ]);
+        ], JSON_UNESCAPED_SLASHES);
     }
+
     // Create New Event
     public function create()
     {
-       
+
+        // ---------------- PRE-FLIGHT CORS ----------------
+
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+
+            header("Access-Control-Allow-Origin: *");
+
+            header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+            header("Access-Control-Allow-Methods: POST, OPTIONS");
+
             http_response_code(200);
+
             exit();
+
         }
+
+        // ---------------- JSON RESPONSE FUNCTION ----------------
 
         function respond($success, $message, $data = null, $code = 200)
         {
+
+            header('Content-Type: application/json');
+
             http_response_code($code);
+
             echo json_encode([
                 'status' => $success,
                 'message' => $message,
                 'data' => $data
-            ]);
+            ], JSON_UNESCAPED_SLASHES);
+
+
             exit;
+
         }
+
+        // ---------------- VALIDATE FORM-DATA ----------------
 
         if (empty($_POST) && empty($_FILES)) {
-            respond(false, 'Invalid or empty request. Use multipart/form-data.');
+
+            respond(false, "Invalid request. Use multipart/form-data.");
+
         }
 
-        // --- Collect event inputs ---
+        // ---------------- COLLECT EVENT DATA ----------------
+
         $event = [
+
             'event_name' => $_POST['event_name'] ?? '',
+
             'event_description' => $_POST['event_description'] ?? '',
+
             'event_location' => $_POST['event_location'] ?? '',
+
             'event_map' => $_POST['event_map'] ?? '',
+
             'event_date_start' => $_POST['event_date_start'] ?? '',
+
             'event_date_end' => $_POST['event_date_end'] ?? '',
+
             'dress_code' => $_POST['dress_code'] ?? '',
+
             'age_limit' => $_POST['age_limit'] ?? '',
+
             'event_type' => $_POST['event_type'] ?? '',
+
             'created_by' => $_POST['created_by'] ?? '',
+
             'status' => $_POST['status'] ?? '',
+
             'event_time_start' => $_POST['event_time_start'] ?? '',
+
             'event_time_end' => $_POST['event_time_end'] ?? '',
+
             'event_city' => $_POST['event_city'] ?? '',
+
             'total_seats' => $_POST['total_seats'] ?? '',
+
         ];
 
-        // ----------- HOST ID ARRAY ------------
-        $hostData = $this->request->getPost('host_id');
+        // ---------------- HOST ID ARRAY ----------------
 
-        if (empty($hostData)) {
+        $hostRaw = $_POST['host_id'] ?? null;
+
+        if (empty($hostRaw)) {
 
             $hostIDs = [];
 
-        }
-        // If already array → use directly
-        elseif (is_array($hostData)) {
+        } elseif (is_array($hostRaw)) {
 
-            $hostIDs = $hostData;
+            $hostIDs = $hostRaw;
 
-        }
-        // If JSON string → decode
-        elseif (is_string($hostData) && json_decode($hostData, true) !== null) {
+        } elseif (json_decode($hostRaw, true)) {
 
-            $hostIDs = json_decode($hostData, true);
-
-        }
-        // If comma separated string → split
-        elseif (is_string($hostData)) {
-
-            $hostIDs = explode(',', $hostData);
+            $hostIDs = json_decode($hostRaw, true);
 
         } else {
 
-            $hostIDs = [];
+            $hostIDs = explode(',', $hostRaw);
+
         }
 
-        // Convert all IDs to integer before saving
-        $event['host_id'] = json_encode(array_map('intval', $hostIDs));
+        $hostIDs = array_map('intval', $hostIDs);
 
-        // ----------- TAG ID ARRAY ------------
-        $tagData = $this->request->getPost('tag_id');
+        $event['host_id'] = json_encode($hostIDs);
 
-        if (empty($tagData)) {
+        // ---------------- TAG ID ARRAY ----------------
+        $tagRaw = $_POST['tag_id'] ?? null;
+
+        if (empty($tagRaw)) {
 
             $tagIDs = [];
 
-        }
+        } elseif (is_array($tagRaw)) {
 
-        // If already array → use directly
-        elseif (is_array($tagData)) {
+            // Case: tag_id[] = 1, tag_id[] = 2
+            $tagIDs = $tagRaw;
 
-            $tagIDs = $tagData;
+        } elseif (json_decode($tagRaw, true) !== null) {
 
-        }
-
-        // If JSON string → decode
-        elseif (is_string($tagData) && json_decode($tagData, true) !== null) {
-
-            $tagIDs = json_decode($tagData, true);
-
-        }
-
-        // If comma separated value → split manually
-        elseif (is_string($tagData)) {
-
-            $tagIDs = explode(',', $tagData);
+            // Case: tag_id = [1,2,3]
+            $tagIDs = json_decode($tagRaw, true);
 
         } else {
 
-            $tagIDs = [];
-
+            // Case: tag_id = "1,2,3"
+            $tagIDs = explode(',', $tagRaw);
         }
 
-        // Convert back to JSON to store in DB
+        // Convert all to integers
+        $tagIDs = array_map('intval', $tagIDs);
 
-        $event['tag_id'] = json_encode(array_map('intval', $tagIDs));
+        // Save to DB
+        $event['tag_id'] = json_encode($tagIDs);
 
 
+        // ---------------- FILE UPLOAD SETTINGS ----------------
 
-
-        // ---------------- FILE UPLOADS ----------------
         $uploadDirPoster = FCPATH . 'public/uploads/events/poster_images/';
+
         $uploadDirGallery = FCPATH . 'public/uploads/events/gallery_images/';
 
         if (!is_dir($uploadDirPoster))
             mkdir($uploadDirPoster, 0755, true);
+
         if (!is_dir($uploadDirGallery))
             mkdir($uploadDirGallery, 0755, true);
 
         $allowedExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
         $maxSize = 10 * 1024 * 1024;
 
-        $posterFilePath = null;
-        $galleryFilePaths = [];
+        $posterFile = null;
 
-        // Poster upload
-        if (isset($_FILES['poster_image']) && $_FILES['poster_image']['error'] === UPLOAD_ERR_OK) {
+        $galleryFiles = [];
+
+        // ---------------- POSTER UPLOAD ----------------
+
+        if (!empty($_FILES['poster_image']) && $_FILES['poster_image']['error'] === UPLOAD_ERR_OK) {
+
             $ext = strtolower(pathinfo($_FILES['poster_image']['name'], PATHINFO_EXTENSION));
+
             if (!in_array($ext, $allowedExt))
-                respond(false, "Poster image type not allowed.");
+                respond(false, "Invalid poster image type.");
+
             if ($_FILES['poster_image']['size'] > $maxSize)
-                respond(false, "Poster image too large.");
+                respond(false, "Poster too large.");
 
             $newName = uniqid('poster_', true) . '.' . $ext;
-            $targetPath = $uploadDirPoster . $newName;
 
-            if (move_uploaded_file($_FILES['poster_image']['tmp_name'], $targetPath)) {
-                // Store ONLY file name
-                $posterFilePath = $newName;
+            $target = $uploadDirPoster . $newName;
+
+            if (move_uploaded_file($_FILES['poster_image']['tmp_name'], $target)) {
+
+                $posterFile = $newName;
+
             }
+
         }
 
-        // Gallery upload
-        if (!empty($_FILES['gallery_images']) && is_array($_FILES['gallery_images']['name'])) {
+        // ---------------- GALLERY UPLOAD ----------------
+
+        if (!empty($_FILES['gallery_images']['name']) && is_array($_FILES['gallery_images']['name'])) {
+
             for ($i = 0; $i < count($_FILES['gallery_images']['name']); $i++) {
+
                 if ($_FILES['gallery_images']['error'][$i] === UPLOAD_ERR_OK) {
+
                     $ext = strtolower(pathinfo($_FILES['gallery_images']['name'][$i], PATHINFO_EXTENSION));
+
                     if (!in_array($ext, $allowedExt))
                         continue;
+
                     if ($_FILES['gallery_images']['size'][$i] > $maxSize)
                         continue;
 
                     $newName = uniqid('gallery_', true) . '.' . $ext;
-                    $targetPath = $uploadDirGallery . $newName;
 
-                    if (move_uploaded_file($_FILES['gallery_images']['tmp_name'][$i], $targetPath)) {
-                        // Store ONLY file name
-                        $galleryFilePaths[] = $newName;
+                    $target = $uploadDirGallery . $newName;
+
+                    if (move_uploaded_file($_FILES['gallery_images']['tmp_name'][$i], $target)) {
+
+                        $galleryFiles[] = $newName;
+
                     }
+
                 }
+
             }
+
         }
 
-        // Store only names
-        $event['poster_image'] = $posterFilePath;
-        $event['gallery_images'] = json_encode($galleryFilePaths);
+        // Store as raw array (NOT JSON string)
 
+        $event['poster_image'] = $posterFile;
+
+        $event['gallery_images'] = json_encode($galleryFiles);
 
         // ---------------- SAVE EVENT ----------------
+
         $db = \Config\Database::connect();
 
         $db->table('events')->insert($event);
-        $eventId = $db->insertID();  // newly created event_id
 
-        if (!$eventId) {
+        $eventId = $db->insertID();
+
+        if (!$eventId)
             respond(false, "Failed to create event.");
-        }
-        unset($event['host_id']);
-        unset($event['tag_id']);
-        // ---------------- RESPONSE ----------------
-        respond(true, 'Event created successfully.', [
-            'event_id' => $eventId,
-            'event' => $event,
-            'hosts' => $hostData,
-            'tags' => $tagData,
+
+        // ---------------- FINAL RESPONSE ----------------
+
+        // ---------------- FINAL RESPONSE ----------------
+
+        $baseUrl = base_url('public/uploads/events/');
+
+        respond(true, "Event created successfully.", [
+
+            "event_id" => $eventId,
+
+            // FULL URL RETURN
+            "poster_image" => $posterFile
+                ? $baseUrl . "poster_images/" . $posterFile
+                : null,
+
+            "gallery_images" => array_map(function ($img) use ($baseUrl) {
+                return $baseUrl . "gallery_images/" . $img;
+            }, $galleryFiles),
+
+            // RAW ARRAYS
+            "hosts" => $hostIDs,
+            "tags" => $tagIDs,
+
+            // EVENT FIELDS
+            "event_name" => $event['event_name'],
+            "event_description" => $event['event_description'],
+            "event_location" => $event['event_location'],
+            "event_map" => $event['event_map'],
+            "event_date_start" => $event['event_date_start'],
+            "event_date_end" => $event['event_date_end'],
+            "dress_code" => $event['dress_code'],
+            "age_limit" => $event['age_limit'],
+            "event_type" => $event['event_type'],
+            "created_by" => $event['created_by'],
+            "status" => $event['status'],
+            "event_time_start" => $event['event_time_start'],
+            "event_time_end" => $event['event_time_end'],
+            "event_city" => $event['event_city'],
+            "total_seats" => $event['total_seats'],
+
+            // JSON STRING FORM
+            "host_id" => json_encode($hostIDs),
+            "tag_id" => json_encode($tagIDs),
+
         ]);
+
+
+
+
     }
-
-
     public function listEvents($search = '')
     {
         $page = (int) $this->request->getGet('current_page') ?: 1;
@@ -280,16 +388,11 @@ class EventController extends BaseController
     // Update Event
     public function update()
     {
-        // Detect request type
         $contentType = $this->request->getHeaderLine('Content-Type');
         $isJson = strpos($contentType, 'application/json') !== false;
 
-        $json = [];
-        if ($isJson) {
-            $json = $this->request->getJSON(true);
-        }
+        $json = $isJson ? $this->request->getJSON(true) : [];
 
-        // Get event ID
         $id = $isJson
             ? ($json['id'] ?? $json['event_id'] ?? null)
             : ($this->request->getPost('id') ?? $this->request->getPost('event_id'));
@@ -301,7 +404,6 @@ class EventController extends BaseController
             ]);
         }
 
-        // Fetch existing event
         $event = $this->eventModel->find($id);
         if (!$event) {
             return $this->response->setJSON([
@@ -310,7 +412,7 @@ class EventController extends BaseController
             ]);
         }
 
-        // Collect fields
+        // Fields
         $fields = [
             'event_name',
             'event_description',
@@ -334,7 +436,6 @@ class EventController extends BaseController
         foreach ($fields as $field) {
             $value = $isJson ? ($json[$field] ?? null) : $this->request->getPost($field);
             if ($value !== null && $value !== '') {
-                // Convert dates/times properly
                 if (in_array($field, ['event_date_start', 'event_date_end'])) {
                     $value = date('Y-m-d', strtotime($value));
                 } elseif (in_array($field, ['event_time_start', 'event_time_end'])) {
@@ -346,30 +447,29 @@ class EventController extends BaseController
 
         $data['updated_at'] = date('Y-m-d H:i:s');
 
-        // Only handle file uploads if form-data
+        // Handle uploads only for form-data
         if (!$isJson) {
-            // Handle poster image
+
+            // Poster
             $poster = $this->request->getFile('poster_image');
             if ($poster && $poster->isValid() && !$poster->hasMoved()) {
                 $uploadPath = FCPATH . 'public/uploads/events/poster_images/';
-                if (!is_dir($uploadPath)) {
+                if (!is_dir($uploadPath))
                     mkdir($uploadPath, 0777, true);
-                }
 
                 $newName = 'poster_' . time() . '_' . $poster->getRandomName();
                 $poster->move($uploadPath, $newName);
                 $data['poster_image'] = $newName;
             }
 
-            // Handle gallery images
+            // Gallery
             $galleryImages = $this->request->getFiles()['gallery_images'] ?? [];
             $galleryNames = [];
 
             if (!empty($galleryImages)) {
                 $uploadPath = FCPATH . 'public/uploads/events/gallery_images/';
-                if (!is_dir($uploadPath)) {
+                if (!is_dir($uploadPath))
                     mkdir($uploadPath, 0777, true);
-                }
 
                 foreach ($galleryImages as $file) {
                     if ($file->isValid() && !$file->hasMoved()) {
@@ -387,11 +487,32 @@ class EventController extends BaseController
             }
         }
 
-        // Update event in DB
+        // Update event
         $updated = $this->eventModel->update($id, $data);
 
         if ($updated) {
             $updatedEvent = $this->eventModel->find($id);
+
+            // ADD FULL PATHS HERE
+            $baseUrl = base_url('public/uploads/events/');
+
+            // Full poster image path
+            $updatedEvent['poster_image'] = $updatedEvent['poster_image']
+                ? $baseUrl . 'poster_images/' . $updatedEvent['poster_image']
+                : null;
+
+            // Full gallery images path
+            $gallery = json_decode($updatedEvent['gallery_images'], true);
+            $fullGallery = [];
+
+            if (!empty($gallery)) {
+                foreach ($gallery as $img) {
+                    $fullGallery[] = $baseUrl . 'gallery_images/' . $img;
+                }
+            }
+
+            $updatedEvent['gallery_images'] = $fullGallery;
+
             return $this->response->setJSON([
                 'status' => true,
                 'message' => 'Event updated successfully',
@@ -401,9 +522,10 @@ class EventController extends BaseController
 
         return $this->response->setJSON([
             'status' => false,
-            'message' => 'No valid data to update or update failed'
+            'message' => 'Update failed'
         ]);
     }
+
     // Delete Event
     public function delete()
     {

@@ -12,6 +12,7 @@ class EventBooking extends BaseController
     protected $bookingModel;
     protected $inviteModel;
     protected $categoryModel;
+    protected $db;
 
     public function __construct()
     {
@@ -117,7 +118,7 @@ class EventBooking extends BaseController
             'data' => array_values($finalData)
         ]);
     }
-    public function listBookings($search = '')
+    public function listBookings($event_id = null, $search = '')
     {
         $page = (int) $this->request->getGet('current_page') ?: 1;
         $limit = (int) $this->request->getGet('per_page') ?: 10;
@@ -134,6 +135,8 @@ class EventBooking extends BaseController
             app_users.name,
             app_users.phone,
             app_users.email,
+            app_users.insta_id,
+            app_users.profile_image,
             event_counts.total_booking,
             event_counts.total_male_booking,
             event_counts.total_female_booking,
@@ -144,7 +147,9 @@ class EventBooking extends BaseController
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
             ->join('event_counts', 'event_counts.event_id = event_booking.event_id', 'left')
             ->where('event_booking.status !=', 4);
-
+        if (!empty($event_id)) {
+            $builder->where('event_booking.event_id', $event_id);
+        }
         // Search filter
         if (!empty($search)) {
             $builder->groupStart()
@@ -178,18 +183,41 @@ class EventBooking extends BaseController
             ];
             $booking['status_text'] = $statusMap[$booking['status']] ?? 'Unknown';
 
-            // Partner name
-            if (!empty($booking['invite_id'])) {
-                $inviteUser = $this->db->table('app_users')
-                    ->select('name')
-                    ->where('user_id', $booking['invite_id'])
+
+            /** -------------------------------------------------------
+             *  FETCH PARTNER ID USING invite_id FROM event_invites
+             * ------------------------------------------------------*/
+            $invite = $this->db->table('event_invites')
+                ->select('partner')
+                ->where('invite_id', $booking['invite_id'])
+                ->get()
+                ->getRow();
+
+            $partnerId = $invite->partner ?? null;
+
+
+            /** -------------------------------------------------------
+             *  FETCH PARTNER USER DETAILS FROM app_users
+             * ------------------------------------------------------*/
+            $accUser = null;
+
+            if (!empty($partnerId)) {
+                $accUser = $this->db->table('app_users')
+                    ->select('user_id, name, phone, email, insta_id, profile_image')
+                    ->where('user_id', $partnerId)
                     ->get()
                     ->getRow();
-
-                $booking['partner_name'] = $inviteUser->name ?? null;
-            } else {
-                $booking['partner_name'] = null;
             }
+
+            $booking['partner_details'] = $accUser ? [
+                'user_id' => $accUser->user_id,
+                'name' => $accUser->name,
+                'phone' => $accUser->phone,
+                'email' => $accUser->email,
+                'insta_id' => $accUser->insta_id,
+                'profile_image' => $accUser->profile_image
+            ] : null;
+
 
             // Event booking totals
             $booking['event_counts'] = [
@@ -199,6 +227,7 @@ class EventBooking extends BaseController
                 'total_couple_booking' => (int) $booking['total_couple_booking'],
             ];
         }
+
 
         $totalPages = ceil($total / $limit);
 
@@ -215,6 +244,95 @@ class EventBooking extends BaseController
             ]
         ]);
     }
+    public function getTotalBookingCounts($event_id)
+    {
+        // Validate event_id
+        if (empty($event_id)) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'event_id is required'
+            ]);
+        }
+
+        $db = \Config\Database::connect();
+
+        // Fetch all category rows for this event
+        $builder = $db->table('event_counts');
+        $builder->where('event_id', $event_id);
+        $categoryRows = $builder->get()->getResultArray();
+
+        if (empty($categoryRows)) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'No category records found for this event'
+            ]);
+        }
+
+        // Prepare response
+        $categories = [];
+        $overall = [
+            "total_invites" => 0,
+            "total_male_invites" => 0,
+            "total_female_invites" => 0,
+            "total_couple_invites" => 0,
+
+            "total_booking" => 0,
+            "total_male_booking" => 0,
+            "total_female_booking" => 0,
+            "total_couple_booking" => 0,
+
+            "total_checkin" => 0,
+            "total_male_checkin" => 0,
+            "total_female_checkin" => 0,
+            "total_couple_checkin" => 0
+        ];
+
+        foreach ($categoryRows as $row) {
+
+            // Add row to response
+            $categories[] = [
+                "category_id" => $row['category_id'],
+                "total_invites" => $row['total_invites'],
+                "total_male_invites" => $row['total_male_invites'],
+                "total_female_invites" => $row['total_female_invites'],
+                "total_couple_invites" => $row['total_couple_invites'],
+
+                "total_booking" => $row['total_booking'],
+                "total_male_booking" => $row['total_male_booking'],
+                "total_female_booking" => $row['total_female_booking'],
+                "total_couple_booking" => $row['total_couple_booking'],
+
+                "total_checkin" => $row['total_checkin'],
+                "total_male_checkin" => $row['total_male_checkin'],
+                "total_female_checkin" => $row['total_female_checkin'],
+                "total_couple_checkin" => $row['total_couple_checkin'],
+            ];
+
+            // Add to overall totals
+            $overall["total_invites"] += $row['total_invites'];
+            $overall["total_male_invites"] += $row['total_male_invites'];
+            $overall["total_female_invites"] += $row['total_female_invites'];
+            $overall["total_couple_invites"] += $row['total_couple_invites'];
+
+            $overall["total_booking"] += $row['total_booking'];
+            $overall["total_male_booking"] += $row['total_male_booking'];
+            $overall["total_female_booking"] += $row['total_female_booking'];
+            $overall["total_couple_booking"] += $row['total_couple_booking'];
+
+            $overall["total_checkin"] += $row['total_checkin'];
+            $overall["total_male_checkin"] += $row['total_male_checkin'];
+            $overall["total_female_checkin"] += $row['total_female_checkin'];
+            $overall["total_couple_checkin"] += $row['total_couple_checkin'];
+        }
+
+        return $this->response->setJSON([
+            'status' => true,
+            'event_id' => $event_id,
+            'categories' => $categories,
+            'overall_totals' => $overall
+        ]);
+    }
+
     // Get all bookings by Event
     public function getBookingsByEvent()
     {

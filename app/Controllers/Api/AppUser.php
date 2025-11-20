@@ -120,7 +120,7 @@ class AppUser extends BaseController
                 'user_id' => $userId,
                 'otp' => $otp,// Include only for testing; hide in production
                 'profile_score' => $profile_score,
-                 'profile_image' => $fullImageURL
+                'profile_image' => $fullImageURL
             ]
         ]);
     }
@@ -236,7 +236,13 @@ class AppUser extends BaseController
 
             unset($user['password']); // Remove sensitive data
             $user['token'] = $token;  // Include token in response
-            
+            // *********** ADD FULL PROFILE IMAGE URL ***********
+            if (!empty($user['profile_image'])) {
+                $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+            } else {
+                $user['profile_image'] = "";
+            }
+
             return $this->response->setJSON([
                 'status' => 200,
                 'success' => true,
@@ -292,7 +298,8 @@ class AppUser extends BaseController
 
     public function getUserById()
     {
-        $user_id = $this->request->getJSON(true);
+        $json = $this->request->getJSON(true);
+        $user_id = $json['user_id'] ?? null;
 
         if (empty($user_id)) {
             return $this->response->setJSON([
@@ -312,9 +319,13 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Optionally prefix image URL
+        // Fix profile image full URL
         if (!empty($user['profile_image'])) {
-            $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+
+            // Add base_url only if image is NOT already full URL
+            if (!preg_match('/^https?:\/\//', $user['profile_image'])) {
+                $user['profile_image'] = base_url('public/uploads/profile_images/' . $user['profile_image']);
+            }
         }
 
         return $this->response->setJSON([
@@ -323,7 +334,89 @@ class AppUser extends BaseController
             'data' => $user
         ]);
     }
+
+
     // UPDATE USER DETAILS
+    public function updateUser()
+    {
+        $data = $this->request->getPost();
+        $user_id = $data['user_id'] ?? null;
+
+        if (empty($user_id)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'user_id is required.'
+            ]);
+        }
+
+        $user = $this->appUserModel->find($user_id);
+        if (!$user) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'User not found.'
+            ]);
+        }
+
+        // Handle profile image upload
+        $profileImage = $user['profile_image'];
+        $file = $this->request->getFile('profile_image');
+
+        if ($file && $file->isValid() && !$file->hasMoved()) {
+
+            $newName = 'user_' . time() . '.' . $file->getExtension();
+
+            // Correct upload path
+            $uploadPath = FCPATH . 'uploads/profile_images/';
+
+            if (!is_dir($uploadPath)) {
+                mkdir($uploadPath, 0777, true);
+            }
+
+            $file->move($uploadPath, $newName);
+            $profileImage = $newName;
+
+            // Delete old image
+            $oldImagePath = $uploadPath . $user['profile_image'];
+            if (is_file($oldImagePath)) {
+                unlink($oldImagePath);
+            }
+        }
+
+        // Password hashing
+        if (!empty($data['password'])) {
+            $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
+        } else {
+            unset($data['password']);
+        }
+
+        $updateData = [
+            'name' => $data['name'] ?? $user['name'],
+            'gender' => $data['gender'] ?? $user['gender'],
+            'dob' => $data['dob'] ?? $user['dob'],
+            'email' => $data['email'] ?? $user['email'],
+            'phone' => $data['phone'] ?? $user['phone'],
+            'insta_id' => $data['insta_id'] ?? $user['insta_id'],
+            'linkedin_id' => $data['linkedin_id'] ?? $user['linkedin_id'],
+            'location' => $data['location'] ?? $user['location'],
+            'interest_id' => $data['interest_id'] ?? $user['interest_id'],
+            'profile_image' => !empty($profileImage)
+                ? base_url('uploads/profile_images/' . $profileImage)
+                : "",
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+
+        $this->appUserModel->update($user_id, $updateData);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'User updated successfully.',
+            'data' => $updateData
+        ]);
+    }
+
     public function completeProfile()
     {
         $data = $this->request->getPost();
@@ -505,7 +598,6 @@ class AppUser extends BaseController
             ]
         ]);
     }
-
     //profile status 
     public function updateProfileStatus()
     {
@@ -590,9 +682,6 @@ class AppUser extends BaseController
             'message' => 'Failed to update profile'
         ]);
     }
-
-
-
     //Account status Updates 
     public function updateAccountStatus()
     {
