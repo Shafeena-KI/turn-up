@@ -37,10 +37,12 @@ class EventInvite extends BaseController
             return $this->response->setJSON([
                 'status' => false,
                 'message' => 'event_id and user_id are required.'
-            ])->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST);
+            ]);
         }
 
-        // Check event exists
+        // ------------------------------------------------
+        // FETCH EVENT
+        // ------------------------------------------------
         $event = $this->db->table('events')
             ->where('event_id', $data['event_id'])
             ->get()
@@ -53,19 +55,14 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // -------------------------------
-        // Use category_name instead of category_id
-        // -------------------------------
-        if (empty($data['category_name'])) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'category_name is required.'
-            ]);
-        }
+        $event_code = $event->event_code;
+        $event_id = $event->event_id;
 
-        // Get category by name
+        // ------------------------------------------------
+        // CATEGORY VALIDATION
+        // ------------------------------------------------
         $category = $this->db->table('event_ticket_category')
-            ->where('event_id', $data['event_id'])
+            ->where('event_id', $event_id)
             ->where('category_name', $data['category_name'])
             ->get()
             ->getRow();
@@ -79,39 +76,39 @@ class EventInvite extends BaseController
 
         $category_id = $category->category_id;
 
-        // Check duplicate invite
+        // ------------------------------------------------
+        // DUPLICATE INVITE CHECK
+        // ------------------------------------------------
         $exists = $this->inviteModel
-            ->where(['event_id' => $data['event_id'], 'user_id' => $data['user_id']])
+            ->where(['event_id' => $event_id, 'user_id' => $data['user_id']])
             ->countAllResults();
 
         if ($exists > 0) {
             return $this->response->setJSON([
                 'status' => false,
-                'message' => 'User already invited for this event.'
+                'message' => 'You already placed an invite request.'
             ]);
         }
 
-        // -------------------------------------
-        // AUTO CALCULATE TOTALS BASED ON entry_type
-        // -------------------------------------
-        $entryType = $data['entry_type'] ?? null;
+        // ------------------------------------------------
+        // ENTRY TYPE CALCULATIONS
+        // ------------------------------------------------
+        $entryType = strtolower($data['entry_type']);
 
         $invite_total = 0;
         $male_total = 0;
         $female_total = 0;
         $couple_total = 0;
 
-        switch (strtolower($entryType)) {
+        switch ($entryType) {
             case 'male':
                 $invite_total = 1;
                 $male_total = 1;
                 break;
-
             case 'female':
                 $invite_total = 1;
                 $female_total = 1;
                 break;
-
             case 'couple':
                 $invite_total = 4;
                 $male_total = 1;
@@ -126,37 +123,60 @@ class EventInvite extends BaseController
                 ]);
         }
 
-        // -------------------------------------
-        // AUTO APPROVE VIP
-        // -------------------------------------
-        $inviteStatus = 0; // pending by default
+        // ------------------------------------------------
+        // VIP AUTO APPROVE
+        // ------------------------------------------------
+        $inviteStatus = strtolower($data['category_name']) === 'vip' ? 1 : 0;
 
-        if (strtolower($data['category_name']) === 'vip') {
-            $inviteStatus = 1; // auto approve for VIP
+        // ------------------------------------------------
+        // event_counters (ONE GLOBAL COUNTER)
+        // ------------------------------------------------
+        $counterTable = $this->db->table('event_counters');
+        $counter = $counterTable->get()->getRow();
+
+        if ($counter) {
+            $new_invite_no = $counter->last_invite_no + 1;
+            $counterTable->where('id', $counter->id)->update([
+                'last_invite_no' => $new_invite_no,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+        } else {
+            $new_invite_no = 1;
+            $counterTable->insert([
+                'last_invite_no' => 1,
+                'last_booking_no' => 0,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
         }
 
-        // -------------------------------------
-        // FINAL INSERT DATA
-        // -------------------------------------
+        // ------------------------------------------------
+        // FINAL INVITE CODE (EVENTCODE + IN + 001)
+        // ------------------------------------------------
+        $invite_code = $event_code . 'IN' . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
+
+        // ------------------------------------------------
+        // SAVE INVITE
+        // ------------------------------------------------
         $insertData = [
-            'event_id' => $data['event_id'],
+            'event_id' => $event_id,
             'user_id' => $data['user_id'],
             'category_id' => $category_id,
             'entry_type' => ucfirst($entryType),
             'partner' => $data['partner'] ?? null,
+            'invite_code' => $invite_code,
             'status' => $inviteStatus,
             'requested_at' => date('Y-m-d H:i:s'),
         ];
 
         $invite_id = $this->inviteModel->insert($insertData);
 
-        // -------------------------------------
-        // UPDATE event_counts
-        // -------------------------------------
+        // ------------------------------------------------
+        // UPDATE event_counts INVITES
+        // ------------------------------------------------
         $countsTable = $this->db->table('event_counts');
 
         $eventCount = $countsTable
-            ->where('event_id', $data['event_id'])
+            ->where('event_id', $event_id)
             ->where('category_id', $category_id)
             ->get()
             ->getRow();
@@ -171,7 +191,7 @@ class EventInvite extends BaseController
             ]);
         } else {
             $countsTable->insert([
-                'event_id' => $data['event_id'],
+                'event_id' => $event_id,
                 'category_id' => $category_id,
                 'total_invites' => $invite_total,
                 'total_male_invites' => $male_total,
@@ -189,42 +209,65 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // -------------------------------------------------
-        // AUTO CREATE BOOKING FOR VIP INVITES
-        // -------------------------------------------------
+        // ------------------------------------------------
+        // AUTO BOOKING FOR VIP
+        // ------------------------------------------------
         if ($inviteStatus == 1) {
 
-            // Insert booking
+            // --------------------------------------------
+            // GENERATE BOOKING CODE (EVENTCODE + B1001)
+            // --------------------------------------------
+            $counter = $counterTable->get()->getRow();  // reload
+
+            $new_booking_no = $counter->last_booking_no + 1;
+
+            // update counter
+            $counterTable->where('id', $counter->id)->update([
+                'last_booking_no' => $new_booking_no,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+
+            $booking_code = $event_code . 'B' . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
+
+            // SAVE BOOKING
             $bookingData = [
                 'invite_id' => $invite_id,
-                'event_id' => $data['event_id'],
+                'event_id' => $event_id,
                 'user_id' => $data['user_id'],
                 'category_id' => $category_id,
-                'total_price' => $category->price,  // category price
+                'booking_code' => $booking_code,
+                'total_price' => $category->price,
+                'quantity' => $invite_total,
                 'status' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
             ];
 
             $this->db->table('event_booking')->insert($bookingData);
 
-            // Update booking counts
-            if ($eventCount) {
-                $countsTable->where('id', $eventCount->id)->update([
-                    'total_booking' => $eventCount->total_booking + $invite_total,
-                    'total_male_booking' => $eventCount->total_male_booking + $male_total,
-                    'total_female_booking' => $eventCount->total_female_booking + $female_total,
-                    'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
-                    'updated_at' => date('Y-m-d H:i:s')
-                ]);
-            }
+            // UPDATE BOOKING COUNTS
+            $eventCount = $countsTable
+                ->where('event_id', $event_id)
+                ->where('category_id', $category_id)
+                ->get()
+                ->getRow();
+
+            $countsTable->where('id', $eventCount->id)->update([
+                'total_booking' => $eventCount->total_booking + $invite_total,
+                'total_male_booking' => $eventCount->total_male_booking + $male_total,
+                'total_female_booking' => $eventCount->total_female_booking + $female_total,
+                'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
         }
 
         return $this->response->setJSON([
             'status' => true,
             'message' => 'Invite created successfully.',
+            'invite_code' => $invite_code,
             'data' => $insertData
         ]);
     }
+
     public function listInvites($event_id = null, $search = null)
     {
         $page = (int) $this->request->getGet('current_page') ?: 1;
@@ -235,24 +278,29 @@ class EventInvite extends BaseController
         // Join with events, categories, users and event_counts
         $builder = $this->inviteModel
             ->select("
-            event_invites.*,
-            events.event_name,
-            events.event_city,
-            event_ticket_category.category_name,
-            app_users.name,
-            app_users.phone,
-            app_users.email,
-            app_users.insta_id,
-            app_users.profile_image,
-            event_counts.total_invites,
-            event_counts.total_male_invites,
-            event_counts.total_female_invites,
-            event_counts.total_couple_invites
-        ")
+        event_invites.*,
+        events.event_name,
+        events.event_city,
+        event_ticket_category.category_name,
+        app_users.name,
+        app_users.phone,
+        app_users.email,
+        app_users.insta_id,
+        app_users.profile_image,
+        ec.total_invites,
+        ec.total_male_invites,
+        ec.total_female_invites,
+        ec.total_couple_invites
+    ")
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
-            ->join('event_counts', 'event_counts.event_id = event_invites.event_id', 'left')
+            ->join(
+                'event_counts ec',
+                'ec.event_id = event_invites.event_id 
+         AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
+                'left'
+            )
             ->where('event_invites.status !=', 4);
         if (!empty($event_id)) {
             $builder->where('event_invites.event_id', $event_id);
@@ -338,7 +386,6 @@ class EventInvite extends BaseController
             ]
         ]);
     }
-
     // Approve or Reject Invite (manual)
     public function updateInviteStatus()
     {
@@ -591,7 +638,6 @@ class EventInvite extends BaseController
             'data' => array_values($finalData)
         ]);
     }
-
     // Expire old invites automatically (example endpoint)
     public function expireOldInvites()
     {

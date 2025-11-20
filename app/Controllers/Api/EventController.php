@@ -20,7 +20,33 @@ class EventController extends BaseController
     public function index()
     {
         $events = $this->eventModel->findAll();
-        return $this->response->setJSON(['status' => true, 'data' => $events]);
+
+        // Base URL for images
+        $baseUrl = base_url('public/uploads/events/');
+
+        foreach ($events as &$event) {
+
+            // --- POSTER IMAGE FULL URL ---
+            $event['poster_image'] = !empty($event['poster_image'])
+                ? $baseUrl . 'poster_images/' . $event['poster_image']
+                : null;
+
+            // --- GALLERY IMAGES FULL URLs ---
+            $gallery = json_decode($event['gallery_images'], true);
+
+            if (is_array($gallery)) {
+                $event['gallery_images'] = array_map(function ($img) use ($baseUrl) {
+                    return $baseUrl . 'gallery_images/' . $img;
+                }, $gallery);
+            } else {
+                $event['gallery_images'] = [];
+            }
+        }
+
+        return $this->response->setJSON([
+            'status' => true,
+            'data' => $events
+        ], JSON_UNESCAPED_SLASHES);
     }
     //  Get Single Event by ID
     public function show($id)
@@ -58,11 +84,9 @@ class EventController extends BaseController
             'data' => $event
         ], JSON_UNESCAPED_SLASHES);
     }
-
     // Create New Event
     public function create()
     {
-
         // ---------------- PRE-FLIGHT CORS ----------------
 
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -110,38 +134,34 @@ class EventController extends BaseController
         // ---------------- COLLECT EVENT DATA ----------------
 
         $event = [
-
             'event_name' => $_POST['event_name'] ?? '',
-
             'event_description' => $_POST['event_description'] ?? '',
-
             'event_location' => $_POST['event_location'] ?? '',
-
             'event_map' => $_POST['event_map'] ?? '',
-
             'event_date_start' => $_POST['event_date_start'] ?? '',
-
             'event_date_end' => $_POST['event_date_end'] ?? '',
-
             'dress_code' => $_POST['dress_code'] ?? '',
-
+            'event_code' => $_POST['event_code'] ?? '',
+            'whatsappmessage_code' => $_POST['whatsappmessage_code'] ?? '',
             'age_limit' => $_POST['age_limit'] ?? '',
-
             'event_type' => $_POST['event_type'] ?? '',
-
             'created_by' => $_POST['created_by'] ?? '',
-
-            'status' => $_POST['status'] ?? '',
-
             'event_time_start' => $_POST['event_time_start'] ?? '',
-
             'event_time_end' => $_POST['event_time_end'] ?? '',
-
             'event_city' => $_POST['event_city'] ?? '',
-
             'total_seats' => $_POST['total_seats'] ?? '',
-
         ];
+        // Auto-set status based on event_date_start
+        $startDate = strtotime($_POST['event_date_start'] ?? '');
+        $today = strtotime(date("Y-m-d"));
+
+        if ($startDate > $today) {
+            $event['status'] = 1;  // Upcoming
+        } elseif ($startDate == $today) {
+            $event['status'] = 1;  // Today = Upcoming
+        } elseif ($startDate < $today) {
+            $event['status'] = 2;  // Completed
+        }
 
         // ---------------- HOST ID ARRAY ----------------
 
@@ -323,6 +343,8 @@ class EventController extends BaseController
             "event_date_start" => $event['event_date_start'],
             "event_date_end" => $event['event_date_end'],
             "dress_code" => $event['dress_code'],
+            "event_code" => $event['event_code'],
+            "whatsappmessage_code" => $event['whatsappmessage_code'],
             "age_limit" => $event['age_limit'],
             "event_type" => $event['event_type'],
             "created_by" => $event['created_by'],
@@ -331,16 +353,11 @@ class EventController extends BaseController
             "event_time_end" => $event['event_time_end'],
             "event_city" => $event['event_city'],
             "total_seats" => $event['total_seats'],
-
             // JSON STRING FORM
             "host_id" => json_encode($hostIDs),
             "tag_id" => json_encode($tagIDs),
 
         ]);
-
-
-
-
     }
     public function listEvents($search = '')
     {
@@ -369,6 +386,31 @@ class EventController extends BaseController
             ->orderBy('event_id', 'DESC')
             ->findAll($limit, $offset);
 
+        // Base URL
+        $baseUrl = base_url('public/uploads/events/');
+
+        // Add Full Image URLs
+        foreach ($events as &$event) {
+
+            // ⭐ Poster image full URL
+            if (!empty($event['poster_image'])) {
+                $event['poster_image'] = $baseUrl . 'poster_images/' . $event['poster_image'];
+            } else {
+                $event['poster_image'] = null;
+            }
+
+            // ⭐ Gallery images full URLs
+            $gallery = json_decode($event['gallery_images'], true);
+
+            if (is_array($gallery)) {
+                $event['gallery_images'] = array_map(function ($img) use ($baseUrl) {
+                    return $baseUrl . 'gallery_images/' . $img;
+                }, $gallery);
+            } else {
+                $event['gallery_images'] = [];
+            }
+        }
+
         $totalPages = ceil($total / $limit);
 
         return $this->response->setJSON([
@@ -382,9 +424,8 @@ class EventController extends BaseController
                 'total_pages' => $totalPages,
                 'events' => $events
             ]
-        ]);
+        ], JSON_UNESCAPED_SLASHES);
     }
-
     // Update Event
     public function update()
     {
@@ -424,6 +465,8 @@ class EventController extends BaseController
             'event_time_start',
             'event_time_end',
             'dress_code',
+            'event_code',
+            'whatsappmessage_code',
             'age_limit',
             'host_id',
             'tag_id',
@@ -525,7 +568,6 @@ class EventController extends BaseController
             'message' => 'Update failed'
         ]);
     }
-
     // Delete Event
     public function delete()
     {
@@ -543,7 +585,10 @@ class EventController extends BaseController
             ]);
         }
 
-        if ($this->eventModel->delete($id)) {
+        // Soft delete: Set status = 4
+        $updated = $this->eventModel->update($id, ['status' => 4]);
+
+        if ($updated) {
             return $this->response->setJSON([
                 'status' => true,
                 'message' => 'Event deleted successfully'
@@ -555,4 +600,5 @@ class EventController extends BaseController
             'message' => 'Failed to delete event'
         ]);
     }
+
 }

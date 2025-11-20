@@ -128,25 +128,28 @@ class EventBooking extends BaseController
         // Join with events, categories, users and event_counts
         $builder = $this->bookingModel
             ->select("
-            event_booking.*,
-            events.event_name,
-            events.event_city,
-            event_ticket_category.category_name,
-            app_users.name,
-            app_users.phone,
-            app_users.email,
-            app_users.insta_id,
-            app_users.profile_image,
-            event_counts.total_booking,
-            event_counts.total_male_booking,
-            event_counts.total_female_booking,
-            event_counts.total_couple_booking
-        ")
+        event_booking.*,
+        events.event_name,
+        events.event_city,
+        event_ticket_category.category_name,
+        app_users.name,
+        app_users.phone,
+        app_users.email,
+        app_users.insta_id,
+        app_users.profile_image,
+        event_counts.total_booking,
+        event_counts.total_male_booking,
+        event_counts.total_female_booking,
+        event_counts.total_couple_booking
+    ")
             ->join('events', 'events.event_id = event_booking.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_booking.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
             ->join('event_counts', 'event_counts.event_id = event_booking.event_id', 'left')
             ->where('event_booking.status !=', 4);
+
+        // FIX DUPLICATES
+        $builder->groupBy('event_booking.booking_id');
         if (!empty($event_id)) {
             $builder->where('event_booking.event_id', $event_id);
         }
@@ -332,7 +335,6 @@ class EventBooking extends BaseController
             'overall_totals' => $overall
         ]);
     }
-
     // Get all bookings by Event
     public function getBookingsByEvent()
     {

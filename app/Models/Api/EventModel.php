@@ -18,6 +18,8 @@ class EventModel extends Model
         'event_date_end',
         'event_time_end',
         'dress_code',
+        'event_code',
+        'whatsappmessage_code',
         'age_limit',
         'host_id',
         'tag_id',
