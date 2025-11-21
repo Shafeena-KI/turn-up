@@ -17,114 +17,6 @@ class AppUser extends BaseController
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->appUserModel = new AppUserModel();
     }
-
-    public function register()
-    {
-        $data = $this->request->getPost();
-
-        if (empty($data['name']) || empty($data['email']) || empty($data['phone']) || empty($data['password'])) {
-            return $this->response->setJSON([
-                'status' => 400,
-                'success' => false,
-                'message' => 'Name, email, phone, and password are required.'
-            ]);
-        }
-
-        // Check duplicate email or phone
-        $existingUser = $this->appUserModel
-            ->groupStart()
-            ->where('email', $data['email'])
-            ->orWhere('phone', $data['phone'])
-            ->groupEnd()
-            ->first();
-
-        if ($existingUser) {
-            return $this->response->setJSON([
-                'status' => 409,
-                'success' => false,
-                'message' => 'Email or phone number already registered.'
-            ]);
-        }
-
-        // Hash password
-        $hashedPassword = password_hash($data['password'], PASSWORD_BCRYPT);
-
-        // Generate OTP
-        $otp = rand(100000, 999999);
-
-        // Handle profile image upload
-        $profileImage = null;
-        $file = $this->request->getFile('profile_image');
-        if ($file && $file->isValid() && !$file->hasMoved()) {
-            $newName = 'user_' . time() . '.' . $file->getExtension();
-            $uploadPath = FCPATH . 'uploads/profile_images/';
-            if (!is_dir($uploadPath)) {
-                mkdir($uploadPath, 0777, true);
-            }
-            $file->move($uploadPath, $newName);
-            $profileImage = $newName;
-        }
-
-        // Calculate profile score
-        $profile_score = 0;
-
-        if (!empty($data['phone']))
-            $profile_score += 25; // phone verified
-        if (!empty($data['insta_id']))
-            $profile_score += 20; // instagram added
-        if (!empty($data['email']))
-            $profile_score += 15; // email verified
-        if (!empty($data['profile_image']))
-            $profile_score += 10; // profile image uploaded
-        if (!empty($data['interest_id']))
-            $profile_score += 10; // interest selected
-        if (!empty($data['linkedin_id']))
-            $profile_score += 5; // linkedin added
-        if (!empty($data['location']) && strtolower($data['location']) === 'kochi')
-            $profile_score += 10; // Kochi verified
-        if (!empty($data['dob']))
-            $profile_score += 5; // DOB added
-
-        // Prepare data for insertion
-        $insertData = [
-            'name' => $data['name'],
-            'gender' => $data['gender'] ?? null,
-            'dob' => $data['dob'] ?? null,
-            'email' => $data['email'],
-            'phone' => $data['phone'],
-            'insta_id' => $data['insta_id'] ?? null,
-            'linkedin_id' => $data['linkedin_id'] ?? null,
-            'location' => $data['location'] ?? null,
-            'interest_id' => $data['interest_id'] ?? null,
-            'password' => $hashedPassword,
-            'otp' => $otp,
-            'profile_status' => 1,
-            'profile_score' => $profile_score,
-            'status' => 1,
-            'created_at' => date('Y-m-d H:i:s'),
-            'profile_image' => $profileImage
-        ];
-
-        // Save to DB
-        $this->appUserModel->insert($insertData);
-
-        $userId = $this->appUserModel->getInsertID();
-        $fullImageURL = $profileImage
-            ? base_url('uploads/profile_images/' . $profileImage)
-            : null;
-        // Success Response
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Registration successful. Please verify OTP to activate your profile.',
-            'data' => [
-                'user_id' => $userId,
-                'otp' => $otp,// Include only for testing; hide in production
-                'profile_score' => $profile_score,
-                'profile_image' => $fullImageURL
-            ]
-        ]);
-    }
     public function UserLogin()
     {
         $data = $this->request->getJSON(true);
@@ -176,8 +68,6 @@ class AppUser extends BaseController
             ]
         ]);
     }
-
-
     public function verifyOtp()
     {
         try {
@@ -349,7 +239,7 @@ class AppUser extends BaseController
         $data = $this->request->getPost();
         $user_id = $data['user_id'] ?? null;
 
-        if (empty($user_id)) {
+        if (!$user_id) {
             return $this->response->setJSON([
                 'status' => 400,
                 'success' => false,
@@ -366,38 +256,84 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Handle profile image upload
+        $profileScore = (int) ($user['profile_score'] ?? 0);
+        $updatedBy = $data['updated_by'] ?? 'user'; // default user
+
+        /* ---------- Scoring Rules ---------- */
+
+        // Phone score only first time
+        if (!empty($data['phone']) && empty($user['phone'])) {
+            $profileScore += 25;
+        }
+
+        // Insta score only user first time
+        if ($updatedBy == 'user' && !empty($data['insta_id']) && empty($user['insta_id'])) {
+            $profileScore += 20;
+        }
+
+        // Email score only admin verification first time
+        if ($updatedBy == 'admin' && !empty($data['email']) && empty($user['email'])) {
+            $profileScore += 15;
+        }
+
+        // LinkedIn only user first time
+        if ($updatedBy == 'user' && !empty($data['linkedin_id']) && empty($user['linkedin_id'])) {
+            $profileScore += 5;
+        }
+
+        // Interest score first time
+        if (!empty($data['interest_id']) && empty($user['interest_id'])) {
+            $profileScore += 10;
+        }
+
+        // Location: score only if Kochi first time
+        if (
+            !empty($data['location']) &&
+            strtolower($data['location']) === 'kochi' &&
+            (empty($user['location']) || strtolower($user['location']) !== 'kochi')
+        ) {
+            $profileScore += 10;
+        }
+
+        // DOB first time
+        if (!empty($data['dob']) && empty($user['dob'])) {
+            $profileScore += 5;
+        }
+
+        /* ---------- Profile Image ---------- */
         $profileImage = $user['profile_image'];
         $file = $this->request->getFile('profile_image');
 
         if ($file && $file->isValid() && !$file->hasMoved()) {
 
             $newName = 'user_' . time() . '.' . $file->getExtension();
-
-            // Correct upload path
             $uploadPath = FCPATH . 'uploads/profile_images/';
-
-            if (!is_dir($uploadPath)) {
+            if (!is_dir($uploadPath))
                 mkdir($uploadPath, 0777, true);
-            }
 
             $file->move($uploadPath, $newName);
             $profileImage = $newName;
 
-            // Delete old image
-            $oldImagePath = $uploadPath . $user['profile_image'];
-            if (is_file($oldImagePath)) {
-                unlink($oldImagePath);
+            // First Image Upload -> score
+            if (empty($user['profile_image'])) {
+                $profileScore += 10;
+            }
+
+            // Remove old photo
+            if (!empty($user['profile_image'])) {
+                $oldPath = $uploadPath . $user['profile_image'];
+                if (is_file($oldPath))
+                    unlink($oldPath);
             }
         }
 
-        // Password hashing
         if (!empty($data['password'])) {
             $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
         } else {
             unset($data['password']);
         }
 
+        /* ---------- Build Update Data ---------- */
         $updateData = [
             'name' => $data['name'] ?? $user['name'],
             'gender' => $data['gender'] ?? $user['gender'],
@@ -409,24 +345,45 @@ class AppUser extends BaseController
             'location' => $data['location'] ?? $user['location'],
             'interest_id' => $data['interest_id'] ?? $user['interest_id'],
             'profile_image' => $profileImage,
+            'profile_score' => $profileScore,
             'updated_at' => date('Y-m-d H:i:s')
         ];
+        /* ---------- Handle Interests ---------- */
+        if (isset($data['interest_id'])) {
+
+            // Convert string like ["1","2","3"] → array
+            if (!is_array($data['interest_id'])) {
+                $decoded = json_decode($data['interest_id'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $data['interest_id'] = $decoded;
+                } else {
+                    $data['interest_id'] = [$data['interest_id']];
+                }
+            }
+
+            // Store comma separated values in DB
+            $updateData['interest_id'] = implode(",", $data['interest_id']);
+
+        } else {
+            $updateData['interest_id'] = $user['interest_id'];
+        }
+
 
         $this->appUserModel->update($user_id, $updateData);
 
-        // Build full image URL for response
         $updateData['profile_image'] = !empty($profileImage)
             ? base_url('uploads/profile_images/' . $profileImage)
             : "";
-
+        $updateData['interest_id'] = !empty($updateData['interest_id'])
+            ? explode(",", $updateData['interest_id'])
+            : [];
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'User updated successfully.',
+            'message' => 'Profile updated successfully.',
+            'profile_score' => $profileScore,
             'data' => $updateData
         ]);
-
-
     }
     public function completeProfile()
     {
@@ -451,10 +408,21 @@ class AppUser extends BaseController
             ]);
         }
 
-        // ----------- Mandatory Fields Validation ------------
-        $required_fields = ['name', 'dob', 'insta_id'];
-
+        // Mandatory fields
+        $required_fields = ['name', 'dob', 'insta_id', 'profile_image'];
         foreach ($required_fields as $f) {
+            if ($f === 'profile_image') {
+                $file = $this->request->getFile('profile_image');
+                if (!$file || !$file->isValid()) {
+                    return $this->response->setJSON([
+                        'status' => 400,
+                        'success' => false,
+                        'message' => 'Please upload profile image.'
+                    ]);
+                }
+                continue;
+            }
+
             if (empty($data[$f])) {
                 return $this->response->setJSON([
                     'status' => 400,
@@ -464,7 +432,7 @@ class AppUser extends BaseController
             }
         }
 
-        // ----------- Profile Image Upload --------------
+        // Profile image upload
         $profileImage = $user['profile_image'];
         $file = $this->request->getFile('profile_image');
 
@@ -477,49 +445,30 @@ class AppUser extends BaseController
 
             $file->move($uploadPath, $newName);
             $profileImage = $newName;
-
-            if (!empty($user['profile_image']) && is_file($uploadPath . $user['profile_image'])) {
-                unlink($uploadPath . $user['profile_image']);
-            }
         }
 
-        // -------- Profile Score Calculation ----------
+        // PROFILE SCORING
+        $profile_score = (int) $user['profile_score'];
 
-        // If this is FIRST TIME completing profile → set to 60
-        if ($user['profile_status'] != 2) {
-            $newScore = 60;
-        } else {
-            // otherwise start from stored score
-            $newScore = $user['profile_score'];
+        if ($user['profile_status'] == 0) {
+            // First time complete profile: Add only mandatory score 15
+            $profile_score += 15;
         }
 
-        // Optional fields give bonus ONLY if newly added
-
-        if (empty($user['email']) && !empty($data['email']))
-            $newScore += 15;
-
-        if (empty($user['profile_image']) && !empty($profileImage))
-            $newScore += 10;
-
-        if (empty($user['interest_id']) && !empty($data['interest_id']))
-            $newScore += 10;
-
-        if (empty($user['linkedin_id']) && !empty($data['linkedin_id']))
-            $newScore += 5;
+        if (empty($user['interest_id']) && !empty($data['interest_id'])) {
+            $profile_score += 10;
+        }
 
         if (
-            (empty($user['location']) || strtolower($user['location']) != 'kochi') &&
-            !empty($data['location']) && strtolower($data['location']) == 'kochi'
-        )
-            $newScore += 10;
+            (empty($user['location']) || strtolower($user['location']) !== 'kochi') &&
+            !empty($data['location']) && strtolower($data['location']) === 'kochi'
+        ) {
+            $profile_score += 10;
+        }
 
-        if (empty($user['dob']) && !empty($data['dob']))
-            $newScore += 5;
+        $profile_score = min(100, $profile_score);
 
-        // max score limit
-        $newScore = min(100, $newScore);
-
-        // -------- Update DB --------------
+        // Update DB
         $updateData = [
             'name' => $data['name'],
             'gender' => $data['gender'] ?? $user['gender'],
@@ -530,28 +479,34 @@ class AppUser extends BaseController
             'location' => $data['location'] ?? $user['location'],
             'interest_id' => $data['interest_id'] ?? $user['interest_id'],
             'profile_image' => $profileImage,
-            'profile_status' => 2,
-            'profile_score' => $newScore,
-            'updated_at' => date('Y-m-d H:i:s')
+            'profile_status' => 1, // Profile completed but pending admin verification
+            'profile_score' => $profile_score,
         ];
+        /* ---------- Handle Interests Array ---------- */
+        if (!empty($data['interest_id'])) {
 
-        // -------- Update DB --------------
+            // First Time added
+            if (empty($user['interest_id'])) {
+                $profile_score += 10;
+            }
+
+            $updateData['interest_id'] = json_encode($data['interest_id']);
+        } else {
+            $updateData['interest_id'] = $user['interest_id'];
+        }
+
+
         $this->appUserModel->update($user_id, $updateData);
 
-        $responseData = $updateData;
-
-        // Convert image to full URL
-        $responseData['profile_image'] = base_url('uploads/profile_images/' . $profileImage);
+        $updateData['profile_image'] = base_url('uploads/profile_images/' . $profileImage);
 
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'Profile completed successfully.',
-            'data' => array_merge(['user_id' => $user_id], $responseData)
+            'message' => 'Profile completed successfully. Pending verification.',
+            'data' => array_merge(['user_id' => $user_id], $updateData)
         ]);
-
     }
-
     // DELETE USER (soft delete)
     public function deleteUser()
     {
@@ -642,9 +597,27 @@ class AppUser extends BaseController
     //profile status 
     public function updateProfileStatus()
     {
-        $userId = $this->request->getVar('user_id');
+        $json = $this->request->getJSON(true);
+        $userId = $json['user_id'] ?? $this->request->getVar('user_id');
+        $status = isset($json['profile_status'])
+            ? (int) $json['profile_status']
+            : (int) $this->request->getVar('profile_status');
+        if (empty($userId)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'User ID is required'
+            ]);
+        }
 
-        // Check user exists
+        if (!in_array($status, [2, 3])) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Invalid status! Only 2 (Verified) or 3 (Rejected) allowed'
+            ]);
+        }
+
         $user = $this->appUserModel->find($userId);
         if (!$user) {
             return $this->response->setJSON([
@@ -654,73 +627,38 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Mandatory fields
-        $name = $this->request->getVar('name');
-        $dob = $this->request->getVar('dob');
-        $gender = $this->request->getVar('gender');
-        $insta_id = $this->request->getVar('insta_id');
-        $profile_image = $this->request->getFile('profile_image');
+        $profile_score = (int) ($user['profile_score'] ?? 0);
+        $updatedScore = $profile_score;
+        $updateData = ['profile_status' => $status];
 
-        // Mandatory validation
-        if (
-            empty($name) ||
-            empty($dob) ||
-            empty($gender) ||
-            empty($insta_id) ||
-            !$profile_image || !$profile_image->isValid()
-        ) {
-            return $this->response->setJSON([
-                'status' => 400,
-                'success' => false,
-                'message' => 'Please complete all mandatory fields including profile image.'
-            ]);
-        }
+        if ($status == 2) {
 
-        // Upload image
-        $newName = 'user_' . time() . '.' . $profile_image->getExtension();
-        $profile_image->move('uploads/profile_images/', $newName);
-
-        // Base data
-        $updateData = [
-            'name' => $name,
-            'dob' => $dob,
-            'gender' => $gender,
-            'insta_id' => $insta_id,
-            'profile_image' => $newName,
-            'profile_status' => 1
-        ];
-
-        // Optional fields
-        $optionalFields = ['email', 'linkedin_id', 'location', 'interest_id'];
-
-        foreach ($optionalFields as $field) {
-            $value = $this->request->getVar($field);
-            if (!empty($value)) {
-                $updateData[$field] = $value;
+            // Add missing scores only once
+            if (!empty($user['email'])) {
+                $updatedScore += 15;
             }
+
+            if (!empty($user['insta_id'])) {
+                $updatedScore += 20;
+            }
+
+            if (!empty($user['linkedin_id'])) {
+                $updatedScore += 5;
+            }
+
+            // Score should not exceed 100
+            $updatedScore = min($updatedScore, 100);
+            $updateData['profile_score'] = $updatedScore;
         }
 
-        // Update user
-        $update = $this->appUserModel->update($userId, $updateData);
-
-        if ($update) {
-            $updatedUser = $this->appUserModel->find($userId);
-
-            // Replace filename with full URL
-            $updatedUser['profile_image'] = base_url('uploads/profile_images/' . $updatedUser['profile_image']);
-
-            return $this->response->setJSON([
-                'status' => 200,
-                'success' => true,
-                'message' => 'Profile updated successfully.',
-                'data' => $updatedUser
-            ]);
-        }
+        $this->appUserModel->update($userId, $updateData);
 
         return $this->response->setJSON([
-            'status' => 500,
-            'success' => false,
-            'message' => 'Failed to update profile'
+            'status' => 200,
+            'success' => true,
+            'message' => "Profile status updated successfully.",
+            'previous_score' => $profile_score,
+            'updated_score' => $updatedScore,
         ]);
     }
     //Account status Updates 
