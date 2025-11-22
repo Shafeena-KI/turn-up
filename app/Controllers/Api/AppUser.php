@@ -349,34 +349,52 @@ class AppUser extends BaseController
             'updated_at' => date('Y-m-d H:i:s')
         ];
         /* ---------- Handle Interests ---------- */
+        $interestIds = [];
         if (isset($data['interest_id'])) {
-
             // Convert string like ["1","2","3"] → array
             if (!is_array($data['interest_id'])) {
                 $decoded = json_decode($data['interest_id'], true);
                 if (json_last_error() === JSON_ERROR_NONE) {
-                    $data['interest_id'] = $decoded;
+                    $interestIds = $decoded;
                 } else {
-                    $data['interest_id'] = [$data['interest_id']];
+                    $interestIds = [$data['interest_id']];
                 }
+            } else {
+                $interestIds = $data['interest_id'];
             }
 
             // Store comma separated values in DB
-            $updateData['interest_id'] = implode(",", $data['interest_id']);
+            $updateData['interest_id'] = implode(",", $interestIds);
 
         } else {
+            // If not sent in request, take from existing user data
+            $interestIds = !empty($user['interest_id']) ? explode(",", $user['interest_id']) : [];
             $updateData['interest_id'] = $user['interest_id'];
         }
 
-
         $this->appUserModel->update($user_id, $updateData);
+
+        // ---------- Fetch interest names directly from table ----------
+        $interestList = [];
+        if (!empty($interestIds)) {
+            $db = \Config\Database::connect();
+            $builder = $db->table('interests');
+            $interests = $builder->whereIn('interest_id', $interestIds)->get()->getResultArray();
+
+            foreach ($interests as $i) {
+                $interestList[] = [
+                    'interest_id' => $i['interest_id'],
+                    'interest_name' => $i['interest_name']
+                ];
+            }
+        }
+
 
         $updateData['profile_image'] = !empty($profileImage)
             ? base_url('uploads/profile_images/' . $profileImage)
             : "";
-        $updateData['interest_id'] = !empty($updateData['interest_id'])
-            ? explode(",", $updateData['interest_id'])
-            : [];
+        unset($updateData['interest_id']);
+        $updateData['interests'] = $interestList;
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
@@ -451,7 +469,6 @@ class AppUser extends BaseController
         $profile_score = (int) $user['profile_score'];
 
         if ($user['profile_status'] == 0) {
-            // First time complete profile: Add only mandatory score 15
             $profile_score += 15;
         }
 
@@ -479,34 +496,67 @@ class AppUser extends BaseController
             'location' => $data['location'] ?? $user['location'],
             'interest_id' => $data['interest_id'] ?? $user['interest_id'],
             'profile_image' => $profileImage,
-            'profile_status' => 1, // Profile completed but pending admin verification
+            'profile_status' => 1,
             'profile_score' => $profile_score,
         ];
-        /* ---------- Handle Interests Array ---------- */
-        if (!empty($data['interest_id'])) {
 
-            // First Time added
-            if (empty($user['interest_id'])) {
-                $profile_score += 10;
+        /* ---------- Handle Interests ---------- */
+        $interestIds = [];
+        if (isset($data['interest_id'])) {
+            // Convert string like ["1","2","3"] → array
+            if (!is_array($data['interest_id'])) {
+                $decoded = json_decode($data['interest_id'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $interestIds = $decoded;
+                } else {
+                    $interestIds = [$data['interest_id']];
+                }
+            } else {
+                $interestIds = $data['interest_id'];
             }
 
-            $updateData['interest_id'] = json_encode($data['interest_id']);
+            // Store comma separated values in DB
+            $updateData['interest_id'] = implode(",", $interestIds);
+
         } else {
+            // If not sent in request, take from existing user data
+            $interestIds = !empty($user['interest_id']) ? explode(",", $user['interest_id']) : [];
             $updateData['interest_id'] = $user['interest_id'];
         }
 
-
         $this->appUserModel->update($user_id, $updateData);
 
+        // ---------- Fetch interest names directly from table ----------
+        $interestList = [];
+        if (!empty($interestIds)) {
+            $db = \Config\Database::connect();
+            $builder = $db->table('interests');
+            $interests = $builder->whereIn('interest_id', $interestIds)->get()->getResultArray();
+
+            foreach ($interests as $i) {
+                $interestList[] = [
+                    'interest_id' => $i['interest_id'],
+                    'interest_name' => $i['interest_name']
+                ];
+            }
+        }
+
         $updateData['profile_image'] = base_url('uploads/profile_images/' . $profileImage);
+
+        // Remove 'interest_id' from response, only return 'interests'
+        $responseData = $updateData;
+        unset($responseData['interest_id']); // remove CSV field
+        $responseData['interests'] = $interestList;
 
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
             'message' => 'Profile completed successfully. Pending verification.',
-            'data' => array_merge(['user_id' => $user_id], $updateData)
+            'data' => array_merge(['user_id' => $user_id], $responseData)
         ]);
+
     }
+
     // DELETE USER (soft delete)
     public function deleteUser()
     {
