@@ -13,6 +13,7 @@ class EventBookingModel extends Model
         'event_id',
         'category_id',
         'invite_id',
+        'booking_code', 
         'total_price',
         'quantity',
         'status',

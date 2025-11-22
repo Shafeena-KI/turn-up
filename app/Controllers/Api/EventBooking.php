@@ -431,49 +431,49 @@ class EventBooking extends BaseController
     }
 
     //generating Qr code using booking code 
-  
-public function generateQrCode()
-{
-    $data = $this->request->getJSON(true);
-    $booking_code = $data['booking_code'] ?? null;
 
-    if (!$booking_code) {
+    public function generateQrCode()
+    {
+        $data = $this->request->getJSON(true);
+        $booking_code = $data['booking_code'] ?? null;
+
+        if (!$booking_code) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'booking_code is required'
+            ]);
+        }
+
+        $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
+        if (!$booking) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Invalid booking code'
+            ]);
+        }
+
+        $qrFolder = WRITEPATH . 'uploads/qr_codes/';
+        if (!is_dir($qrFolder)) {
+            mkdir($qrFolder, 0777, true);
+        }
+
+        $fileName = $booking_code . '.png';
+        $filePath = $qrFolder . $fileName;
+
+        // QR code generation (v6)
+        $qrCode = new QrCode($booking_code);
+        $writer = new PngWriter();
+        $result = $writer->write($qrCode);
+
+        $result->saveToFile($filePath);
+
         return $this->response->setJSON([
-            'status' => false,
-            'message' => 'booking_code is required'
+            'status' => true,
+            'message' => 'QR Code Generated',
+            'qr_url' => base_url('writable/uploads/qr_codes/' . $fileName),
+            'booking_code' => $booking_code
         ]);
     }
-
-    $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
-    if (!$booking) {
-        return $this->response->setJSON([
-            'status' => false,
-            'message' => 'Invalid booking code'
-        ]);
-    }
-
-    $qrFolder = WRITEPATH . 'uploads/qr_codes/';
-    if (!is_dir($qrFolder)) {
-        mkdir($qrFolder, 0777, true);
-    }
-
-    $fileName = $booking_code . '.png';
-    $filePath = $qrFolder . $fileName;
-
-    // QR code generation (v6)
-    $qrCode = new QrCode($booking_code);
-    $writer = new PngWriter();
-    $result = $writer->write($qrCode);
-
-    $result->saveToFile($filePath);
-
-    return $this->response->setJSON([
-        'status' => true,
-        'message' => 'QR Code Generated',
-        'qr_url' => base_url('writable/uploads/qr_codes/' . $fileName),
-        'booking_code' => $booking_code
-    ]);
-}
 
 
 
@@ -509,15 +509,15 @@ public function generateQrCode()
             'status' => true,
             'message' => 'Details found',
             'data' => [
-                'booking_id'   => $booking['booking_id'],
+                'booking_id' => $booking['booking_id'],
                 'booking_code' => $booking['booking_code'],
-                'event_name'   => $event['event_name'] ?? '',
-                'ticket_type'  => $category['category_name'] ?? '',
-                'entry_type'   => $invite['entry_type'] ?? '',
-                'user_name'    => $user['name'] ?? '',
-                'profile_image'=> $user['profile_image'] ?? '',
-                'invite_id'    => $invite['invite_id'] ?? null,
-                'partner'      => $invite['partner'] ?? null,
+                'event_name' => $event['event_name'] ?? '',
+                'ticket_type' => $category['category_name'] ?? '',
+                'entry_type' => $invite['entry_type'] ?? '',
+                'user_name' => $user['name'] ?? '',
+                'profile_image' => $user['profile_image'] ?? '',
+                'invite_id' => $invite['invite_id'] ?? null,
+                'partner' => $invite['partner'] ?? null,
             ]
         ]);
     }
