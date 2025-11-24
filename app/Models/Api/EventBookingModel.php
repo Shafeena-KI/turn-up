@@ -22,5 +22,7 @@ class EventBookingModel extends Model
         'updated_at'
     ];
 
-    protected $useTimestamps = false;
+ protected $useTimestamps = true;
+protected $createdField  = 'created_at';
+protected $updatedField  = 'updated_at';
 }

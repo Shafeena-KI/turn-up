@@ -526,7 +526,7 @@ class AppUser extends BaseController
 
         $this->appUserModel->update($user_id, $updateData);
 
-        // ---------- Fetch interest names directly from table ----------
+        // Fetch interest names directly from table
         $interestList = [];
         if (!empty($interestIds)) {
             $db = \Config\Database::connect();
@@ -556,7 +556,6 @@ class AppUser extends BaseController
         ]);
 
     }
-
     // DELETE USER (soft delete)
     public function deleteUser()
     {

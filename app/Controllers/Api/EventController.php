@@ -22,48 +22,66 @@ class EventController extends BaseController
     {
         $events = $this->eventModel->findAll();
 
-        // Base URL for images
         $baseUrl = base_url('public/uploads/events/');
+        $today = strtotime(date("Y-m-d"));
 
         foreach ($events as &$event) {
 
-            // --- POSTER IMAGE FULL URL ---
+            // --- AUTO UPDATE EVENT STATUS ---
+            $startDate = strtotime($event['event_date_start']);
+            $endDate = strtotime($event['event_date_end']);
+            $currentStatus = $event['status'];
+            $newStatus = $currentStatus;
+
+            if ($endDate < $today) {
+                $newStatus = 2; // Completed
+            } elseif ($startDate > $today) {
+                $newStatus = 1; // Upcoming
+            } elseif ($startDate <= $today && $endDate >= $today) {
+                $newStatus = 1; // Live event (still upcoming)
+            }
+
+            // Update DB only if status changed ⚡
+            if ($newStatus != $currentStatus) {
+                $this->db->table('events')
+                    ->where('event_id', $event['event_id'])
+                    ->update(['status' => $newStatus]);
+
+                $event['status'] = $newStatus;
+            }
+
+            // --- POSTER FULL URL ---
             $event['poster_image'] = !empty($event['poster_image'])
                 ? $baseUrl . 'poster_images/' . $event['poster_image']
                 : null;
 
-            // --- GALLERY IMAGES FULL URLs ---
+            // --- GALLERY FULL URLS ---
             $gallery = json_decode($event['gallery_images'], true);
+            $event['gallery_images'] = is_array($gallery)
+                ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
+                : [];
 
-            if (is_array($gallery)) {
-                $event['gallery_images'] = array_map(function ($img) use ($baseUrl) {
-                    return $baseUrl . 'gallery_images/' . $img;
-                }, $gallery);
-            } else {
-                $event['gallery_images'] = [];
-            }
-            // --- HOST ID CLEAN ARRAY ---
+            // --- HOST ID ARRAY ---
             $hostIDs = json_decode($event['host_id'], true);
             $event['host_id'] = is_array($hostIDs)
                 ? array_map('intval', $hostIDs)
                 : [];
 
-            // --- TAG ID CLEAN ARRAY ---
+            // --- TAG ID ARRAY ---
             $tagIDs = json_decode($event['tag_id'], true);
             $event['tag_id'] = is_array($tagIDs)
                 ? array_map('intval', $tagIDs)
                 : [];
-            // --- TICKET CATEGORIES (MULTIPLE) ---
-            $ticketCategories = $this->db->table('event_ticket_category')
+
+            // --- TICKET CATEGORIES ---
+            $event['ticket_categories'] = $this->db->table('event_ticket_category')
                 ->select('category_name, price')
                 ->where('event_id', $event['event_id'])
                 ->where('status', 1)
                 ->get()
                 ->getResultArray();
 
-            // Add categories to event response
-            $event['ticket_categories'] = $ticketCategories;
-            // --- TOTAL BOOKINGS FROM event_counts TABLE ---
+            // --- TOTAL BOOKINGS FROM event_counts ---
             $eventCounts = $this->db->table('event_counts')
                 ->select('total_booking')
                 ->where('event_id', $event['event_id'])
@@ -78,6 +96,7 @@ class EventController extends BaseController
             'data' => $events
         ], JSON_UNESCAPED_SLASHES);
     }
+
     //  Get Single Event by ID
     public function show($id)
     {
@@ -90,22 +109,20 @@ class EventController extends BaseController
             ]);
         }
 
-        // Base URL for images
         $baseUrl = base_url('public/uploads/events/');
 
-        // --- POSTER IMAGE FULL URL ---
+        // Full Poster URL
         $event['poster_image'] = !empty($event['poster_image'])
             ? $baseUrl . 'poster_images/' . $event['poster_image']
             : null;
 
-        // --- GALLERY IMAGES FULL URLs ---
+        // Gallery URLs
         $gallery = json_decode($event['gallery_images'], true);
-
         $event['gallery_images'] = is_array($gallery)
             ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
             : [];
 
-        // --- HOST DETAILS ---
+        // Host Details
         $hostIDs = json_decode($event['host_id'], true);
         $hostIDs = is_array($hostIDs) ? $hostIDs : [];
 
@@ -116,7 +133,6 @@ class EventController extends BaseController
                 ->get()
                 ->getResultArray();
 
-            // Add full image URL for host_image
             foreach ($hosts as &$host) {
                 $host['host_image'] = !empty($host['host_image'])
                     ? base_url('public/uploads/host_images/') . $host['host_image']
@@ -124,7 +140,7 @@ class EventController extends BaseController
             }
         }
 
-        // --- TAG DETAILS ---
+        // Tag Details
         $tagIDs = json_decode($event['tag_id'], true);
         $tagIDs = is_array($tagIDs) ? $tagIDs : [];
 
@@ -135,33 +151,26 @@ class EventController extends BaseController
                 ->get()
                 ->getResultArray();
         }
-        // --- TICKET CATEGORIES (MULTIPLE) ---
-        $ticketCategories = $this->db->table('event_ticket_category')
+
+        // Ticket Categories
+        $event['ticket_categories'] = $this->db->table('event_ticket_category')
             ->select('category_name, price')
             ->where('event_id', $id)
             ->where('status', 1)
             ->get()
             ->getResultArray();
 
-        // Add categories to event response
-        $event['ticket_categories'] = $ticketCategories;
-
-        // --- TOTAL BOOKINGS FROM event_counts TABLE ---
+        // Total Bookings
         $eventCounts = $this->db->table('event_counts')
             ->select('total_booking')
             ->where('event_id', $id)
             ->get()
             ->getRowArray();
 
-        $event['total_booking'] = $eventCounts['total_booking'] ?? 0; // Default 0 if no record found
+        $event['total_booking'] = $eventCounts['total_booking'] ?? 0;
 
-        unset(
-            $event['host_id'],
-            $event['tag_id'],
-            $event['hosts'],
-            $event['tags']
-        );
-        // Add host and tag data into event response
+        // Replace host_id & tag_id with full details in output
+        unset($event['host_id'], $event['tag_id']);
         $event['hosts'] = $hosts;
         $event['tags'] = $tags;
 
@@ -170,7 +179,6 @@ class EventController extends BaseController
             'data' => $event
         ], JSON_UNESCAPED_SLASHES);
     }
-
     // Create New Event
     public function create()
     {
@@ -185,7 +193,6 @@ class EventController extends BaseController
         }
 
         // ---------------- JSON RESPONSE FUNCTION ----------------
-
         function respond($success, $message, $data = null, $code = 200)
         {
             header('Content-Type: application/json');
@@ -220,17 +227,28 @@ class EventController extends BaseController
             'event_city' => $_POST['event_city'] ?? '',
             'total_seats' => $_POST['total_seats'] ?? '',
         ];
-        // Auto-set status based on event_date_start
-        $startDate = strtotime($_POST['event_date_start'] ?? '');
-        $today = strtotime(date("Y-m-d"));
+        // ----- STATUS BASED ON DATE + TIME -----
 
-        if ($startDate > $today) {
-            $event['status'] = 1;  // Upcoming
-        } elseif ($startDate == $today) {
-            $event['status'] = 1;  // Today = Upcoming
-        } elseif ($startDate < $today) {
-            $event['status'] = 2;  // Completed
+        $startDateTime = strtotime(
+            ($_POST['event_date_start'] ?? '') . ' ' .
+            ($_POST['event_time_start'] ?? '00:00')
+        );
+
+        $endDateTime = strtotime(
+            ($_POST['event_date_end'] ?? '') . ' ' .
+            ($_POST['event_time_end'] ?? '23:59')
+        );
+
+        $currentTime = time(); // NOW
+
+        if ($endDateTime < $currentTime) {
+            $event['status'] = 2; // Completed
+        } elseif ($startDateTime <= $currentTime && $endDateTime >= $currentTime) {
+            $event['status'] = 1; // Live (Upcoming)
+        } else {
+            $event['status'] = 1; // Upcoming
         }
+
 
         // ---------------- HOST ID ARRAY ----------------
 
@@ -401,7 +419,24 @@ class EventController extends BaseController
             } else {
                 $event['gallery_images'] = [];
             }
+            // --- TICKET CATEGORIES ---
+            $event['ticket_categories'] = $this->db->table('event_ticket_category')
+                ->select('category_name, price')
+                ->where('event_id', $event['event_id'])
+                ->where('status', 1)
+                ->get()
+                ->getResultArray();
+
+            // --- TOTAL BOOKINGS FROM event_counts ---
+            $eventCounts = $this->db->table('event_counts')
+                ->select('total_booking')
+                ->where('event_id', $event['event_id'])
+                ->get()
+                ->getRowArray();
+
+            $event['total_booking'] = $eventCounts['total_booking'] ?? 0;
         }
+
         $totalPages = ceil($total / $limit);
         return $this->response->setJSON([
             'status' => 200,
@@ -561,6 +596,16 @@ class EventController extends BaseController
     // Delete Event
     public function delete($id = null)
     {
+        // CORS Headers
+        header("Access-Control-Allow-Origin: *");
+        header("Access-Control-Allow-Headers: Content-Type, Authorization");
+        header("Access-Control-Allow-Methods: POST, OPTIONS");
+
+        // Handle Preflight (OPTION) request
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            return $this->response->setStatusCode(200);
+        }
+
         if (empty($id)) {
             return $this->response->setJSON([
                 'status' => false,
@@ -575,6 +620,5 @@ class EventController extends BaseController
             'message' => $updated ? 'Event deleted successfully' : 'Failed to delete event'
         ]);
     }
-
 
 }
