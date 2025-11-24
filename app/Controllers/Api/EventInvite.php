@@ -40,9 +40,23 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // ------------------------------------------------
+        // PROFILE STATUS VALIDATION
+
+        $user = $this->db->table('app_users')
+            ->select('profile_status')
+            ->where('user_id', $data['user_id'])
+            ->get()
+            ->getRow();
+
+        if (!$user || $user->profile_status == 0) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Please complete your profile before requesting an invite.'
+            ]);
+        }
+
         // FETCH EVENT
-        // ------------------------------------------------
+
         $event = $this->db->table('events')
             ->where('event_id', $data['event_id'])
             ->get()
@@ -58,9 +72,8 @@ class EventInvite extends BaseController
         $event_code = $event->event_code;
         $event_id = $event->event_id;
 
-        // ------------------------------------------------
         // CATEGORY VALIDATION
-        // ------------------------------------------------
+
         $category = $this->db->table('event_ticket_category')
             ->where('event_id', $event_id)
             ->where('category_name', $data['category_name'])
@@ -76,9 +89,8 @@ class EventInvite extends BaseController
 
         $category_id = $category->category_id;
 
-        // ------------------------------------------------
         // DUPLICATE INVITE CHECK
-        // ------------------------------------------------
+
         $exists = $this->inviteModel
             ->where(['event_id' => $event_id, 'user_id' => $data['user_id']])
             ->countAllResults();
@@ -90,9 +102,8 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // ------------------------------------------------
         // ENTRY TYPE CALCULATIONS
-        // ------------------------------------------------
+
         $entryType = strtolower($data['entry_type']);
 
         $invite_total = 0;
@@ -123,14 +134,12 @@ class EventInvite extends BaseController
                 ]);
         }
 
-        // ------------------------------------------------
         // VIP AUTO APPROVE
-        // ------------------------------------------------
+
         $inviteStatus = strtolower($data['category_name']) === 'vip' ? 1 : 0;
 
-        // ------------------------------------------------
         // event_counters (ONE GLOBAL COUNTER)
-        // ------------------------------------------------
+
         $counterTable = $this->db->table('event_counters');
         $counter = $counterTable->get()->getRow();
 
@@ -149,14 +158,12 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // ------------------------------------------------
         // FINAL INVITE CODE (EVENTCODE + IN + 001)
-        // ------------------------------------------------
-        $invite_code = $event_code . 'IN' . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
+  
+        $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
 
-        // ------------------------------------------------
         // SAVE INVITE
-        // ------------------------------------------------
+
         $insertData = [
             'event_id' => $event_id,
             'user_id' => $data['user_id'],
@@ -170,9 +177,8 @@ class EventInvite extends BaseController
 
         $invite_id = $this->inviteModel->insert($insertData);
 
-        // ------------------------------------------------
         // UPDATE event_counts INVITES
-        // ------------------------------------------------
+
         $countsTable = $this->db->table('event_counts');
 
         $eventCount = $countsTable
@@ -212,10 +218,9 @@ class EventInvite extends BaseController
         // AUTO BOOKING FOR VIP
         if ($inviteStatus == 1) {
 
-            // --------------------------------------------
             // GENERATE BOOKING CODE (EVENTCODE + B1001)
-            // --------------------------------------------
-            $counter = $counterTable->get()->getRow();  // reload
+
+            $counter = $counterTable->get()->getRow(); 
 
             $new_booking_no = $counter->last_booking_no + 1;
 
@@ -239,7 +244,6 @@ class EventInvite extends BaseController
                 'status' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
             ];
-
             $this->db->table('event_booking')->insert($bookingData);
 
             // UPDATE BOOKING COUNTS
@@ -257,7 +261,6 @@ class EventInvite extends BaseController
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
         }
-
         // SEND WHATSAPP INVITE CONFIRMATION MESSAGE ONLY FOR NORMAL INVITES
         $whatsappResponse = null;
 
@@ -291,7 +294,7 @@ class EventInvite extends BaseController
         if (strpos($phone, '+91') !== 0) {
             $phone = '+91' . ltrim($phone, '0');
         }
-        // <---- SIMPLE PAYLOAD SAME AS OTP ---->
+        // SIMPLE PAYLOAD SAME AS OTP 
         $payload = [
             "phone" => $phone,
             "name" => "Test",
@@ -394,20 +397,26 @@ class EventInvite extends BaseController
                 ->get()
                 ->getRow();
 
+            $imageBaseUrl = base_url('uploads/profile_images/');
+
+            // Full Profile Image URL for main user
+            $invite['profile_image'] = !empty($invite['profile_image'])
+                ? $imageBaseUrl . $invite['profile_image']
+                : null;
+
+            // Partner details with full image URL
             $invite['partner_details'] = $accUser ? [
                 'user_id' => $accUser->user_id,
                 'name' => $accUser->name,
                 'phone' => $accUser->phone,
                 'email' => $accUser->email,
                 'insta_id' => $accUser->insta_id,
-                'profile_image' => $accUser->profile_image
+                'profile_image' => !empty($accUser->profile_image)
+                    ? $imageBaseUrl . $accUser->profile_image
+                    : null
             ] : null;
 
-
-            // Invite totals
-
-
-            // --- NEW: Event total counts from event_counts table ---
+            // NEW: Event total counts from event_counts table 
             $invite['event_counts'] = [
                 'total_invites' => (int) $invite['total_invites'],
                 'total_male_invites' => (int) $invite['total_male_invites'],
@@ -469,45 +478,37 @@ class EventInvite extends BaseController
                 ->where('invite_id', $invite_id)
                 ->first();
 
-            if (!$existing) {
+            if ($existing) {
+                // Already booked → return existing code
+                $booking_code = $existing['booking_code'];
+            } else {
 
                 $event_id = $invite['event_id'];
                 $category_id = $invite['category_id'];
                 $user_id = $invite['user_id'];
 
-                // Price
                 $category = $this->categoryModel->find($category_id);
                 $price = $category['price'] ?? 0;
 
-                // Entry type calculations
                 $entry_type = strtolower(trim($invite['entry_type']));
                 $male_total = $female_total = $couple_total = 0;
 
-                if ($entry_type === 'male') {
+                if ($entry_type === 'male')
                     $male_total = 1;
-                } elseif ($entry_type === 'female') {
+                elseif ($entry_type === 'female')
                     $female_total = 1;
-                } elseif ($entry_type === 'couple') {
+                elseif ($entry_type === 'couple') {
                     $couple_total = 2;
                     $male_total = 1;
                     $female_total = 1;
                 }
-
                 $invite_total = $male_total + $female_total;
-                
+
                 // BOOKING CODE GENERATION
-
-                $event = $this->eventModel->find($event_id);
-                $event_code = $event['event_code'] ?? 'EV';
-
-
-                // GLOBAL BOOKING COUNTER (NO event_id)
-
                 $counterTable = $this->db->table('event_counters');
                 $counter = $counterTable->get()->getRow();
 
                 if (!$counter) {
-                    // Create initial counter row
                     $counterTable->insert([
                         'last_booking_no' => 0,
                         'created_at' => date('Y-m-d H:i:s')
@@ -517,18 +518,16 @@ class EventInvite extends BaseController
 
                 $new_booking_no = $counter->last_booking_no + 1;
 
-                // Update counter
                 $counterTable->where('id', $counter->id)->update([
                     'last_booking_no' => $new_booking_no,
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
 
-                // Generate booking code
                 $event = $this->eventModel->find($event_id);
-                $event_code = $event['event_code'] ?? 'EV';
-                $booking_code = $event_code . 'B' . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
+                $event_code = $event['event_code'] ?? 'EVT';
+                $booking_code = 'BK' . $event_code . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
 
-                // Insert booking
+                // Insert new booking
                 $this->bookingModel->insert([
                     'invite_id' => $invite_id,
                     'event_id' => $event_id,
@@ -538,13 +537,12 @@ class EventInvite extends BaseController
                     'total_price' => $price,
                     'quantity' => $invite_total,
                     'status' => 1,
-                    'created_at' => date('Y-m-d H:i:s')
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
 
+                // UPDATE EVENT COUNTS
 
-                // ---------------------------
-                // 🔹 UPDATE EVENT COUNTS
-                // ---------------------------
                 $countsTable = $this->db->table('event_counts');
                 $eventCount = $countsTable
                     ->where('event_id', $event_id)
@@ -588,10 +586,9 @@ class EventInvite extends BaseController
         return $this->response->setJSON([
             'status' => true,
             'message' => 'Invite updated successfully.',
-             'booking_code' => $booking_code
+            'booking_code' => $booking_code
         ]);
     }
-
     public function getInvitesByEvent()
     {
         $json = $this->request->getJSON(true);
@@ -633,6 +630,7 @@ class EventInvite extends BaseController
         $builder->select("
         ec.event_id,
         e.event_name,
+        e.event_code,
         e.event_location,
         e.event_city,
         e.event_date_start,
@@ -663,6 +661,7 @@ class EventInvite extends BaseController
                 $finalData[$eventId] = [
                     'event_id' => $eventId,
                     'event_name' => $row['event_name'],
+                    'event_code' => $row['event_code'],
                     'event_location' => $row['event_location'],
                     'event_city' => $row['event_city'],
                     'event_date_start' => $row['event_date_start'],
