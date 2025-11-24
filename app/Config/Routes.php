@@ -35,8 +35,7 @@ $routes->post('api/events/create', 'Api\EventController::create');
 $routes->post('api/events/update', 'Api\EventController::update');
 $routes->get('api/event/list', 'Api\EventController::listEvents');
 $routes->get('api/event/list/(:any)', 'Api\EventController::listEvents/$1');
-// $routes->delete('api/events/delete', 'Api\EventController::delete');
-$routes->delete('api/events/delete/(:num)', 'Api\EventController::delete/$1');
+$routes->post('api/events/delete/(:num)', 'Api\EventController::delete/$1');
 
 
 //Roles and Permissions 
@@ -78,6 +77,11 @@ $routes->post('api/booking/cancel', 'Api\EventBooking::cancelBooking');
 //checkin 
 $routes->post('api/checkin/details', 'Api\Checkin::getCheckinDetails');
 $routes->post('api/checkin/mark-in', 'Api\Checkin::markAsIn');
+$routes->get('api/checkin/markin-list', 'Api\Checkin::listCheckins');
+$routes->get('api/checkin/markin-list/(:num)', 'Api\Checkin::listCheckins/$1');
+
+
+
 
 
 //Qr code generation and scanning 
