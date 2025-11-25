@@ -447,60 +447,124 @@ class EventBooking extends BaseController
     //generating Qr code using booking code
 
 
+
+    // public function generateQrCode()
+    // {
+    //     $data = $this->request->getJSON(true);
+    //     $booking_code = $data['booking_code'] ?? null;
+
+    //     if (!$booking_code) {
+    //         return $this->response->setJSON([
+    //             'status' => false,
+    //             'message' => 'booking_code is required'
+    //         ]);
+    //     }
+
+    //     // Fetch booking
+    //     $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
+    //     if (!$booking) {
+    //         return $this->response->setJSON([
+    //             'status' => false,
+    //             'message' => 'Invalid booking code'
+    //         ]);
+    //     }
+
+    //     // SECRET KEY for signing (KEEP THIS PRIVATE)
+    //     $secretKey = getenv('QR_SECRET_KEY'); // Store in .env
+
+    //     // Create secure token
+    //     $token = hash_hmac('sha256', $booking_code, $secretKey);
+
+    //     // Create secured payload
+    //     $payload = json_encode([
+    //         'booking_code' => $booking_code,
+    //         'token' => $token
+    //     ]);
+
+    //     // Create writable folder
+    //     $qrFolder = WRITEPATH . 'uploads/qr_codes/';
+    //     if (!is_dir($qrFolder)) {
+    //         mkdir($qrFolder, 0777, true);
+    //     }
+
+    //     $filePath = $qrFolder . $booking_code . '.png';
+
+    //     // Generate QR Code
+    //     $qrCode = new \Endroid\QrCode\QrCode($payload);
+    //     $writer = new \Endroid\QrCode\Writer\PngWriter();
+    //     $result = $writer->write($qrCode);
+
+    //     $result->saveToFile($filePath);
+
+    //     return $this->response->setJSON([
+    //         'status' => true,
+    //         'message' => 'QR Code Generated',
+    //         'qr_url' => base_url('writable/uploads/qr_codes/' . $booking_code . '.png'),
+    //     ]);
+    // }
+
+
     public function generateQrCode()
-    {
-        $data = $this->request->getJSON(true);
-        $booking_code = $data['booking_code'] ?? null;
+{
+    $data = $this->request->getJSON(true);
+    $booking_code = $data['booking_code'] ?? null;
 
-        if (!$booking_code) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'booking_code is required'
-            ]);
-        }
-
-        // Fetch booking
-        $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
-        if (!$booking) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Invalid booking code'
-            ]);
-        }
-
-        // SECRET KEY for signing (KEEP THIS PRIVATE)
-        $secretKey = getenv('QR_SECRET_KEY'); // Store in .env
-
-        // Create secure token
-        $token = hash_hmac('sha256', $booking_code, $secretKey);
-
-        // Create secured payload
-        $payload = json_encode([
-            'booking_code' => $booking_code,
-            'token' => $token
-        ]);
-
-        // Create writable folder
-        $qrFolder = WRITEPATH . 'uploads/qr_codes/';
-        if (!is_dir($qrFolder)) {
-            mkdir($qrFolder, 0777, true);
-        }
-
-        $filePath = $qrFolder . $booking_code . '.png';
-
-        // Generate QR Code
-        $qrCode = new \Endroid\QrCode\QrCode($payload);
-        $writer = new \Endroid\QrCode\Writer\PngWriter();
-        $result = $writer->write($qrCode);
-
-        $result->saveToFile($filePath);
-
+    if (!$booking_code) {
         return $this->response->setJSON([
-            'status' => true,
-            'message' => 'QR Code Generated',
-            'qr_url' => base_url('writable/uploads/qr_codes/' . $booking_code . '.png'),
+            'status' => false,
+            'message' => 'booking_code is required'
         ]);
     }
+
+    // Fetch booking
+    $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
+    if (!$booking) {
+        return $this->response->setJSON([
+            'status' => false,
+            'message' => 'Invalid booking code'
+        ]);
+    }
+
+    // SECRET KEY for signing (KEEP THIS PRIVATE)
+    $secretKey = getenv('QR_SECRET_KEY'); // Store in .env
+
+    // Create secure token
+    $token = hash_hmac('sha256', $booking_code, $secretKey);
+
+    // Create secured payload
+    $payload = json_encode([
+        'booking_code' => $booking_code,
+        'token' => $token
+    ]);
+
+    // Create writable folder
+    $qrFolder = WRITEPATH . 'uploads/qr_codes/';
+    if (!is_dir($qrFolder)) {
+        mkdir($qrFolder, 0777, true);
+    }
+
+    $fileName = $booking_code . '.png';
+    $filePath = $qrFolder . $fileName;
+    $qrUrl = base_url('writable/uploads/qr_codes/' . $fileName);
+
+    // Generate QR Code
+    $qrCode = new \Endroid\QrCode\QrCode($payload);
+    $writer = new \Endroid\QrCode\Writer\PngWriter();
+    $result = $writer->write($qrCode);
+    $result->saveToFile($filePath);
+
+    // ---- SAVE QR URL IN DATABASE ----
+    $this->bookingModel->update($booking['booking_id'], [
+        'qr_code' => $qrUrl
+    ]);
+
+    return $this->response->setJSON([
+        'status' => true,
+        'message' => 'QR Code Generated',
+        'qr_url' => $qrUrl,
+        'booking_code' => $booking_code
+    ]);
+}
 
 
 
@@ -545,7 +609,7 @@ class EventBooking extends BaseController
         if (!$booking) {
             return $this->response->setJSON([
                 'status' => false,
-                'message' => 'Invalid booking code'
+                'message' => 'Booking Code Not Found'
             ]);
         }
 
@@ -563,14 +627,14 @@ class EventBooking extends BaseController
 
         // --- EVENT DATE / TIME VALIDATION ---
         $eventDateStart = $event['event_date_start'];
-        $eventDateEnd = $event['event_date_end'];
-        $startTime = $event['event_time_start'];
-        $endTime = $event['event_time_end'];
+        $eventDateEnd   = $event['event_date_end'];
+        $startTime      = $event['event_time_start'];
+        $endTime        = $event['event_time_end'];
 
-        $today = date('Y-m-d');
+        $today   = date('Y-m-d');
         $nowTime = date('H:i:s');
 
-        // Event is in the future → NOT allowed
+        // 1️⃣ Event is in the future → NOT allowed
         if ($today < $eventDateStart) {
             return $this->response->setJSON([
                 'status' => false,
@@ -578,7 +642,7 @@ class EventBooking extends BaseController
             ]);
         }
 
-        // Event is already finished → NOT allowed
+        // 2️⃣ Event is already finished → NOT allowed
         if ($today > $eventDateEnd) {
             return $this->response->setJSON([
                 'status' => false,
@@ -586,7 +650,7 @@ class EventBooking extends BaseController
             ]);
         }
 
-        // If today is the event start day → check time
+        // 3️⃣ If today is the event start day → check time
         if ($today == $eventDateStart && $nowTime < $startTime) {
             return $this->response->setJSON([
                 'status' => false,
@@ -594,7 +658,7 @@ class EventBooking extends BaseController
             ]);
         }
 
-        // If today is the event end day → check end time
+        // 4️⃣ If today is the event end day → check end time
         if ($today == $eventDateEnd && $nowTime > $endTime) {
             return $this->response->setJSON([
                 'status' => false,
@@ -633,4 +697,8 @@ class EventBooking extends BaseController
             ]
         ]);
     }
+
+
+
+
 }

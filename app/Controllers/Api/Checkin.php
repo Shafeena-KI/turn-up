@@ -127,19 +127,34 @@ public function getCheckinDetails()
     }
 
     // 3. Already checked in
-    $db = db_connect();
-    $checkin = $db->table('checkin')
-        ->where('booking_code', $booking['booking_code'])
-        ->where('entry_status', 1) // already checked in
-        ->get()
-        ->getRowArray();
+// 3. Already checked in
+$db = db_connect();
+$checkin = $db->table('checkin')
+    ->where('booking_code', $booking['booking_code'])
+    ->where('entry_status', 1) // already checked in
+    ->get()
+    ->getRowArray();
 
-    if ($checkin) {
-        return $this->response->setJSON([
-            'status' => false,
-            'message' => "User already checked in. at {$checkin['checkin_time']}"
-        ]);
+if ($checkin) {
+    $adminName = 'Unknown';
+    if (!empty($checkin['checkedin_by'])) {
+        $admin = $db->table('admin_users')
+                    ->select('name')
+                    ->where('admin_user_id', $checkin['checkedin_by'])
+                    ->get()
+                    ->getRowArray();
+        if ($admin && !empty($admin['name'])) {
+            $adminName = $admin['name'];
+        }
     }
+
+    return $this->response->setJSON([
+        'status' => false,
+        'message' => "{$user['name']} already checked in at {$checkin['checkin_time']} by {$adminName}"
+    ]);
+}
+
+
 
     // -------------------------
     //  RETURN DETAILS

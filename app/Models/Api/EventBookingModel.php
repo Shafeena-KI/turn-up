@@ -19,7 +19,8 @@ class EventBookingModel extends Model
         'status',
         'payment_id',
         'created_at',
-        'updated_at'
+        'updated_at',
+        'qr_code'
     ];
 
  protected $useTimestamps = true;
