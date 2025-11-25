@@ -37,6 +37,7 @@ class EventBooking extends BaseController
         $builder->select("
         eb.event_id,
         e.event_name,
+        e.event_code,
         e.event_location,
         e.event_city,
         e.event_date_start,
@@ -80,6 +81,7 @@ class EventBooking extends BaseController
                 $finalData[$eventId] = [
                     'event_id' => $eventId,
                     'event_name' => $row['event_name'],
+                    'event_code' => $row['event_code'],
                     'event_location' => $row['event_location'],
                     'event_city' => $row['event_city'],
                     'event_date_start' => $row['event_date_start'],
@@ -143,6 +145,8 @@ class EventBooking extends BaseController
         app_users.email,
         app_users.insta_id,
         app_users.profile_image,
+        event_invites.entry_type,  
+        event_invites.partner,     
         event_counts.total_booking,
         event_counts.total_male_booking,
         event_counts.total_female_booking,
@@ -151,6 +155,7 @@ class EventBooking extends BaseController
             ->join('events', 'events.event_id = event_booking.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_booking.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
+            ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
             ->join('event_counts', 'event_counts.event_id = event_booking.event_id', 'left')
             ->where('event_booking.status !=', 4);
 
@@ -191,11 +196,16 @@ class EventBooking extends BaseController
                 3 => 'Attended'
             ];
             $booking['status_text'] = $statusMap[$booking['status']] ?? 'Unknown';
+            $entryTypeMap = [
+                1 => 'Male Entry',
+                2 => 'Female Entry',
+                3 => 'Couple Entry'
+            ];
+            $booking['entry_type_text'] = $entryTypeMap[$booking['entry_type']] ?? 'N/A';
 
 
-            /** -------------------------------------------------------
-             *  FETCH PARTNER ID USING invite_id FROM event_invites
-             * ------------------------------------------------------*/
+            //  FETCH PARTNER ID USING invite_id FROM event_invites
+
             $invite = $this->db->table('event_invites')
                 ->select('partner')
                 ->where('invite_id', $booking['invite_id'])
@@ -225,8 +235,12 @@ class EventBooking extends BaseController
                 'email' => $accUser->email,
                 'insta_id' => $accUser->insta_id,
                 'profile_image' => $accUser->profile_image
+                    ? base_url('uploads/profile_images/' . $accUser->profile_image)
+                    : null
             ] : null;
-
+            $booking['profile_image'] = $booking['profile_image']
+                ? base_url('uploads/profile_images/' . $booking['profile_image'])
+                : null;
 
             // Event booking totals
             $booking['event_counts'] = [
@@ -430,7 +444,8 @@ class EventBooking extends BaseController
         ]);
     }
 
-    //generating Qr code using booking code 
+    //generating Qr code using booking code
+
 
 
     // public function generateQrCode()

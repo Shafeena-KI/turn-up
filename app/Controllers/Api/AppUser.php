@@ -427,28 +427,8 @@ class AppUser extends BaseController
         }
 
         // Mandatory fields
-        $required_fields = ['name', 'dob', 'insta_id', 'profile_image'];
-        foreach ($required_fields as $f) {
-            if ($f === 'profile_image') {
-                $file = $this->request->getFile('profile_image');
-                if (!$file || !$file->isValid()) {
-                    return $this->response->setJSON([
-                        'status' => 400,
-                        'success' => false,
-                        'message' => 'Please upload profile image.'
-                    ]);
-                }
-                continue;
-            }
+        $required_fields = ['name', 'dob', 'insta_id'];
 
-            if (empty($data[$f])) {
-                return $this->response->setJSON([
-                    'status' => 400,
-                    'success' => false,
-                    'message' => "$f is required."
-                ]);
-            }
-        }
 
         // Profile image upload
         $profileImage = $user['profile_image'];
@@ -469,13 +449,16 @@ class AppUser extends BaseController
         $profile_score = (int) $user['profile_score'];
 
         if ($user['profile_status'] == 0) {
-            $profile_score += 15;
+            $profile_score += 5;
         }
 
         if (empty($user['interest_id']) && !empty($data['interest_id'])) {
             $profile_score += 10;
         }
-
+        // Add profile image score only first time
+        if (empty($user['profile_image']) && !empty($profileImage)) {
+            $profile_score += 10;
+        }
         if (
             (empty($user['location']) || strtolower($user['location']) !== 'kochi') &&
             !empty($data['location']) && strtolower($data['location']) === 'kochi'
@@ -495,12 +478,12 @@ class AppUser extends BaseController
             'linkedin_id' => $data['linkedin_id'] ?? $user['linkedin_id'],
             'location' => $data['location'] ?? $user['location'],
             'interest_id' => $data['interest_id'] ?? $user['interest_id'],
-            'profile_image' => $profileImage,
+            'profile_image' => (!empty($profileImage) ? $profileImage : null),
             'profile_status' => 1,
             'profile_score' => $profile_score,
         ];
 
-        /* ---------- Handle Interests ---------- */
+        // Handle Interests
         $interestIds = [];
         if (isset($data['interest_id'])) {
             // Convert string like ["1","2","3"] → array
@@ -526,7 +509,7 @@ class AppUser extends BaseController
 
         $this->appUserModel->update($user_id, $updateData);
 
-        // ---------- Fetch interest names directly from table ----------
+        // Fetch interest names directly from table
         $interestList = [];
         if (!empty($interestIds)) {
             $db = \Config\Database::connect();
@@ -541,7 +524,12 @@ class AppUser extends BaseController
             }
         }
 
-        $updateData['profile_image'] = base_url('uploads/profile_images/' . $profileImage);
+        // Profile Image URL in response
+        if (!empty($profileImage)) {
+            $updateData['profile_image'] = base_url('uploads/profile_images/' . $profileImage);
+        } else {
+            $updateData['profile_image'] = null;
+        }
 
         // Remove 'interest_id' from response, only return 'interests'
         $responseData = $updateData;
@@ -556,7 +544,6 @@ class AppUser extends BaseController
         ]);
 
     }
-
     // DELETE USER (soft delete)
     public function deleteUser()
     {
