@@ -159,7 +159,7 @@ class EventInvite extends BaseController
         }
 
         // FINAL INVITE CODE (EVENTCODE + IN + 001)
-  
+
         $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
 
         // SAVE INVITE
@@ -220,7 +220,7 @@ class EventInvite extends BaseController
 
             // GENERATE BOOKING CODE (EVENTCODE + B1001)
 
-            $counter = $counterTable->get()->getRow(); 
+            $counter = $counterTable->get()->getRow();
 
             $new_booking_no = $counter->last_booking_no + 1;
 
@@ -260,6 +260,15 @@ class EventInvite extends BaseController
                 'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
+            // GET USER DETAILS
+            $user = $this->db->table('app_users')->where('user_id', $data['user_id'])->get()->getRow();
+
+            // CALL WHATSAPP SEND FUNCTION
+            $this->sendEventConfirmation(
+                $user->phone,
+                $user->name,
+                $event->event_name
+            );
         }
         // SEND WHATSAPP INVITE CONFIRMATION MESSAGE ONLY FOR NORMAL INVITES
         $whatsappResponse = null;
@@ -285,7 +294,6 @@ class EventInvite extends BaseController
             'whatsapp_response' => $whatsappResponse,
             'vip_auto_approved' => ($inviteStatus == 1)
         ]);
-
     }
     private function sendInviteConfirmation($phone, $name, $event_name)
     {
@@ -315,7 +323,33 @@ class EventInvite extends BaseController
 
         return json_decode($response, true);
     }
+    private function sendEventConfirmation($phone, $name, $event_name)
+    {
+        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute";
 
+        if (strpos($phone, '+91') !== 0) {
+            $phone = '+91' . ltrim($phone, '0');
+        }
+
+        $payload = [
+            "phone" => $phone,
+            "username" => $name,
+            "event_name" => $event_name,
+            "template" => "event_request_approval_v2" // IMPORTANT!
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+        return json_decode($response, true);
+    }
     public function listInvites($event_id = null, $search = null)
     {
         $page = (int) $this->request->getGet('current_page') ?: 1;
@@ -441,6 +475,7 @@ class EventInvite extends BaseController
         ]);
     }
     // Approve or Reject Invite (manual)
+
     public function updateInviteStatus()
     {
         $data = $this->request->getJSON(true);
@@ -463,30 +498,36 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // Update invite status
-        $updateData = [
+        // Update status
+        $this->inviteModel->update($invite_id, [
             'status' => $status,
             'approved_at' => ($status == 1) ? date('Y-m-d H:i:s') : null
-        ];
-        $this->inviteModel->update($invite_id, $updateData);
+        ]);
 
-        // Only when approved
+        $booking_code = null;
+
+        // === ONLY WHEN APPROVED === //
         if ($status == 1) {
 
-            // Check already booked
+            // Fetch user data for WhatsApp
+            $user = $this->userModel->find($invite['user_id']);
+            $phone = $user['phone'];
+            $username = $user['name'];
+
+            $event = $this->eventModel->find($invite['event_id']);
+            $event_name = $event['event_name'];
+
+            // ALREADY BOOKED?
             $existing = $this->bookingModel
                 ->where('invite_id', $invite_id)
                 ->first();
 
             if ($existing) {
-                // Already booked → return existing code
                 $booking_code = $existing['booking_code'];
+
             } else {
-
-                $event_id = $invite['event_id'];
+                // Create booking (same logic as before)
                 $category_id = $invite['category_id'];
-                $user_id = $invite['user_id'];
-
                 $category = $this->categoryModel->find($category_id);
                 $price = $category['price'] ?? 0;
 
@@ -502,9 +543,10 @@ class EventInvite extends BaseController
                     $male_total = 1;
                     $female_total = 1;
                 }
+
                 $invite_total = $male_total + $female_total;
 
-                // BOOKING CODE GENERATION
+                // COUNTER GENERATION
                 $counterTable = $this->db->table('event_counters');
                 $counter = $counterTable->get()->getRow();
 
@@ -523,15 +565,14 @@ class EventInvite extends BaseController
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
 
-                $event = $this->eventModel->find($event_id);
                 $event_code = $event['event_code'] ?? 'EVT';
                 $booking_code = 'BK' . $event_code . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
 
-                // Insert new booking
+                // INSERT BOOKING
                 $this->bookingModel->insert([
                     'invite_id' => $invite_id,
-                    'event_id' => $event_id,
-                    'user_id' => $user_id,
+                    'event_id' => $invite['event_id'],
+                    'user_id' => $invite['user_id'],
                     'category_id' => $category_id,
                     'booking_code' => $booking_code,
                     'total_price' => $price,
@@ -540,47 +581,10 @@ class EventInvite extends BaseController
                     'created_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
-
-                // UPDATE EVENT COUNTS
-
-                $countsTable = $this->db->table('event_counts');
-                $eventCount = $countsTable
-                    ->where('event_id', $event_id)
-                    ->where('category_id', $category_id)
-                    ->get()->getRow();
-
-                if ($eventCount) {
-                    $countsTable->where('id', $eventCount->id)->update([
-                        'total_booking' => $eventCount->total_booking + $invite_total,
-                        'total_male_booking' => $eventCount->total_male_booking + $male_total,
-                        'total_female_booking' => $eventCount->total_female_booking + $female_total,
-                        'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]);
-                } else {
-                    $countsTable->insert([
-                        'event_id' => $event_id,
-                        'category_id' => $category_id,
-
-                        'total_invites' => 0,
-                        'total_male_invites' => 0,
-                        'total_female_invites' => 0,
-                        'total_couple_invites' => 0,
-
-                        'total_booking' => $invite_total,
-                        'total_male_booking' => $male_total,
-                        'total_female_booking' => $female_total,
-                        'total_couple_booking' => $couple_total,
-
-                        'total_checkin' => 0,
-                        'total_male_checkin' => 0,
-                        'total_female_checkin' => 0,
-                        'total_couple_checkin' => 0,
-
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]);
-                }
             }
+
+            // === SEND WHATSAPP === //
+            $this->sendEventConfirmation($phone, $username, $event_name);
         }
 
         return $this->response->setJSON([
