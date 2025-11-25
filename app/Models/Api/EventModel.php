@@ -32,4 +32,9 @@ class EventModel extends Model
         'created_at',
         'updated_at'
     ];
+
+    const UPCOMING  = 1;
+    const COMPLETED = 2;
+    const CANCELLED = 3;
+    const DELETED   = 4;
 }
