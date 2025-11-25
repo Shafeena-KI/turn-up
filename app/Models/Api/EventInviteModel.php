@@ -23,6 +23,14 @@ class EventInviteModel extends Model
 
     protected $useTimestamps = false;
 
+    /*
+    # Invite Status :
+    */
+    const PENDING   = 0;
+    const APPROVED  = 1;
+    const REJECETD  = 2;
+    const EXPIRED   = 3;
+
     public function getInvitesByEvent($event_id)
     {
         return $this->where('event_id', $event_id)->findAll();
