@@ -102,38 +102,67 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // ENTRY TYPE CALCULATIONS
+        // ENTRY TYPE CALCULATIONS AND NUMERIC MAPPING
 
         $entryType = strtolower($data['entry_type']);
 
         $invite_total = 0;
         $male_total = 0;
         $female_total = 0;
+        $other_total = 0;
         $couple_total = 0;
+        $entryTypeValue = null;
+        $entryTypeText = null;
 
         switch ($entryType) {
             case 'male':
+                $entryTypeValue = 1;
+                $entryTypeText = 'Male';
                 $invite_total = 1;
                 $male_total = 1;
                 break;
+
             case 'female':
+                $entryTypeValue = 2;
+                $entryTypeText = 'Female';
                 $invite_total = 1;
                 $female_total = 1;
                 break;
+
+            case 'other':
+                $entryTypeValue = 3;
+                $entryTypeText = 'Other';
+                $invite_total = 1;
+                $other_total = 1;
+                break;
+
             case 'couple':
+                if (empty($data['partner']) || trim($data['partner']) == '') {
+                    return $this->response->setJSON([
+                        'status' => false,
+                        'message' => 'Partner Insta ID is required for Couple entry.'
+                    ]);
+                }
+
+                $entryTypeValue = 4;
+                $entryTypeText = 'Couple';
                 $invite_total = 4;
-                $male_total = 1;
-                $female_total = 1;
                 $couple_total = 2;
                 break;
+
 
             default:
                 return $this->response->setJSON([
                     'status' => false,
-                    'message' => 'Invalid entry_type. Allowed: Male, Female, Couple'
+                    'message' => 'Invalid entry_type. Allowed: Male, Female, Other, Couple'
+
                 ]);
         }
+        $entryLabels = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
+        $entryTypeText = $entryLabels[$entryTypeValue];
 
+        $categoryLabels = [1 => 'VIP', 2 => 'Normal'];
+        $categoryText = $categoryLabels[$data['category_name']];
         // VIP AUTO APPROVE
 
         $inviteStatus = strtolower($data['category_name']) === 'vip' ? 1 : 0;
@@ -163,12 +192,11 @@ class EventInvite extends BaseController
         $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
 
         // SAVE INVITE
-
         $insertData = [
             'event_id' => $event_id,
             'user_id' => $data['user_id'],
             'category_id' => $category_id,
-            'entry_type' => ucfirst($entryType),
+            'entry_type' => $entryTypeValue, // <-- Save numeric value
             'partner' => $data['partner'] ?? null,
             'invite_code' => $invite_code,
             'status' => $inviteStatus,
@@ -177,6 +205,10 @@ class EventInvite extends BaseController
 
         $invite_id = $this->inviteModel->insert($insertData);
 
+        // Response should show text name instead of number
+        $insertData['entry_type'] = $entryTypeText;
+
+        $insertData['category_name'] = $categoryText;
         // UPDATE event_counts INVITES
 
         $countsTable = $this->db->table('event_counts');
@@ -192,6 +224,7 @@ class EventInvite extends BaseController
                 'total_invites' => $eventCount->total_invites + $invite_total,
                 'total_male_invites' => $eventCount->total_male_invites + $male_total,
                 'total_female_invites' => $eventCount->total_female_invites + $female_total,
+                'total_other_invites' => $eventCount->total_other_invites + $other_total,
                 'total_couple_invites' => $eventCount->total_couple_invites + $couple_total,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
@@ -202,14 +235,17 @@ class EventInvite extends BaseController
                 'total_invites' => $invite_total,
                 'total_male_invites' => $male_total,
                 'total_female_invites' => $female_total,
+                'total_other_invites' => $other_total,
                 'total_couple_invites' => $couple_total,
                 'total_booking' => 0,
                 'total_male_booking' => 0,
                 'total_female_booking' => 0,
+                'total_other_booking' => 0,
                 'total_couple_booking' => 0,
                 'total_checkin' => 0,
                 'total_male_checkin' => 0,
                 'total_female_checkin' => 0,
+                'total_other_checkin' => 0,
                 'total_couple_checkin' => 0,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
@@ -257,6 +293,7 @@ class EventInvite extends BaseController
                 'total_booking' => $eventCount->total_booking + $invite_total,
                 'total_male_booking' => $eventCount->total_male_booking + $male_total,
                 'total_female_booking' => $eventCount->total_female_booking + $female_total,
+                'total_other_booking' => $eventCount->total_other_booking + $other_total,
                 'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
@@ -372,6 +409,8 @@ class EventInvite extends BaseController
         ec.total_invites,
         ec.total_male_invites,
         ec.total_female_invites,
+        ec.total_other_invites,
+        ec.total_other_invites,
         ec.total_couple_invites
     ")
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
@@ -421,40 +460,31 @@ class EventInvite extends BaseController
             ];
             $invite['status_text'] = $statusMap[$invite['status']] ?? 'Unknown';
 
-            // Entry type text
-            $invite['entry_type_text'] = $invite['entry_type'] ?? 'N/A';
+            // Entry type mapping
+            $entryTypeMap = [
+                1 => 'Male',
+                2 => 'Female',
+                3 => 'Other',
+                4 => 'Couple'
+            ];
 
-            // Partner name
-            $accUser = $this->db->table('app_users')
-                ->select('user_id, name, phone, email, insta_id, profile_image')
-                ->where('user_id', $invite['partner'])
-                ->get()
-                ->getRow();
+            $invite['entry_type_text'] = $entryTypeMap[$invite['entry_type']] ?? 'N/A';
+
+            $invite['partner'] = $invite['partner'] ?? null; // Show only Insta ID
+            unset($invite['partner_details']); // Ensure partner_details is removed
 
             $imageBaseUrl = base_url('uploads/profile_images/');
-
             // Full Profile Image URL for main user
             $invite['profile_image'] = !empty($invite['profile_image'])
                 ? $imageBaseUrl . $invite['profile_image']
                 : null;
-
-            // Partner details with full image URL
-            $invite['partner_details'] = $accUser ? [
-                'user_id' => $accUser->user_id,
-                'name' => $accUser->name,
-                'phone' => $accUser->phone,
-                'email' => $accUser->email,
-                'insta_id' => $accUser->insta_id,
-                'profile_image' => !empty($accUser->profile_image)
-                    ? $imageBaseUrl . $accUser->profile_image
-                    : null
-            ] : null;
 
             // NEW: Event total counts from event_counts table 
             $invite['event_counts'] = [
                 'total_invites' => (int) $invite['total_invites'],
                 'total_male_invites' => (int) $invite['total_male_invites'],
                 'total_female_invites' => (int) $invite['total_female_invites'],
+                'total_other_invites' => (int) $invite['total_other_invites'],
                 'total_couple_invites' => (int) $invite['total_couple_invites'],
             ];
         }
@@ -531,20 +561,32 @@ class EventInvite extends BaseController
                 $category = $this->categoryModel->find($category_id);
                 $price = $category['price'] ?? 0;
 
-                $entry_type = strtolower(trim($invite['entry_type']));
-                $male_total = $female_total = $couple_total = 0;
+                $male_total = $female_total = $other_total = $couple_total = 0;
 
-                if ($entry_type === 'male')
-                    $male_total = 1;
-                elseif ($entry_type === 'female')
-                    $female_total = 1;
-                elseif ($entry_type === 'couple') {
-                    $couple_total = 2;
-                    $male_total = 1;
-                    $female_total = 1;
+                switch ((int) $invite['entry_type']) {
+                    case 1: // Male
+                        $male_total = 1;
+                        break;
+
+                    case 2: // Female 
+                        $female_total = 1;
+                        break;
+                    case 3:  // other
+                        $other_total = 1;
+                        break;
+                    case 4: // Couple
+                        $couple_total = 2;
+                        break;
+
+                    default:
+                        return $this->response->setJSON([
+                            'status' => false,
+                            'message' => 'Invalid entry type.'
+                        ]);
                 }
 
-                $invite_total = $male_total + $female_total;
+                $invite_total = $male_total + $female_total + $other_total + ($couple_total * 2);
+
 
                 // COUNTER GENERATION
                 $counterTable = $this->db->table('event_counters');
@@ -632,23 +674,24 @@ class EventInvite extends BaseController
     {
         $builder = $this->db->table('event_counts ec');
         $builder->select("
-        ec.event_id,
-        e.event_name,
-        e.event_code,
-        e.event_location,
-        e.event_city,
-        e.event_date_start,
-        e.event_time_start,
-        e.event_date_end,
-        e.event_time_end,
-        c.category_id,
-        c.category_name,
-        c.total_seats,
-        SUM(ec.total_invites) AS total_invites,
-        SUM(ec.total_male_invites) AS total_male,
-        SUM(ec.total_female_invites) AS total_female,
-        SUM(ec.total_couple_invites) AS total_couple
-    ");
+            ec.event_id,
+            e.event_name,
+            e.event_code,
+            e.event_location,
+            e.event_city,
+            e.event_date_start,
+            e.event_time_start,
+            e.event_date_end,
+            e.event_time_end,
+            c.category_id,
+            c.category_name,
+            c.total_seats,
+            SUM(ec.total_invites) AS total_invites,
+            SUM(ec.total_male_invites) AS total_male,
+            SUM(ec.total_female_invites) AS total_female,
+            SUM(ec.total_other_invites) AS total_other,
+            SUM(ec.total_couple_invites) AS total_couple
+        ");
         $builder->join('events e', 'e.event_id = ec.event_id', 'left');
         $builder->join('event_ticket_category c', 'c.category_id = ec.category_id', 'left');
         $builder->groupBy('ec.event_id, ec.category_id');
@@ -679,6 +722,7 @@ class EventInvite extends BaseController
                         'total_invites' => 0,
                         'total_male' => 0,
                         'total_female' => 0,
+                        'total_other' => 0,
                         'total_couple' => 0,
                     ]
                 ];
@@ -690,6 +734,7 @@ class EventInvite extends BaseController
                 'total_invites' => (int) $row['total_invites'],
                 'total_male' => (int) $row['total_male'],
                 'total_female' => (int) $row['total_female'],
+                'total_other' => (int) $row['total_other'],
                 'total_couple' => (int) $row['total_couple'],
             ];
 
@@ -698,6 +743,7 @@ class EventInvite extends BaseController
             $finalData[$eventId]['overall_total']['total_invites'] += (int) $row['total_invites'];
             $finalData[$eventId]['overall_total']['total_male'] += (int) $row['total_male'];
             $finalData[$eventId]['overall_total']['total_female'] += (int) $row['total_female'];
+            $finalData[$eventId]['overall_total']['total_other'] += (int) $row['total_other'];
             $finalData[$eventId]['overall_total']['total_couple'] += (int) $row['total_couple'];
         }
 

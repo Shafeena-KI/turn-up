@@ -53,7 +53,20 @@ class EventCategory extends BaseController
             if (empty($cat['category_name']) || empty($cat['total_seats']) || empty($cat['price'])) {
                 continue; // skip invalid
             }
+            // Convert category text → number
+            $categoryName = strtolower($cat['category_name']);
+            $categoryType = null;
 
+            if ($categoryName === 'vip') {
+                $categoryType = 1;
+            } elseif ($categoryName === 'normal') {
+                $categoryType = 2;
+            } else {
+                return $this->response->setJSON([
+                    'status' => false,
+                    'message' => 'Invalid category_name. Allowed: VIP, Normal'
+                ]);
+            }
             $actual_booked = isset($cat['actual_booked_seats']) ? (int) $cat['actual_booked_seats'] : 0;
             $dummy_booked = isset($cat['dummy_booked_seats']) ? (int) $cat['dummy_booked_seats'] : 0;
             $dummy_invites = isset($cat['dummy_invites']) ? (int) $cat['dummy_invites'] : 0;
@@ -71,7 +84,7 @@ class EventCategory extends BaseController
             // Prepare insert data
             $insertData = [
                 'event_id' => $event_id,
-                'category_name' => strtoupper($cat['category_name']),
+                'category_name' => $categoryType,
                 'total_seats' => $total_seats,
                 'actual_booked_seats' => $actual_booked,
                 'dummy_booked_seats' => $dummy_booked,
@@ -84,14 +97,16 @@ class EventCategory extends BaseController
             // Insert into DB
             $category_id = $this->categoryModel->insert($insertData);
 
-            // Add to output
+            // Show clean response with label text
+            $insertData['category_name'] = ucfirst($categoryName);
+
             $savedCategories[] = array_merge(
                 ['category_id' => $category_id],
                 $insertData
             );
         }
 
-        // 🔥🔥🔥 UPDATE EVENT TOTAL SEATS 🔥🔥🔥
+        // UPDATE EVENT TOTAL SEATS
         $this->eventModel
             ->where('event_id', $event_id)
             ->set(['total_seats' => $totalSeatsSum])
@@ -124,6 +139,9 @@ class EventCategory extends BaseController
                 'message' => 'No Categorys found for this event.'
             ]);
         }
+        foreach ($category as &$cat) {
+            $cat['category_name'] = ($cat['category_name'] == 1) ? 'VIP' : 'Normal';
+        }
 
         return $this->response->setJSON([
             'status' => true,
@@ -135,9 +153,8 @@ class EventCategory extends BaseController
     {
         $data = $this->request->getJSON(true);
 
-        /** ---------------------------------------------------
-         * VALIDATION: event_id is required
-         * --------------------------------------------------*/
+        // VALIDATION: event_id is required
+
         if (empty($data['event_id'])) {
             return $this->response->setJSON([
                 'status' => false,
@@ -147,9 +164,7 @@ class EventCategory extends BaseController
 
         $event_id = (int) $data['event_id'];
 
-        /** ---------------------------------------------------
-         * VALIDATION: categories array required
-         * --------------------------------------------------*/
+        //VALIDATION: categories array required
         if (empty($data['categories']) || !is_array($data['categories'])) {
             return $this->response->setJSON([
                 'status' => false,
@@ -161,9 +176,7 @@ class EventCategory extends BaseController
 
         foreach ($data['categories'] as $cat) {
 
-            /** ---------------------------------------------------
-             * VALIDATION: category_id required
-             * --------------------------------------------------*/
+            // VALIDATION: category_id required
             if (empty($cat['category_id'])) {
                 return $this->response->setJSON([
                     'status' => false,
@@ -173,9 +186,8 @@ class EventCategory extends BaseController
 
             $category_id = (int) $cat['category_id'];
 
-            /** ---------------------------------------------------
-             * VALIDATION: check category belongs to event
-             * --------------------------------------------------*/
+            // VALIDATION: check category belongs to event
+            
             $category = $this->categoryModel
                 ->where('category_id', $category_id)
                 ->where('event_id', $event_id)
@@ -187,10 +199,6 @@ class EventCategory extends BaseController
                     'message' => "Category ID {$category_id} does NOT belong to event_id {$event_id}."
                 ]);
             }
-
-            /** ---------------------------------------------------
-             * UPDATE LOGIC
-             * --------------------------------------------------*/
             $updateData = [];
 
             // Allowed fields
@@ -206,7 +214,19 @@ class EventCategory extends BaseController
 
             foreach ($fields as $field) {
                 if (isset($cat[$field])) {
-                    $updateData[$field] = $cat[$field];
+
+                    // Convert VIP/Normal text to 1/2 before saving
+                    if ($field == 'category_name') {
+                        if ($cat[$field] == 'VIP') {
+                            $updateData[$field] = 1;
+                        } elseif ($cat[$field] == 'Normal') {
+                            $updateData[$field] = 2;
+                        } else {
+                            $updateData[$field] = (int) $cat[$field]; // already a number
+                        }
+                    } else {
+                        $updateData[$field] = $cat[$field];
+                    }
                 }
             }
 
@@ -227,7 +247,11 @@ class EventCategory extends BaseController
 
             $updatedList[] = array_merge(['category_id' => $category_id], $updateData);
         }
-
+        foreach ($updatedList as &$cat) {
+            if (isset($cat['category_name'])) {
+                $cat['category_name'] = ($cat['category_name'] == 1) ? 'VIP' : 'Normal';
+            }
+        }
         return $this->response->setJSON([
             'status' => true,
             'message' => 'Categories updated successfully.',
