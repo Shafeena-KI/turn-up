@@ -9,12 +9,6 @@ use App\Models\Api\EventCountsModel;
 
 use CodeIgniter\HTTP\ResponseInterface;
 
-use Endroid\QrCode\QrCode;
-use Endroid\QrCode\Writer\PngWriter;
-
-
-
-
 class EventBooking extends BaseController
 {
     protected $bookingModel;
@@ -459,69 +453,67 @@ class EventBooking extends BaseController
     }
     //generating Qr code using booking code
 
+    // public function generateQrCode()
+    // {
+    //     $data = $this->request->getJSON(true);
+    //     $booking_code = $data['booking_code'] ?? null;
 
-    public function generateQrCode()
-    {
-        $data = $this->request->getJSON(true);
-        $booking_code = $data['booking_code'] ?? null;
+    //     if (!$booking_code) {
+    //         return $this->response->setJSON([
+    //             'status' => false,
+    //             'message' => 'booking_code is required'
+    //         ]);
+    //     }
 
-        if (!$booking_code) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'booking_code is required'
-            ]);
-        }
+    //     // Fetch booking
+    //     $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
+    //     if (!$booking) {
+    //         return $this->response->setJSON([
+    //             'status' => false,
+    //             'message' => 'Invalid booking code'
+    //         ]);
+    //     }
 
-        // Fetch booking
-        $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
-        if (!$booking) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Invalid booking code'
-            ]);
-        }
+    //     // SECRET KEY for signing (KEEP THIS PRIVATE)
+    //     $secretKey = getenv('QR_SECRET_KEY'); // Store in .env
 
-        // SECRET KEY for signing (KEEP THIS PRIVATE)
-        $secretKey = getenv('QR_SECRET_KEY'); // Store in .env
+    //     // Create secure token
+    //     $token = hash_hmac('sha256', $booking_code, $secretKey);
 
-        // Create secure token
-        $token = hash_hmac('sha256', $booking_code, $secretKey);
+    //     // Create secured payload
+    //     $payload = json_encode([
+    //         'booking_code' => $booking_code,
+    //         'token' => $token
+    //     ]);
 
-        // Create secured payload
-        $payload = json_encode([
-            'booking_code' => $booking_code,
-            'token' => $token
-        ]);
+    //     // Create writable folder
+    //     $qrFolder = WRITEPATH . 'uploads/qr_codes/';
+    //     if (!is_dir($qrFolder)) {
+    //         mkdir($qrFolder, 0777, true);
+    //     }
 
-        // Create writable folder
-        $qrFolder = WRITEPATH . 'uploads/qr_codes/';
-        if (!is_dir($qrFolder)) {
-            mkdir($qrFolder, 0777, true);
-        }
+    //     $fileName = $booking_code . '.png';
+    //     $filePath = $qrFolder . $fileName;
+    //     $qrUrl = base_url('writable/uploads/qr_codes/' . $fileName);
 
-        $fileName = $booking_code . '.png';
-        $filePath = $qrFolder . $fileName;
-        $qrUrl = base_url('writable/uploads/qr_codes/' . $fileName);
+    //     // Generate QR Code
+    //     $qrCode = new \Endroid\QrCode\QrCode($payload);
+    //     $writer = new \Endroid\QrCode\Writer\PngWriter();
+    //     $result = $writer->write($qrCode);
+    //     $result->saveToFile($filePath);
 
-        // Generate QR Code
-        $qrCode = new \Endroid\QrCode\QrCode($payload);
-        $writer = new \Endroid\QrCode\Writer\PngWriter();
-        $result = $writer->write($qrCode);
-        $result->saveToFile($filePath);
+    //     // ---- SAVE QR URL IN DATABASE ----
+    //     $this->bookingModel->update($booking['booking_id'], [
+    //         'qr_code' => $qrUrl
+    //     ]);
 
-        // ---- SAVE QR URL IN DATABASE ----
-        $this->bookingModel->update($booking['booking_id'], [
-            'qr_code' => $qrUrl
-        ]);
-
-        return $this->response->setJSON([
-            'status' => true,
-            'message' => 'QR Code Generated',
-            'qr_url' => $qrUrl,
-            'booking_code' => $booking_code
-        ]);
-    }
-
+    //     return $this->response->setJSON([
+    //         'status' => true,
+    //         'message' => 'QR Code Generated',
+    //         'qr_url' => $qrUrl,
+    //         'booking_code' => $booking_code
+    //     ]);
+    // }
 
     protected function getAdminIdFromToken()
     {
@@ -541,10 +533,6 @@ class EventBooking extends BaseController
             return null;
         }
     }
-
-
-
-
     public function scanQr()
     {
         $data = $this->request->getJSON(true);

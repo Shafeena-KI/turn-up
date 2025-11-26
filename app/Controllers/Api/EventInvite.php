@@ -8,7 +8,8 @@ use App\Models\Api\EventCategoryModel;
 use App\Models\Api\AppUserModel;
 use App\Models\Api\EventBookingModel;
 use CodeIgniter\HTTP\ResponseInterface;
-
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
 class EventInvite extends BaseController
 {
     protected $inviteModel;
@@ -161,11 +162,28 @@ class EventInvite extends BaseController
         $entryLabels = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
         $entryTypeText = $entryLabels[$entryTypeValue];
 
-        $categoryLabels = [1 => 'VIP', 2 => 'Normal'];
-        $categoryText = $categoryLabels[$data['category_name']];
+        // Convert payload category_name (1 = VIP, 2 = Normal)
+        $inputCategory = (int) $data['category_name'];
+
+        $category_id = null;
+        $categoryText = null;
+
+        if ($inputCategory === 1) {
+            $category_id = 1;
+            $categoryText = 'VIP';
+        } elseif ($inputCategory === 2) {
+            $category_id = 2;
+            $categoryText = 'Normal';
+        } else {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Invalid category_name. Use 1 for VIP, 2 for Normal.'
+            ]);
+        }
+
         // VIP AUTO APPROVE
 
-        $inviteStatus = strtolower($data['category_name']) === 'vip' ? 1 : 0;
+        $inviteStatus = ($category_id == 1) ? 1 : 0;
 
         // event_counters (ONE GLOBAL COUNTER)
 
@@ -297,6 +315,9 @@ class EventInvite extends BaseController
                 'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
+             // ========= AUTO GENERATE QR CODE 
+            $qr_url = $this->createQrForBooking($booking_code);
+
             // GET USER DETAILS
             $user = $this->db->table('app_users')->where('user_id', $data['user_id'])->get()->getRow();
 
@@ -328,6 +349,7 @@ class EventInvite extends BaseController
             'message' => 'Invite created successfully.',
             'invite_code' => $invite_code,
             'data' => $insertData,
+            'qr_code' => $qr_url,
             'whatsapp_response' => $whatsappResponse,
             'vip_auto_approved' => ($inviteStatus == 1)
         ]);
@@ -624,6 +646,8 @@ class EventInvite extends BaseController
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
             }
+            // ========= AUTO GENERATE QR CODE 
+            $qr_url = $this->createQrForBooking($booking_code);
 
             // === SEND WHATSAPP === //
             $this->sendEventConfirmation($phone, $username, $event_name);
@@ -632,8 +656,48 @@ class EventInvite extends BaseController
         return $this->response->setJSON([
             'status' => true,
             'message' => 'Invite updated successfully.',
-            'booking_code' => $booking_code
+            'booking_code' => $booking_code,
+            'qr_code' => $qr_url
         ]);
+    }
+    private function createQrForBooking($booking_code)
+    {
+        // Fetch booking
+        $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
+        if (!$booking) {
+            return null;
+        }
+
+        $secretKey = getenv('QR_SECRET_KEY');
+        $token = hash_hmac('sha256', $booking_code, $secretKey);
+
+        $payload = json_encode([
+            'booking_code' => $booking_code,
+            'token' => $token
+        ]);
+
+        // PUBLIC FOLDER
+        $qrFolder = FCPATH . 'public/uploads/qr_codes/';
+
+        if (!is_dir($qrFolder)) {
+            mkdir($qrFolder, 0777, true);
+        }
+
+        $fileName = $booking_code . '.png';
+        $filePath = $qrFolder . $fileName;
+        $qrUrl = base_url('public/uploads/qr_codes/' . $fileName);
+
+        // Generate QR
+        $qrCode = new \Endroid\QrCode\QrCode($payload);
+        $writer = new \Endroid\QrCode\Writer\PngWriter();
+        $writer->write($qrCode)->saveToFile($filePath);
+
+        // Save in database
+        $this->bookingModel->update($booking['booking_id'], [
+            'qr_code' => $qrUrl
+        ]);
+
+        return $qrUrl;
     }
     public function getInvitesByEvent()
     {
