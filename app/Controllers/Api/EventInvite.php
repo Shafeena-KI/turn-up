@@ -147,8 +147,8 @@ class EventInvite extends BaseController
 
                 $entryTypeValue = 4;
                 $entryTypeText = 'Couple';
-                $invite_total = 4;
-                $couple_total = 2;
+                $invite_total = 2;
+                $couple_total = 1;
                 break;
 
 
@@ -268,7 +268,7 @@ class EventInvite extends BaseController
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
         }
-
+        $qr_url = null;
         // AUTO BOOKING FOR VIP
         if ($inviteStatus == 1) {
 
@@ -597,7 +597,7 @@ class EventInvite extends BaseController
                         $other_total = 1;
                         break;
                     case 4: // Couple
-                        $couple_total = 2;
+                        $couple_total = 1;
                         break;
 
                     default:

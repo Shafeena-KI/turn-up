@@ -194,7 +194,6 @@ class AppUser extends BaseController
         curl_close($ch);
         return json_decode($response, true);
     }
-
     public function getUserById()
     {
         $json = $this->request->getJSON(true);
