@@ -79,6 +79,8 @@ $routes->post('api/checkin/details', 'Api\Checkin::getCheckinDetails');
 $routes->post('api/checkin/mark-in', 'Api\Checkin::markAsIn');
 $routes->get('api/checkin/markin-list', 'Api\Checkin::listCheckins');
 $routes->get('api/checkin/markin-list/(:num)', 'Api\Checkin::listCheckins/$1');
+$routes->post('/api/remarks', 'Api\Checkin::getRemarks');
+
 
 
 
