@@ -218,14 +218,39 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Fix profile image full URL
+        // Profile image URL
         if (!empty($user['profile_image'])) {
-
-            // Add base_url only if image is NOT already full URL
             if (!preg_match('/^https?:\/\//', $user['profile_image'])) {
                 $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
             }
         }
+
+        // Gender mapping
+        $genderMap = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple',
+        ];
+        $user['gender'] = $genderMap[(int) $user['gender']] ?? 'Not set';
+
+        // Handle interests
+        $interestList = [];
+        if (!empty($user['interest_id'])) {
+            $interestIds = explode(',', $user['interest_id']);
+            $db = \Config\Database::connect();
+            $builder = $db->table('interests');
+            $interests = $builder->whereIn('interest_id', $interestIds)->get()->getResultArray();
+
+            foreach ($interests as $i) {
+                $interestList[] = [
+                    'interest_id' => $i['interest_id'],
+                    'interest_name' => $i['interest_name']
+                ];
+            }
+        }
+        unset($user['interest_id']);
+        $user['interests'] = $interestList;
 
         return $this->response->setJSON([
             'status' => 200,
@@ -332,11 +357,25 @@ class AppUser extends BaseController
         } else {
             unset($data['password']);
         }
+        $gender = $data['gender'] ?? $user['gender'];
+        $allowedGender = [1, 2, 3, 4];
+        if (!in_array((int) $gender, $allowedGender)) {
+            $gender = $user['gender']; // fallback
+        }
+
+        $genderMap = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple',
+        ];
+        $genderText = $genderMap[(int) $gender] ?? 'Not set';
+
 
         /* ---------- Build Update Data ---------- */
         $updateData = [
             'name' => $data['name'] ?? $user['name'],
-            'gender' => $data['gender'] ?? $user['gender'],
+            'gender' => $gender,
             'dob' => $data['dob'] ?? $user['dob'],
             'email' => $data['email'] ?? $user['email'],
             'phone' => $data['phone'] ?? $user['phone'],
@@ -395,6 +434,7 @@ class AppUser extends BaseController
             : "";
         unset($updateData['interest_id']);
         $updateData['interests'] = $interestList;
+        $updateData['gender'] = $genderText;
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
@@ -467,11 +507,18 @@ class AppUser extends BaseController
         }
 
         $profile_score = min(100, $profile_score);
+        // GENDER VALIDATION
+        $gender = $data['gender'] ?? $user['gender'];
+
+        $allowedGender = [1, 2, 3, 4];
+        if (!in_array((int) $gender, $allowedGender)) {
+            $gender = $user['gender']; // fallback to existing
+        }
 
         // Update DB
         $updateData = [
             'name' => $data['name'],
-            'gender' => $data['gender'] ?? $user['gender'],
+            'gender' => $gender,
             'dob' => $data['dob'],
             'email' => $data['email'] ?? $user['email'],
             'insta_id' => $data['insta_id'],
@@ -530,12 +577,22 @@ class AppUser extends BaseController
         } else {
             $updateData['profile_image'] = null;
         }
+        // Map gender number to text
+        $genderMap = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple',
+        ];
+
+        $genderText = $genderMap[(int) $updateData['gender']] ?? 'Not set';
+
 
         // Remove 'interest_id' from response, only return 'interests'
         $responseData = $updateData;
         unset($responseData['interest_id']); // remove CSV field
         $responseData['interests'] = $interestList;
-
+        $responseData['gender'] = $genderText;
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
@@ -608,9 +665,16 @@ class AppUser extends BaseController
         $users = $builder
             ->orderBy('user_id', 'DESC')
             ->findAll($limit, $offset);
-
+        $genderMap = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple',
+        ];
         // Add base URL to images
         foreach ($users as &$user) {
+            // Map gender integer to text
+            $user['gender'] = $genderMap[(int) $user['gender']] ?? 'Not set';
             if (!empty($user['profile_image'])) {
                 $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
             }
@@ -689,13 +753,15 @@ class AppUser extends BaseController
         }
 
         $this->appUserModel->update($userId, $updateData);
-
+        $genderMap = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
+        $genderText = $genderMap[(int) $user['gender']] ?? 'Not set';
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
             'message' => "Profile status updated successfully.",
             'previous_score' => $profile_score,
             'updated_score' => $updatedScore,
+            'gender' => $genderText,
         ]);
     }
     //Account status Updates 
