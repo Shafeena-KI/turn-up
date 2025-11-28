@@ -268,7 +268,7 @@ class EventInvite extends BaseController
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
         }
-        $qr_url = null;
+            $qr_url = null;
         // AUTO BOOKING FOR VIP
         if ($inviteStatus == 1) {
 
@@ -660,6 +660,7 @@ class EventInvite extends BaseController
             'qr_code' => $qr_url
         ]);
     }
+
     private function createQrForBooking($booking_code)
     {
         // Fetch booking
@@ -668,7 +669,7 @@ class EventInvite extends BaseController
             return null;
         }
 
-        $secretKey = getenv('QR_SECRET_KEY');
+        $secretKey = getenv('EVENT_QR_SECRET');
         $token = hash_hmac('sha256', $booking_code, $secretKey);
 
         $payload = json_encode([
@@ -699,6 +700,7 @@ class EventInvite extends BaseController
 
         return $qrUrl;
     }
+
     public function getInvitesByEvent()
     {
         $json = $this->request->getJSON(true);

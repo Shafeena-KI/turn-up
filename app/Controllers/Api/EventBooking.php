@@ -214,7 +214,8 @@ class EventBooking extends BaseController
             $entryTypeMap = [
                 1 => 'Male',
                 2 => 'Female',
-                3 => 'Couple'
+                3 => 'Other',
+                4 => 'Couple'
             ];
             $booking['entry_type'] = $entryTypeMap[$booking['entry_type']] ?? 'N/A';
 
@@ -226,7 +227,7 @@ class EventBooking extends BaseController
                 ->get()
                 ->getRow();
 
-            $partnerId = ($invite && $invite->entry_type == 3) ? $invite->partner : null;
+            $partnerId = ($invite && $invite->entry_type == 4) ? $invite->partner : null;
 
             // Partner Insta ID only
             $booking['partner'] = $booking['partner'] ?? null;
@@ -266,6 +267,8 @@ class EventBooking extends BaseController
             ]
         ]);
     }
+
+
     public function getTotalBookingCounts($event_id)
     {
         // Validate event_id
@@ -451,69 +454,7 @@ class EventBooking extends BaseController
             'message' => 'Booking cancelled successfully.'
         ]);
     }
-    //generating Qr code using booking code
 
-    // public function generateQrCode()
-    // {
-    //     $data = $this->request->getJSON(true);
-    //     $booking_code = $data['booking_code'] ?? null;
-
-    //     if (!$booking_code) {
-    //         return $this->response->setJSON([
-    //             'status' => false,
-    //             'message' => 'booking_code is required'
-    //         ]);
-    //     }
-
-    //     // Fetch booking
-    //     $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
-    //     if (!$booking) {
-    //         return $this->response->setJSON([
-    //             'status' => false,
-    //             'message' => 'Invalid booking code'
-    //         ]);
-    //     }
-
-    //     // SECRET KEY for signing (KEEP THIS PRIVATE)
-    //     $secretKey = getenv('QR_SECRET_KEY'); // Store in .env
-
-    //     // Create secure token
-    //     $token = hash_hmac('sha256', $booking_code, $secretKey);
-
-    //     // Create secured payload
-    //     $payload = json_encode([
-    //         'booking_code' => $booking_code,
-    //         'token' => $token
-    //     ]);
-
-    //     // Create writable folder
-    //     $qrFolder = WRITEPATH . 'uploads/qr_codes/';
-    //     if (!is_dir($qrFolder)) {
-    //         mkdir($qrFolder, 0777, true);
-    //     }
-
-    //     $fileName = $booking_code . '.png';
-    //     $filePath = $qrFolder . $fileName;
-    //     $qrUrl = base_url('writable/uploads/qr_codes/' . $fileName);
-
-    //     // Generate QR Code
-    //     $qrCode = new \Endroid\QrCode\QrCode($payload);
-    //     $writer = new \Endroid\QrCode\Writer\PngWriter();
-    //     $result = $writer->write($qrCode);
-    //     $result->saveToFile($filePath);
-
-    //     // ---- SAVE QR URL IN DATABASE ----
-    //     $this->bookingModel->update($booking['booking_id'], [
-    //         'qr_code' => $qrUrl
-    //     ]);
-
-    //     return $this->response->setJSON([
-    //         'status' => true,
-    //         'message' => 'QR Code Generated',
-    //         'qr_url' => $qrUrl,
-    //         'booking_code' => $booking_code
-    //     ]);
-    // }
 
     protected function getAdminIdFromToken()
     {
@@ -577,6 +518,14 @@ class EventBooking extends BaseController
                 'message' => 'Booking Code Not Found'
             ]);
         }
+        //ticket type
+        $category = $this->categoryModel->find($booking['category_id']);
+
+        $ticketType = '';
+        if (!empty($category)) {
+            $ticketType = $category['category_name'] == 1 ? 'VIP' :
+                        ($category['category_name'] == 2 ? 'Normal' : 'Unknown');
+        }
 
         // Fetch invite
         $invite = $this->inviteModel->find($booking['invite_id']);
@@ -594,23 +543,33 @@ class EventBooking extends BaseController
         }
 
         // --- EVENT DATE / TIME VALIDATION ---
-        $eventStartDateTime = new \DateTime($event['event_date_start'] . ' ' . $event['event_time_start']);
-        $eventEndDateTime = null;
 
-        if (!empty($event['event_time_end'])) {
-            // If end time exists
-            $eventEndDateTime = new \DateTime($event['event_date_end'] . ' ' . $event['event_time_end']);
-        } else {
-            // If no end time, assume 5 hours after start time
-            $eventEndDateTime = (clone $eventStartDateTime)->modify('+20 hours');
-        }
 
-        // Check-in start time = 5 hours before event start
-        $checkinStartTime = (clone $eventStartDateTime)->modify('-20 hours');
+        $tz = new \DateTimeZone('Asia/Kolkata');
 
-        $now = new \DateTime();
+        // Fix end time if it is 00:00:00 → consider full day till 23:59:59
+        $endTime = ($event['event_time_end'] === '00:00:00')
+            ? '23:59:59'
+            : $event['event_time_end'];
 
-        // 1️⃣ Check if before check-in window
+        // Event start/end
+        $eventStartDateTime = new \DateTime(
+            $event['event_date_start'] . ' ' . $event['event_time_start'],
+            $tz
+        );
+
+        $eventEndDateTime = new \DateTime(
+            $event['event_date_end'] . ' ' . $endTime,
+            $tz
+        );
+
+        // Check-in window (5 hours before start)
+        $checkinStartTime = (clone $eventStartDateTime)->modify('-5 hours');
+
+        // Current time
+        $now = new \DateTime('now', $tz);
+
+        // Before check-in window
         if ($now < $checkinStartTime) {
             return $this->response->setJSON([
                 'status' => false,
@@ -618,13 +577,14 @@ class EventBooking extends BaseController
             ]);
         }
 
-        // 2️⃣ Check if after event end
+        // After event end
         if ($now > $eventEndDateTime) {
             return $this->response->setJSON([
                 'status' => false,
                 'message' => 'Event check-in closed'
             ]);
         }
+
 
 
         // --- CHECK IF ALREADY CHECKED-IN IN checkin table (prefer this over booking.status alone) ---
@@ -651,8 +611,8 @@ class EventBooking extends BaseController
 
         // Partner comment logic (merge from markAsIn)
         $entry_type = $invite['entry_type'] ?? null;
-        $partner_id = $invite['partner'] ?? 0;
-        $partner_in = $data['partner'] ?? 0; // partner presence can be passed with scan payload or default 0
+        $partner_id = $invite['partner'] ?? null;
+        $partner_in = $data['partner'] ?? null; // partner presence can be passed with scan payload or default 0
         $entry_comment = "";
 
         if ($entry_type == "Male" && $partner_id > 0) {
@@ -721,23 +681,34 @@ class EventBooking extends BaseController
             ->first();
 
         if ($counts) {
-            $update = ['total_checkin' => $counts['total_checkin']];
 
+            // Initialize update array
+            $update = [
+                'total_checkin' => $counts['total_checkin'],
+                'total_male_checkin' => $counts['total_male_checkin'],
+                'total_female_checkin' => $counts['total_female_checkin'],
+                'total_couple_checkin' => $counts['total_couple_checkin'],
+                'total_other_checkin' => $counts['total_other_checkin'],
+            ];
+
+            // Entry type conditions
             if ($entry_type == "Male") {
+                $update['total_checkin'] = $counts['total_checkin'] + 1;
                 $update['total_male_checkin'] = $counts['total_male_checkin'] + 1;
-                $update['total_checkin'] += 1;
-            }
-            if ($entry_type == "Female") {
+            } elseif ($entry_type == "Female") {
+                $update['total_checkin'] = $counts['total_checkin'] + 1;
                 $update['total_female_checkin'] = $counts['total_female_checkin'] + 1;
-                $update['total_checkin'] += 1;
-            }
-            if ($entry_type == "Couple") {
-                $update['total_couple_checkin'] = $counts['total_couple_checkin'] + 1;
-                $update['total_checkin'] += 2;
+            } elseif ($entry_type == "Other") {
+                $update['total_checkin'] = $counts['total_checkin'] + 1;
+                $update['total_other_checkin'] = $counts['total_other_checkin'] + 1;
+            } elseif ($entry_type == "Couple") {
+                $update['total_checkin'] = $counts['total_checkin'] + 2; // 2 people
+                $update['total_couple_checkin'] = $counts['total_couple_checkin'] + 1; // 1 couple
             }
 
             $this->eventCountsModel->update($counts['id'], $update);
         }
+
 
         // Load user details for response
         $user = $this->db->table('app_users')
@@ -752,6 +723,8 @@ class EventBooking extends BaseController
                 'booking_code' => $booking['booking_code'],
                 'event_name' => $event['event_name'] ?? '',
                 'user_name' => $user['name'] ?? ($invite['name'] ?? ''),
+                'ticket_type' => $ticketType,
+                'entry_type' => $entry_type,
                 'checked_in_at' => $checkinTime,
                 'checked_in_by' => $admin_name
             ]

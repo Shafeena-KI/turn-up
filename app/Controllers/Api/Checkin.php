@@ -139,24 +139,29 @@ class Checkin extends BaseController
             ->get()
             ->getRowArray();
 
-        if ($checkin) {
-            $adminName = 'Unknown';
-            if (!empty($checkin['checkedin_by'])) {
-                $admin = $db->table('admin_users')
-                    ->select('name')
-                    ->where('admin_user_id', $checkin['checkedin_by'])
-                    ->get()
-                    ->getRowArray();
-                if ($admin && !empty($admin['name'])) {
-                    $adminName = $admin['name'];
-                }
+      if ($checkin) {
+
+            // Directly use the value stored in checkin table
+            $checkedInBy = $checkin['checkedin_by'] ?? 'Unknown';
+
+            // If empty string, replace with Unknown
+            if (trim($checkedInBy) === '') {
+                $checkedInBy = 'Unknown';
             }
 
             return $this->response->setJSON([
                 'status' => false,
-                'message' => "{$user['name']} already checked in at {$checkin['checkin_time']} by {$adminName}"
+                'message' => "{$user['name']} already checked in at {$checkin['checkin_time']} by {$checkedInBy}"
             ]);
         }
+
+        $ticketType = '';
+        if (!empty($category)) {
+            $ticketType = $category['category_name'] == 1 ? 'VIP' :
+                        ($category['category_name'] == 2 ? 'Normal' : 'Unknown');
+        }
+
+
 
 
 
@@ -170,7 +175,8 @@ class Checkin extends BaseController
                 'booking_id' => $booking['booking_id'],
                 'booking_code' => $booking['booking_code'],
                 'event_name' => $event['event_name'] ?? '',
-                'ticket_type' => $category['category_name'] ?? '',
+                // 'ticket_type' => $category['category_name'] ?? '',
+                'ticket_type' => $ticketType,
                 'entry_type' => $invite['entry_type'] ?? '',
                 'user_name' => $user['name'] ?? '',
                 'profile_image' => $profileImage,
@@ -298,26 +304,26 @@ class Checkin extends BaseController
         }
 
         // -------------------- PARTNER & ENTRY TYPE --------------------
-$partner_in = $data['partner'] ?? 0;
-$entry_type = $invite['entry_type'];
-$entry_comment = "";
+            $partner_in = $data['partner'] ?? null;
+            $entry_type = $invite['entry_type'];
+            $entry_comment = "";
 
-// Partner comment logic
-$partner_id = $invite['partner'] ?? 0;
+            // Partner comment logic
+            $partner_id = $invite['partner'] ?? null;
 
-if ($entry_type == "Male" && $partner_id > 0) {
-    if ($partner_in == 0)
-        $entry_comment = "Female partner didn't come";
-    elseif ($partner_in == 2)
-        $entry_comment = "Female partner came, but booked male partner";
-}
+            if ($entry_type == "Male" && $partner_id > 0) {
+                if ($partner_in == null)
+                    $entry_comment = "Female partner didn't come";
+                elseif ($partner_in == 2)
+                    $entry_comment = "Female partner came, but booked male partner";
+            }
 
-if ($entry_type == "Female" && $partner_id > 0) {
-    if ($partner_in == 0)
-        $entry_comment = "Male partner didn't come";
-    elseif ($partner_in == 1)
-        $entry_comment = "Male partner came, but booked female partner";
-}
+            if ($entry_type == "Female" && $partner_id > 0) {
+                if ($partner_in == null)
+                    $entry_comment = "Male partner didn't come";
+                elseif ($partner_in == 1)
+                    $entry_comment = "Male partner came, but booked female partner";
+            }
 
 
         
@@ -398,7 +404,7 @@ if ($entry_type == "Female" && $partner_id > 0) {
             'user_id' => $booking['user_id'],
             'event_id' => $booking['event_id'],
             'booking_code' => $booking['booking_code'],
-             'partner' => $partner_in,
+            'partner' => $partner_in,
             'category_id' => $booking['category_id'],
             'invite_id' => $booking['invite_id'],
             'entry_status' => 1,
@@ -418,30 +424,48 @@ if ($entry_type == "Female" && $partner_id > 0) {
             'updated_at' => date('Y-m-d H:i:s')
         ]);
 
-        // Update event counts
+       // Update event counts
         $counts = $this->eventCountsModel
             ->where('event_id', $booking['event_id'])
             ->where('category_id', $booking['category_id'])
             ->first();
 
         if ($counts) {
-            $update = ['total_checkin' => $counts['total_checkin']];
 
+            // Initialize update array
+            $update = [
+                'total_checkin' => $counts['total_checkin'],
+                'total_male_checkin' => $counts['total_male_checkin'],
+                'total_female_checkin' => $counts['total_female_checkin'],
+                'total_couple_checkin' => $counts['total_couple_checkin'],
+                'total_other_checkin' => $counts['total_other_checkin'],
+            ];
+
+            // Entry type conditions
             if ($entry_type == "Male") {
+                $update['total_checkin'] = $counts['total_checkin'] + 1;
                 $update['total_male_checkin'] = $counts['total_male_checkin'] + 1;
-                $update['total_checkin'] += 1;
-            }
-            if ($entry_type == "Female") {
+            } 
+            
+            elseif ($entry_type == "Female") {
+                $update['total_checkin'] = $counts['total_checkin'] + 1;
                 $update['total_female_checkin'] = $counts['total_female_checkin'] + 1;
-                $update['total_checkin'] += 1;
-            }
-            if ($entry_type == "Couple") {
-                $update['total_couple_checkin'] = $counts['total_couple_checkin'] + 1;
-                $update['total_checkin'] += 2;
+            } 
+            
+            elseif ($entry_type == "Other") {
+                $update['total_checkin'] = $counts['total_checkin'] + 1;
+                $update['total_other_checkin'] = $counts['total_other_checkin'] + 1;
+            } 
+            
+            elseif ($entry_type == "Couple") {
+                $update['total_checkin'] = $counts['total_checkin'] + 2; // 2 people
+                $update['total_couple_checkin'] = $counts['total_couple_checkin'] + 1; // 1 couple
             }
 
             $this->eventCountsModel->update($counts['id'], $update);
         }
+
+
 
         // return $this->response->setJSON([
         //     'status' => true,
@@ -476,31 +500,35 @@ if ($entry_type == "Female" && $partner_id > 0) {
         $offset = ($page - 1) * $limit;
 
         // Base query to fetch check-ins with user, category, and event info
-        $builder = $db->table('checkin c')
-            ->select('
-                c.*,
-                e.event_name,
-                e.event_city,
-                e.event_location,
-                e.event_code,
-                e.event_date_start,
-                e.event_time_start,
-                e.event_date_end,
-                e.event_time_end,
-                ec.category_name,
-                u.name AS user_name,
-                u.phone AS user_phone,
-                u.email AS user_email,
-                u.insta_id AS user_insta_id,
-                u.profile_image AS user_profile_image
-            ')
-            ->join('events e', 'e.event_id = c.event_id', 'left')
-            ->join('event_ticket_category ec', 'ec.category_id = c.category_id', 'left')
-            ->join('app_users u', 'u.user_id = c.user_id', 'left')
-            ->where('c.entry_status', 1); // Only checked-in
+        $builder = $db->table('events e')
+        ->select('
+            c.*,
+            e.event_id AS event_main_id,
+            e.event_name,
+            e.event_city,
+            e.event_location,
+            e.event_code,
+            e.event_date_start,
+            e.event_time_start,
+            e.event_date_end,
+            e.event_time_end,
+            ec.category_name,
+            u.name AS user_name,
+            u.phone AS user_phone,
+            u.email AS user_email,
+            u.insta_id AS user_insta_id,
+            u.profile_image AS user_profile_image
+        ')
+        ->join('checkin c', 'c.event_id = e.event_id AND c.entry_status = 1', 'left')
+        ->join('event_ticket_category ec', 'ec.category_id = c.category_id', 'left')
+        ->join('app_users u', 'u.user_id = c.user_id', 'left')
+        ->groupBy('c.checkin_id');
+
 
         if (!empty($event_id)) {
-            $builder->where('c.event_id', $event_id);
+            // $builder->where('c.event_id', $event_id);
+            $builder->where('e.event_id', $event_id);
+
         }
 
         if (!empty($search)) {
@@ -532,10 +560,24 @@ if ($entry_type == "Female" && $partner_id > 0) {
                 1 => 'Checked In',
                 2 => 'Rejected'
             ];
-            $checkin['status_text'] = $statusMap[$checkin['entry_status']] ?? 'Unknown';
+            // $checkin['status_text'] = $statusMap[$checkin['entry_status']] ?? 'Unknown';
+            $entryStatus = $checkin['entry_status'] ?? 0;
+            $checkin['status_text'] = $statusMap[$entryStatus] ?? 'Pending';
+
 
             // Entry type text
-            $checkin['entry_type_text'] = $checkin['entry_type'] ?? 'N/A';
+            $entryTypeMap = [
+                1 => 'Male',
+                2 => 'Female',
+                3 => 'Other',
+                4 => 'Couple'
+            ];
+
+            $entryType = $checkin['entry_type'] ?? null;
+            
+            $checkin['entry_type_text'] = $entryTypeMap[$entryType] ?? 'N/A';
+
+
 
             // Partner details (if any)
             $partner = $db->table('app_users')
@@ -553,9 +595,25 @@ if ($entry_type == "Female" && $partner_id > 0) {
                 'profile_image' => $partner->profile_image
             ] : null;
 
+            // ENTRY REMARKS (TEXT VALUES)
+                $remarkIDs = json_decode($checkin['entry_remarks_id'], true);
+
+                if (!empty($remarkIDs) && is_array($remarkIDs)) {
+
+                    $remarksList = $db->table('entry_remarks')
+                        ->select('entry_remarks')
+                        ->whereIn('entry_remarks_id', $remarkIDs)
+                        ->get()
+                        ->getResultArray();
+
+                    $checkin['entry_remarks'] = array_column($remarksList, 'entry_remarks');
+                } else {
+                    $checkin['entry_remarks'] = [];
+                }
+
             // Event counts including total booked
             $eventCounts = $db->table('event_counts')
-                ->select('total_booking, total_checkin, total_male_checkin, total_female_checkin, total_couple_checkin')
+                ->select('total_booking, total_checkin, total_male_checkin, total_female_checkin, total_couple_checkin, total_other_checkin')
                 ->where('event_id', $checkin['event_id'])
                 ->orderBy('id', 'DESC')
                 ->limit(1)
@@ -568,6 +626,7 @@ if ($entry_type == "Female" && $partner_id > 0) {
                 'total_male_checkin' => (int) $eventCounts['total_male_checkin'],
                 'total_female_checkin' => (int) $eventCounts['total_female_checkin'],
                 'total_couple_checkin' => (int) $eventCounts['total_couple_checkin'],
+                'total_other_checkin' => (int) $eventCounts['total_other_checkin'],
             ] : [
                 'total_booking' => 0,
                 'total_checkin' => 0,
