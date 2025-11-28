@@ -196,6 +196,18 @@ class AppUser extends BaseController
     }
     public function getUserById()
     {
+        $auth = $this->getAuthenticatedUser();
+
+        if (isset($auth['error'])) {
+            return $this->response->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => $auth['error']
+            ]);
+        }
+
+        $user_id = $auth['user_id'];
+        
         $json = $this->request->getJSON(true);
         $user_id = $json['user_id'] ?? null;
 
@@ -260,6 +272,18 @@ class AppUser extends BaseController
     // UPDATE USER DETAILS
     public function updateUser()
     {
+        $auth = $this->getAuthenticatedUser();
+
+        if (isset($auth['error'])) {
+            return $this->response->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => $auth['error']
+            ]);
+        }
+
+        $user_id = $auth['user_id'];
+
         $data = $this->request->getPost();
         $user_id = $data['user_id'] ?? null;
 
@@ -442,9 +466,47 @@ class AppUser extends BaseController
             'data' => $updateData
         ]);
     }
+    private function getAuthenticatedUser()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+
+        if (!$authHeader || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+            return ['error' => 'Authorization token missing'];
+        }
+
+        $token = $matches[1];
+        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+        try {
+            $decoded = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
+
+            return [
+                'user_id' => $decoded->data->user_id,
+                'phone' => $decoded->data->phone
+            ];
+
+        } catch (\Throwable $e) {
+            return ['error' => 'Invalid or expired token: ' . $e->getMessage()];
+        }
+    }
+
     public function completeProfile()
     {
+        $auth = $this->getAuthenticatedUser();
+
+        if (isset($auth['error'])) {
+            return $this->response->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => $auth['error']
+            ]);
+        }
+
+        $user_id = $auth['user_id'];
+
+        // Get Request Data
         $data = $this->request->getPost();
+        // Fetch User
         $user_id = $data['user_id'] ?? null;
 
         if (empty($user_id)) {

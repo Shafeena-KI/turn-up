@@ -29,9 +29,44 @@ class EventInvite extends BaseController
         $this->categoryModel = new EventCategoryModel();
         $this->db = \Config\Database::connect();
     }
+    private function getAuthenticatedUser()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+
+        if (!$authHeader || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+            return ['error' => 'Authorization token missing'];
+        }
+
+        $token = $matches[1];
+        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+        try {
+            $decoded = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
+
+            return [
+                'user_id' => $decoded->data->user_id,
+                'phone' => $decoded->data->phone
+            ];
+
+        } catch (\Throwable $e) {
+            return ['error' => 'Invalid or expired token: ' . $e->getMessage()];
+        }
+    }
+
     // Create an invite
     public function createInvite()
     {
+        $auth = $this->getAuthenticatedUser();
+
+        if (isset($auth['error'])) {
+            return $this->response->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => $auth['error']
+            ]);
+        }
+
+        $user_id = $auth['user_id']; // ← TOKEN USER
         $data = $this->request->getJSON(true);
 
         if (empty($data['event_id']) || empty($data['user_id'])) {
@@ -268,7 +303,7 @@ class EventInvite extends BaseController
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
         }
-            $qr_url = null;
+        $qr_url = null;
         // AUTO BOOKING FOR VIP
         if ($inviteStatus == 1) {
 
@@ -284,7 +319,7 @@ class EventInvite extends BaseController
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
 
-            $booking_code = $event_code . 'B' . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
+            $booking_code = 'BK' . $event_code . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
 
             // SAVE BOOKING
             $bookingData = [
@@ -315,7 +350,7 @@ class EventInvite extends BaseController
                 'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
-             // ========= AUTO GENERATE QR CODE 
+            // ========= AUTO GENERATE QR CODE 
             $qr_url = $this->createQrForBooking($booking_code);
 
             // GET USER DETAILS
@@ -645,11 +680,29 @@ class EventInvite extends BaseController
                     'created_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
+                $countsTable = $this->db->table('event_counts');
+
+                $eventCount = $countsTable
+                    ->where('event_id', $invite['event_id'])
+                    ->where('category_id', $invite['category_id'])
+                    ->get()
+                    ->getRow();
+
+                if ($eventCount) {
+                    $countsTable->where('id', $eventCount->id)->update([
+                        'total_booking' => $eventCount->total_booking + $invite_total,
+                        'total_male_booking' => $eventCount->total_male_booking + $male_total,
+                        'total_female_booking' => $eventCount->total_female_booking + $female_total,
+                        'total_other_booking' => $eventCount->total_other_booking + $other_total,
+                        'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+                }
             }
-            // ========= AUTO GENERATE QR CODE 
+            // AUTO GENERATE QR CODE 
             $qr_url = $this->createQrForBooking($booking_code);
 
-            // === SEND WHATSAPP === //
+            // SEND WHATSAPP
             $this->sendEventConfirmation($phone, $username, $event_name);
         }
 
@@ -721,6 +774,16 @@ class EventInvite extends BaseController
     }
     public function getInvitesByUser()
     {
+        $auth = $this->getAuthenticatedUser();
+
+        if (isset($auth['error'])) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => $auth['error']
+            ]);
+        }
+
+        $user_id = $auth['user_id']; // ← TOKEN USER
         $json = $this->request->getJSON(true);
         $user_id = $json['user_id'] ?? null;
         if (!$user_id) {
@@ -740,24 +803,24 @@ class EventInvite extends BaseController
     {
         $builder = $this->db->table('event_counts ec');
         $builder->select("
-            ec.event_id,
-            e.event_name,
-            e.event_code,
-            e.event_location,
-            e.event_city,
-            e.event_date_start,
-            e.event_time_start,
-            e.event_date_end,
-            e.event_time_end,
-            c.category_id,
-            c.category_name,
-            c.total_seats,
-            SUM(ec.total_invites) AS total_invites,
-            SUM(ec.total_male_invites) AS total_male,
-            SUM(ec.total_female_invites) AS total_female,
-            SUM(ec.total_other_invites) AS total_other,
-            SUM(ec.total_couple_invites) AS total_couple
-        ");
+        ec.event_id,
+        e.event_name,
+        e.event_code,
+        e.event_location,
+        e.event_city,
+        e.event_date_start,
+        e.event_time_start,
+        e.event_date_end,
+        e.event_time_end,
+        c.category_id,
+        c.category_name,
+        c.total_seats,
+        SUM(ec.total_invites) AS total_invites,
+        SUM(ec.total_male_invites) AS total_male,
+        SUM(ec.total_female_invites) AS total_female,
+        SUM(ec.total_other_invites) AS total_other,
+        SUM(ec.total_couple_invites) AS total_couple
+    ");
         $builder->join('events e', 'e.event_id = ec.event_id', 'left');
         $builder->join('event_ticket_category c', 'c.category_id = ec.category_id', 'left');
         $builder->groupBy('ec.event_id, ec.category_id');
@@ -768,6 +831,7 @@ class EventInvite extends BaseController
         foreach ($rows as $row) {
 
             $eventId = $row['event_id'];
+            $categoryId = (int) $row['category_id'];
             $categoryKey = strtolower($row['category_name']);
 
             if (!isset($finalData[$eventId])) {
@@ -790,12 +854,15 @@ class EventInvite extends BaseController
                         'total_female' => 0,
                         'total_other' => 0,
                         'total_couple' => 0,
-                    ]
+                    ],
+                    // helper to avoid double-counting seats for same category
+                    '_seen_category_ids' => []
                 ];
             }
 
             // CATEGORY WISE DATA
             $finalData[$eventId]['categories'][$categoryKey] = [
+                'category_id' => $categoryId,
                 'seats' => (int) $row['total_seats'],
                 'total_invites' => (int) $row['total_invites'],
                 'total_male' => (int) $row['total_male'],
@@ -805,7 +872,12 @@ class EventInvite extends BaseController
             ];
 
             // OVERALL TOTAL CALCULATION
-            $finalData[$eventId]['overall_total']['total_seats'] += (int) $row['total_seats'];
+            // Add seats only once per category per event (prevent double-counting)
+            if (!in_array($categoryId, $finalData[$eventId]['_seen_category_ids'], true)) {
+                $finalData[$eventId]['overall_total']['total_seats'] += (int) $row['total_seats'];
+                $finalData[$eventId]['_seen_category_ids'][] = $categoryId;
+            }
+
             $finalData[$eventId]['overall_total']['total_invites'] += (int) $row['total_invites'];
             $finalData[$eventId]['overall_total']['total_male'] += (int) $row['total_male'];
             $finalData[$eventId]['overall_total']['total_female'] += (int) $row['total_female'];
@@ -813,12 +885,21 @@ class EventInvite extends BaseController
             $finalData[$eventId]['overall_total']['total_couple'] += (int) $row['total_couple'];
         }
 
+        // remove helper _seen_category_ids before returning
+        foreach ($finalData as &$evt) {
+            if (isset($evt['_seen_category_ids'])) {
+                unset($evt['_seen_category_ids']);
+            }
+        }
+        unset($evt);
+
         return $this->response->setJSON([
             'status' => 200,
             'message' => 'All event invite counts fetched successfully',
             'data' => array_values($finalData)
         ]);
     }
+
     // Expire old invites automatically (example endpoint)
     public function expireOldInvites()
     {

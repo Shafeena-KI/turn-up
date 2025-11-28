@@ -9,6 +9,7 @@ $routes->get('/', 'Home::index');
 
 //admin login
 $routes->post('api/admin/login', 'Api\Login::adminLogin');
+$routes->post('api/admin/logout', 'Api\Login::adminLogout');
 
 //user login
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
@@ -80,9 +81,6 @@ $routes->post('api/checkin/mark-in', 'Api\Checkin::markAsIn');
 $routes->get('api/checkin/markin-list', 'Api\Checkin::listCheckins');
 $routes->get('api/checkin/markin-list/(:num)', 'Api\Checkin::listCheckins/$1');
 $routes->post('/api/remarks', 'Api\Checkin::getRemarks');
-
-
-
 
 
 
