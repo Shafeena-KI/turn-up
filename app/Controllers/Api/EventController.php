@@ -20,6 +20,25 @@ class EventController extends BaseController
     //  Get All Events
     public function index()
     {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+
+        if ($authHeader && preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+
+            $token = $matches[1];
+
+            // Validate token
+            $user = $this->db->table('app_users')
+                ->where('token', $token)
+                ->get()
+                ->getRow();
+
+            if (!$user) {
+                return $this->response->setJSON([
+                    'status' => false,
+                    'message' => 'Invalid or expired token.'
+                ]);
+            }
+        }
         $events = $this->eventModel->findAll();
 
         $baseUrl = base_url('public/uploads/events/');
@@ -100,6 +119,25 @@ class EventController extends BaseController
     //  Get Single Event by ID
     public function show($id)
     {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+
+        if ($authHeader && preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+
+            $token = $matches[1];
+
+            // Validate token
+            $user = $this->db->table('app_users')
+                ->where('token', $token)
+                ->get()
+                ->getRow();
+
+            if (!$user) {
+                return $this->response->setJSON([
+                    'status' => false,
+                    'message' => 'Invalid or expired token.'
+                ]);
+            }
+        }
         $event = $this->eventModel->find($id);
 
         if (!$event) {

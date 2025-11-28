@@ -86,4 +86,62 @@ class Login extends BaseController
             ]);
         }
     }
+    public function adminLogout()
+    {
+        try {
+            // Get token from Authorization header
+            $authHeader = $this->request->getHeaderLine('Authorization');
+
+            if (!$authHeader) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'Authorization token is required.'
+                ]);
+            }
+
+            // Format: Bearer tokenvalue
+            $token = str_replace('Bearer ', '', $authHeader);
+
+            if (empty($token)) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'Invalid token format.'
+                ]);
+            }
+
+            // Decode token
+            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+            $decoded = JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
+
+            $admin_id = $decoded->data->admin_id ?? null;
+
+            if (!$admin_id) {
+                return $this->response->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Invalid token.'
+                ]);
+            }
+
+            // Clear token from DB
+            $this->adminModel->update($admin_id, ['token' => null]);
+
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Logout successful. Token cleared.'
+            ]);
+
+        } catch (\Throwable $e) {
+
+            return $this->response->setJSON([
+                'status' => 500,
+                'success' => false,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
 }
