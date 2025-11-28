@@ -597,7 +597,7 @@ class EventInvite extends BaseController
                         $other_total = 1;
                         break;
                     case 4: // Couple
-                        $couple_total = 2;
+                        $couple_total = 1;
                         break;
 
                     default:
