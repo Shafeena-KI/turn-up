@@ -540,9 +540,30 @@ public function markAsIn()
         }
     }
 
+    // ----- MINIMAL FIXES: ensure these exist before use -----
+    $partner_in = $data['partner_in'] ?? $data['partner'] ?? null; // accept either partner_in or legacy partner
+    $stag_type  = $data['stag_type'] ?? null; // 1=Male 2=Female 3=Other
+    $comment_id = null; // ensure defined even if comment block doesn't run
+    // ---------------------------------------------------------
+
     // -------------------- ENTRY TYPE FIX --------------------
     // DB stores: 1=Male, 2=Female, 3=Other, 4=Couple
     $entry_type = (int) ($invite['entry_type'] ?? 3);
+
+    // If couple and partner is NOT coming → convert to stag type
+    if ($entry_type == 4 && $partner_in == 0) {
+
+        if (empty($stag_type)) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'stag_type is required when partner_in = 0'
+            ]);
+        }
+
+        // convert couple (4) to stag_type (1/2/3)
+        $entry_type = (int) $stag_type;
+    }
+
 
     $entryTypeMap = [
         1 => "Male",
@@ -556,11 +577,9 @@ public function markAsIn()
 
     $partner_id = ($entry_type == 4) ? $invite['partner'] : null;
 
-    // <-- FIX: define partner_in from request -->
-    $partner_in = $data['partner'] ?? null;
 
     $entry_comment = null;
-    if ($entry_type == 4 && $partner_in) { // Couple changed to Stag
+    if ($entry_type == 4 && $partner_in) { // Couple changed to Stag (legacy block kept)
         // Determine booked vs attended
         $booked = strtolower($invite['partner'] ?? 'male'); // Assuming booked partner
         $attended = strtolower($partner_in);
