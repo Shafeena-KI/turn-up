@@ -3,7 +3,7 @@ namespace App\Controllers\Api;
 
 use App\Controllers\BaseController;
 use App\Models\Api\EventModel;
-
+use CodeIgniter\API\ResponseTrait;
 class EventController extends BaseController
 {
     protected $eventModel;
@@ -43,79 +43,67 @@ class EventController extends BaseController
     {
         $token = $this->getToken();
 
-        if (!$token) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Authorization token missing.'
-            ]);
+        // Optional Token: validate only if token exists
+        if ($token) {
+            // Validate user using token
+            $user = $this->db->table('app_users')
+                ->where('token', trim($token))
+                ->get()
+                ->getRow();
+
+            // If token exists but no user found → invalid token
+            if (!$user) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid or expired token.'
+                    ]);
+            }
         }
 
-        $user = $this->db->table('app_users')
-            ->where('token', trim($token))
-            ->get()
-            ->getRow();
-
-        if (!$user) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Invalid or expired token.'
-            ]);
-        }
+        // No token → skip authentication
 
         $events = $this->eventModel->findAll();
-
         $baseUrl = base_url('public/uploads/events/');
         $today = strtotime(date("Y-m-d"));
 
         foreach ($events as &$event) {
 
-            // --- AUTO UPDATE EVENT STATUS ---
+            // AUTO UPDATE EVENT STATUS 
             $startDate = strtotime($event['event_date_start']);
             $endDate = strtotime($event['event_date_end']);
             $currentStatus = $event['status'];
             $newStatus = $currentStatus;
 
             if ($endDate < $today) {
-                $newStatus = 2; // Completed
+                $newStatus = 2;
             } elseif ($startDate > $today) {
-                $newStatus = 1; // Upcoming
+                $newStatus = 1;
             } elseif ($startDate <= $today && $endDate >= $today) {
-                $newStatus = 1; // Live event (still upcoming)
+                $newStatus = 1;
             }
 
-            // Update DB only if status changed 
             if ($newStatus != $currentStatus) {
                 $this->db->table('events')
                     ->where('event_id', $event['event_id'])
                     ->update(['status' => $newStatus]);
-
                 $event['status'] = $newStatus;
             }
 
-            // --- POSTER FULL URL ---
             $event['poster_image'] = !empty($event['poster_image'])
                 ? $baseUrl . 'poster_images/' . $event['poster_image']
                 : null;
 
-            // --- GALLERY FULL URLS ---
             $gallery = json_decode($event['gallery_images'], true);
             $event['gallery_images'] = is_array($gallery)
                 ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
                 : [];
 
-            // --- HOST ID ARRAY ---
-            $hostIDs = json_decode($event['host_id'], true);
-            $event['host_id'] = is_array($hostIDs)
-                ? array_map('intval', $hostIDs)
-                : [];
+            $event['host_id'] = json_decode($event['host_id'], true) ?? [];
+            $event['tag_id'] = json_decode($event['tag_id'], true) ?? [];
 
-            // --- TAG ID ARRAY ---
-            $tagIDs = json_decode($event['tag_id'], true);
-            $event['tag_id'] = is_array($tagIDs)
-                ? array_map('intval', $tagIDs)
-                : [];
-
-            // --- TICKET CATEGORIES ---
             $event['ticket_categories'] = $this->db->table('event_ticket_category')
                 ->select('category_name, price')
                 ->where('event_id', $event['event_id'])
@@ -123,7 +111,6 @@ class EventController extends BaseController
                 ->get()
                 ->getResultArray();
 
-            // --- TOTAL BOOKINGS FROM event_counts ---
             $eventCounts = $this->db->table('event_counts')
                 ->select('total_booking')
                 ->where('event_id', $event['event_id'])
@@ -144,24 +131,31 @@ class EventController extends BaseController
     {
         $token = $this->getToken();
 
-        if (!$token) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Authorization token missing.'
-            ]);
+        // Optional token: validate ONLY if provided
+        if ($token) {
+            $user = $this->db->table('app_users')
+                ->where('token', trim($token))
+                ->get()
+                ->getRow();
+
+            // if (!$user) {
+            //     return $this->response->setJSON([
+            //         'status' => false,
+            //         'message' => 'Invalid or expired token.'
+            //     ]);
+            // }
+            if (!$user) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid or expired token.'
+                    ]);
+            }
+
         }
 
-        $user = $this->db->table('app_users')
-            ->where('token', trim($token))
-            ->get()
-            ->getRow();
-
-        if (!$user) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Invalid or expired token.'
-            ]);
-        }
         $event = $this->eventModel->find($id);
 
         if (!$event) {
@@ -173,20 +167,17 @@ class EventController extends BaseController
 
         $baseUrl = base_url('public/uploads/events/');
 
-        // Full Poster URL
         $event['poster_image'] = !empty($event['poster_image'])
             ? $baseUrl . 'poster_images/' . $event['poster_image']
             : null;
 
-        // Gallery URLs
         $gallery = json_decode($event['gallery_images'], true);
         $event['gallery_images'] = is_array($gallery)
             ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
             : [];
 
-        // Host Details
-        $hostIDs = json_decode($event['host_id'], true);
-        $hostIDs = is_array($hostIDs) ? $hostIDs : [];
+        $hostIDs = json_decode($event['host_id'], true) ?? [];
+        $tagIDs = json_decode($event['tag_id'], true) ?? [];
 
         $hosts = [];
         if (!empty($hostIDs)) {
@@ -202,9 +193,103 @@ class EventController extends BaseController
             }
         }
 
-        // Tag Details
-        $tagIDs = json_decode($event['tag_id'], true);
-        $tagIDs = is_array($tagIDs) ? $tagIDs : [];
+        $tags = [];
+        if (!empty($tagIDs)) {
+            $tags = $this->db->table('event_tags')
+                ->whereIn('tag_id', $tagIDs)
+                ->get()
+                ->getResultArray();
+        }
+
+        $event['ticket_categories'] = $this->db->table('event_ticket_category')
+            ->select('category_name, price')
+            ->where('event_id', $id)
+            ->where('status', 1)
+            ->get()
+            ->getResultArray();
+
+        $eventCounts = $this->db->table('event_counts')
+            ->select('total_booking')
+            ->where('event_id', $id)
+            ->get()
+            ->getRowArray();
+
+        $event['total_booking'] = $eventCounts['total_booking'] ?? 0;
+
+        unset($event['host_id'], $event['tag_id']);
+        $event['hosts'] = $hosts;
+        $event['tags'] = $tags;
+
+        return $this->response->setJSON([
+            'status' => true,
+            'data' => $event
+        ], JSON_UNESCAPED_SLASHES);
+    }
+    public function Adminshow($id)
+    {
+        $token = $this->getToken();
+
+        // Optional token: validate ONLY if provided
+        if ($token) {
+            $user = $this->db->table('admin_users')
+                ->where('token', trim($token))
+                ->get()
+                ->getRow();
+
+            // if (!$user) {
+            //     return $this->response->setJSON([
+            //         'status' => false,
+            //         'message' => 'Invalid or expired token.'
+            //     ]);
+            // }
+            if (!$user) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid or expired token.'
+                    ]);
+            }
+
+        }
+
+        $event = $this->eventModel->find($id);
+
+        if (!$event) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Event not found'
+            ]);
+        }
+
+        $baseUrl = base_url('public/uploads/events/');
+
+        $event['poster_image'] = !empty($event['poster_image'])
+            ? $baseUrl . 'poster_images/' . $event['poster_image']
+            : null;
+
+        $gallery = json_decode($event['gallery_images'], true);
+        $event['gallery_images'] = is_array($gallery)
+            ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
+            : [];
+
+        $hostIDs = json_decode($event['host_id'], true) ?? [];
+        $tagIDs = json_decode($event['tag_id'], true) ?? [];
+
+        $hosts = [];
+        if (!empty($hostIDs)) {
+            $hosts = $this->db->table('hosts')
+                ->whereIn('host_id', $hostIDs)
+                ->get()
+                ->getResultArray();
+
+            foreach ($hosts as &$host) {
+                $host['host_image'] = !empty($host['host_image'])
+                    ? base_url('public/uploads/host_images/') . $host['host_image']
+                    : null;
+            }
+        }
 
         $tags = [];
         if (!empty($tagIDs)) {
@@ -214,7 +299,6 @@ class EventController extends BaseController
                 ->getResultArray();
         }
 
-        // Ticket Categories
         $event['ticket_categories'] = $this->db->table('event_ticket_category')
             ->select('category_name, price')
             ->where('event_id', $id)
@@ -222,7 +306,6 @@ class EventController extends BaseController
             ->get()
             ->getResultArray();
 
-        // Total Bookings
         $eventCounts = $this->db->table('event_counts')
             ->select('total_booking')
             ->where('event_id', $id)
@@ -231,7 +314,6 @@ class EventController extends BaseController
 
         $event['total_booking'] = $eventCounts['total_booking'] ?? 0;
 
-        // Replace host_id & tag_id with full details in output
         unset($event['host_id'], $event['tag_id']);
         $event['hosts'] = $hosts;
         $event['tags'] = $tags;

@@ -46,21 +46,24 @@ class EventBooking extends BaseController
             c.category_name,
             c.total_seats,
 
-            COUNT(eb.booking_id) AS total_booking,
+            -- Calculate total people count
+            (
+                SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN ei.entry_type = 3 THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN ei.entry_type = 4 THEN 2 ELSE 0 END)
+            ) AS total_booking,
+
+            -- Quantity from booking table
             SUM(eb.quantity) AS total_quantity,
 
-            -- Male booking
+            -- Individual breakdown
             SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) AS total_male_booking,
-
-            -- Female booking
             SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) AS total_female_booking,
-
-             -- Other booking
             SUM(CASE WHEN ei.entry_type = 3 THEN 1 ELSE 0 END) AS total_other_booking,
-
-            -- Couple booking
             SUM(CASE WHEN ei.entry_type = 4 THEN 1 ELSE 0 END) AS total_couple_booking
         ");
+
 
         $builder->join('events e', 'e.event_id = eb.event_id', 'left');
         $builder->join('event_ticket_category c', 'c.category_id = eb.category_id', 'left');
@@ -268,8 +271,6 @@ class EventBooking extends BaseController
             ]
         ]);
     }
-
-
     public function getTotalBookingCounts($event_id)
     {
         // Validate event_id
@@ -455,8 +456,6 @@ class EventBooking extends BaseController
             'message' => 'Booking cancelled successfully.'
         ]);
     }
-
-
     protected function getAdminIdFromToken()
     {
         $authHeader = $this->request->getHeaderLine('Authorization');
@@ -525,7 +524,7 @@ class EventBooking extends BaseController
         $ticketType = '';
         if (!empty($category)) {
             $ticketType = $category['category_name'] == 1 ? 'VIP' :
-                        ($category['category_name'] == 2 ? 'Normal' : 'Unknown');
+                ($category['category_name'] == 2 ? 'Normal' : 'Unknown');
         }
 
         // Fetch invite
@@ -683,16 +682,16 @@ class EventBooking extends BaseController
 
         // if ($counts) {
 
-            // Initialize update array
-            // $update = [
-            //     'total_checkin' => $counts['total_checkin'],
-            //     'total_male_checkin' => $counts['total_male_checkin'],
-            //     'total_female_checkin' => $counts['total_female_checkin'],
-            //     'total_couple_checkin' => $counts['total_couple_checkin'],
-            //     'total_other_checkin' => $counts['total_other_checkin'],
-            // ];
+        // Initialize update array
+        // $update = [
+        //     'total_checkin' => $counts['total_checkin'],
+        //     'total_male_checkin' => $counts['total_male_checkin'],
+        //     'total_female_checkin' => $counts['total_female_checkin'],
+        //     'total_couple_checkin' => $counts['total_couple_checkin'],
+        //     'total_other_checkin' => $counts['total_other_checkin'],
+        // ];
 
-            // Entry type conditions
+        // Entry type conditions
         //     if ($entry_type == "Male") {
         //         $update['total_checkin'] = $counts['total_checkin'] + 1;
         //         $update['total_male_checkin'] = $counts['total_male_checkin'] + 1;

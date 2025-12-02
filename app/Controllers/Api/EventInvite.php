@@ -8,6 +8,7 @@ use App\Models\Api\EventCategoryModel;
 use App\Models\Api\AppUserModel;
 use App\Models\Api\EventBookingModel;
 use CodeIgniter\HTTP\ResponseInterface;
+use CodeIgniter\API\ResponseTrait;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 class EventInvite extends BaseController
@@ -59,11 +60,13 @@ class EventInvite extends BaseController
         $auth = $this->getAuthenticatedUser();
 
         if (isset($auth['error'])) {
-            return $this->response->setJSON([
-                'status' => 401,
-                'success' => false,
-                'message' => $auth['error']
-            ]);
+             return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid or expired token.'
+                    ]);
         }
 
         $user_id = $auth['user_id']; // ← TOKEN USER
@@ -302,6 +305,7 @@ class EventInvite extends BaseController
                 'total_couple_checkin' => 0,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
+            // $this->updateCategorySeatsFromEventCounts($event_id);
         }
         $qr_url = null;
         // AUTO BOOKING FOR VIP
@@ -350,6 +354,7 @@ class EventInvite extends BaseController
                 'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
+            $this->updateCategorySeatsFromEventCounts($event_id);
             // ========= AUTO GENERATE QR CODE 
             $qr_url = $this->createQrForBooking($booking_code);
 
@@ -699,6 +704,7 @@ class EventInvite extends BaseController
                         'updated_at' => date('Y-m-d H:i:s')
                     ]);
                 }
+                $this->updateCategorySeatsFromEventCounts($invite['event_id']);
             }
             // AUTO GENERATE QR CODE 
             $qr_url = $this->createQrForBooking($booking_code);
@@ -713,6 +719,42 @@ class EventInvite extends BaseController
             'booking_code' => $booking_code,
             'qr_code' => $qr_url
         ]);
+    }
+    public function updateCategorySeatsFromEventCounts($event_id)
+    {
+        // Get all categories for this event
+        $categories = $this->categoryModel
+            ->where('event_id', $event_id)
+            ->findAll();
+
+        foreach ($categories as $cat) {
+
+            $catRowId = $cat['category_id'];                  // <-- REAL category row ID
+            $categoryType = $cat['category_name'];   // <-- 1 (VIP) or 2 (Normal)
+            $totalSeats = $cat['total_seats'];
+
+            // Fetch category-wise total booking from event_counts
+            $countData = $this->db->table('event_counts')
+                ->select('total_booking')
+                ->where('event_id', $event_id)
+                ->where('category_id', $categoryType)   // match type
+                ->get()
+                ->getRowArray();
+
+            // If no rows → no booking for this category
+            $totalBooking = $countData['total_booking'] ?? 0;
+
+            // Calculate balance
+            $balance = $totalSeats - $totalBooking;
+            if ($balance < 0)
+                $balance = 0;
+
+            // Update category table
+            $this->categoryModel->update($catRowId, [
+                'actual_booked_seats' => $totalBooking,
+                'balance_seats' => $balance
+            ]);
+        }
     }
 
     private function createQrForBooking($booking_code)
@@ -754,7 +796,6 @@ class EventInvite extends BaseController
 
         return $qrUrl;
     }
-
     public function getInvitesByEvent()
     {
         $json = $this->request->getJSON(true);
@@ -777,11 +818,14 @@ class EventInvite extends BaseController
     {
         $auth = $this->getAuthenticatedUser();
 
-        if (isset($auth['error'])) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => $auth['error']
-            ]);
+         if (isset($auth['error'])) {
+             return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid or expired token.'
+                    ]);
         }
 
         $user_id = $auth['user_id']; // ← TOKEN USER
