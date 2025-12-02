@@ -7,8 +7,13 @@ use CodeIgniter\Router\RouteCollection;
  */
 $routes->get('/', 'Home::index');
 
-//admin login
-$routes->post('api/admin/login', 'Api\Login::adminLogin');
+//super admin license management
+$routes->post('api/license/grant-access', 'Api\SuperAdminLicense::grantAccess');
+$routes->post('api/license/revoke-access', 'Api\SuperAdminLicense::revokeAccess');
+$routes->post('api/license/check-license', 'Api\SuperAdminLicense::checkLicense');
+$routes->post('api/license/generate-signature', 'Api\SignatureGenerator::generateSignature');
+
+$routes->post('api/admin/login', 'Api\Login::adminLogin', ['filter' => 'license']);
 
 //user login
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
