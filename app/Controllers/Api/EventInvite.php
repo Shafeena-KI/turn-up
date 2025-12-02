@@ -463,6 +463,7 @@ class EventInvite extends BaseController
         app_users.email,
         app_users.insta_id,
         app_users.profile_image,
+        app_users.profile_status,
         ec.total_invites,
         ec.total_male_invites,
         ec.total_female_invites,
@@ -900,26 +901,4 @@ class EventInvite extends BaseController
         ]);
     }
 
-    // Expire old invites automatically (example endpoint)
-    public function expireOldInvites()
-    {
-        // Define the conditions
-        $conditions = [
-            'status' => 0,
-            'requested_at <' => date('Y-m-d H:i:s', strtotime('-7 days'))
-        ];
-
-        // Count matching invites first
-        $count = $this->inviteModel->where($conditions)->countAllResults();
-
-        // Then update them
-        if ($count > 0) {
-            $this->inviteModel->where($conditions)->set(['status' => 3])->update();
-        }
-
-        return $this->response->setJSON([
-            'status' => true,
-            'message' => $count . ' pending invite(s) expired successfully.'
-        ]);
-    }
 }

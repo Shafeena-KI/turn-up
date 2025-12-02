@@ -85,6 +85,7 @@ class EventCategory extends BaseController
                     'dummy_invites' => 0,
                     'balance_seats' => 0,
                     'price' => 0,
+                    'couple_price' => 0,
                     'status' => 1
                 ];
             } else {
@@ -97,6 +98,7 @@ class EventCategory extends BaseController
                 $dummy_booked = (int) ($d['dummy_booked_seats'] ?? 0);
                 $dummy_invites = (int) ($d['dummy_invites'] ?? 0);
                 $price = (int) ($d['price'] ?? 0);
+                $couple_price    = (int) ($d['couple_price'] ?? 0); 
 
                 $balance = $total_seats - $actual_booked;
                 if ($balance < 0)
@@ -111,6 +113,7 @@ class EventCategory extends BaseController
                     'dummy_invites' => $dummy_invites,
                     'balance_seats' => $balance,
                     'price' => $price,
+                    'couple_price' => $couple_price,
                     'status' => $d['status'] ?? 1
                 ];
 
