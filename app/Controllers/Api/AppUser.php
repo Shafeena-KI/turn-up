@@ -489,7 +489,6 @@ class AppUser extends BaseController
             return ['error' => 'Invalid or expired token: ' . $e->getMessage()];
         }
     }
-
     public function completeProfile()
     {
         $auth = $this->getAuthenticatedUser();

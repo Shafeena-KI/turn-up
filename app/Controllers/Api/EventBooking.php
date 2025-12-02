@@ -151,6 +151,7 @@ class EventBooking extends BaseController
         app_users.email,
         app_users.insta_id,
         app_users.profile_image,
+        app_users.profile_status,
         event_invites.entry_type,  
         event_invites.partner,     
         event_counts.total_booking,

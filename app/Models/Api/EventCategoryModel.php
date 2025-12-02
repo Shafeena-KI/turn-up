@@ -16,6 +16,7 @@ class EventCategoryModel extends Model
         'dummy_booked_seats',
         'dummy_invites',
         'balance_seats',
+        'couple_price',
         'price',
         'status'
     ];
