@@ -11,6 +11,13 @@ $routes->get('/', 'Home::index');
 $routes->post('api/admin/login', 'Api\Login::adminLogin');
 $routes->post('api/admin/logout', 'Api\Login::adminLogout');
 
+$routes->post('api/admin/create', 'Api\Login::createAdmin');
+$routes->get('api/admin/list', 'Api\Login::listAdmins');
+$routes->get('api/admin/view/(:num)', 'Api\Login::getAdmin/$1');
+$routes->post('api/admin/update/(:num)', 'Api\Login::updateAdmin/$1');
+$routes->post('api/admin/delete/(:num)', 'Api\Login::deleteAdmin/$1');
+
+
 //user login
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
 $routes->post('api/user/verifyotp', 'Api\AppUser::verifyOtp');
@@ -87,3 +94,21 @@ $routes->post('/api/remarks', 'Api\Checkin::getRemarks');
 //Qr code generation and scanning 
 $routes->post('api/generate-qr', 'Api\EventBooking::generateQrCode');
 $routes->post('api/scan-qr', 'Api\EventBooking::scanQr');
+
+
+// Get All Hosts
+$routes->get('api/hosts', 'Api\Host::getAllHosts');
+// Get host by ID
+$routes->get('api/hosts/(:num)', 'Api\Host::getHostById/$1');
+// Get all tags
+$routes->get('api/tags', 'Api\EventTag::getAllTags');
+// Get single tag by ID
+$routes->get('api/tags/(:num)', 'Api\EventTag::getTagById/$1');
+ 
+ 
+// Dashboard users count
+$routes->get('api/dashboard/total-users', 'Api\Dashboard::getTotalUsers');
+// Dashboard: Total Events Count
+$routes->get('api/dashboard/total-events', 'Api\Dashboard::getTotalEvents');
+// Dashboard - Upcoming Events Details
+$routes->get('api/dashboard/upcoming-events', 'Api\Dashboard::getUpcomingEventsDetails');
