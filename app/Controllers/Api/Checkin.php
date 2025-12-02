@@ -90,6 +90,25 @@ class Checkin extends BaseController
         $category = $this->categoryModel->find($booking['category_id']);
         $user = $this->userModel->find($booking['user_id']);
 
+        $genderText = 'Unknown';
+
+        if (!empty($user['gender'])) {
+            switch ($user['gender']) {
+                case 1:
+                    $genderText = 'Male';
+                    break;
+                case 2:
+                    $genderText = 'Female';
+                    break;
+                case 3:
+                    $genderText = 'Other';
+                    break;
+                case 4:
+                    $genderText = 'Couple';
+                    break;
+            }
+        }
+
         // Prepare full URL for profile image
         $profileImage = '';
         if (!empty($user['profile_image'])) {
@@ -148,6 +167,7 @@ class Checkin extends BaseController
             if (trim($checkedInBy) === '') {
                 $checkedInBy = 'Unknown';
             }
+            $formattedTime = date('d-m-Y H:i:s', strtotime($checkin['checkin_time']));
 
             return $this->response->setJSON([
                 'status' => false,
@@ -182,6 +202,7 @@ class Checkin extends BaseController
                 'profile_image' => $profileImage,
                 'invite_id' => $invite['invite_id'] ?? null,
                 'partner' => $invite['partner'] ?? null,
+                'gender' => $genderText
             ]
         ]);
     }
@@ -489,6 +510,8 @@ class Checkin extends BaseController
 //             ]
 //         ]);
 //     }
+
+
 
 public function markAsIn()
 {

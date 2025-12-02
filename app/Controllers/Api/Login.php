@@ -144,4 +144,152 @@ class Login extends BaseController
             ]);
         }
     }
+
+    // ============================================================
+    //  Validate Token 
+    // ============================================================
+    private function validateToken()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+        if (!$authHeader) {
+            return ['status' => false, 'message' => 'Authorization token required'];
+        }
+
+        $token = str_replace('Bearer ', '', $authHeader);
+        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+        try {
+            $decoded = JWT::decode($token, new Key($key, 'HS256'));
+            return ['status' => true, 'admin_id' => $decoded->data->admin_id];
+        } catch (\Throwable $e) {
+            return ['status' => false, 'message' => 'Invalid or expired token'];
+        }
+    }
+
+    // ============================================================
+    //  CREATE ADMIN
+    // ============================================================
+    public function createAdmin()
+    {
+        $auth = $this->validateToken();
+        if (!$auth['status']) return $this->response->setJSON($auth);
+
+        $data = $this->request->getJSON(true);
+
+        if (empty($data['name']) || empty($data['email']) || empty($data['password'])) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Name, Email, Password are required'
+            ]);
+        }
+
+        $insert = [
+            'name'      => $data['name'],
+            'email'     => $data['email'],
+            'phone'     => $data['phone'] ?? '',
+            'role_id'   => $data['role_id'] ?? 0,
+            'password'  => password_hash($data['password'], PASSWORD_DEFAULT),
+            'status'    => 1
+        ];
+
+        $this->adminModel->insert($insert);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Admin created successfully'
+        ]);
+    }
+
+    // ============================================================
+    //  LIST ALL ADMINS
+    // ============================================================
+    public function listAdmins()
+    {
+        $auth = $this->validateToken();
+        if (!$auth['status']) return $this->response->setJSON($auth);
+
+        $admins = $this->adminModel->orderBy('admin_id', 'DESC')->findAll();
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'data' => $admins
+        ]);
+    }
+
+    // ============================================================
+    //  GET SINGLE ADMIN
+    // ============================================================
+    public function getAdmin($id)
+    {
+        $auth = $this->validateToken();
+        if (!$auth['status']) return $this->response->setJSON($auth);
+
+        $admin = $this->adminModel->find($id);
+
+        if (!$admin) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'Admin not found'
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'data' => $admin
+        ]);
+    }
+
+    // ============================================================
+    //  UPDATE ADMIN
+    // ============================================================
+    public function updateAdmin($id)
+    {
+        $auth = $this->validateToken();
+        if (!$auth['status']) return $this->response->setJSON($auth);
+
+        $data = $this->request->getJSON(true);
+
+        $update = [
+            'name'      => $data['name'] ?? null,
+            'email'     => $data['email'] ?? null,
+            'phone'     => $data['phone'] ?? null,
+            'role_id'   => $data['role_id'] ?? null,
+            'status'    => $data['status'] ?? 1,
+        ];
+
+        if (!empty($data['password'])) {
+            $update['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
+        }
+
+        $this->adminModel->update($id, $update);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Admin updated successfully'
+        ]);
+    }
+
+    // ============================================================
+    //  DELETE ADMIN
+    // ============================================================
+    public function deleteAdmin($id)
+    {
+        $auth = $this->validateToken();
+        if (!$auth['status']) return $this->response->setJSON($auth);
+
+        $this->adminModel->delete($id);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Admin deleted successfully'
+        ]);
+    }
+
 }
