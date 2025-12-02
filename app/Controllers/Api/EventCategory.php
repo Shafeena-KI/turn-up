@@ -98,7 +98,7 @@ class EventCategory extends BaseController
                 $dummy_booked = (int) ($d['dummy_booked_seats'] ?? 0);
                 $dummy_invites = (int) ($d['dummy_invites'] ?? 0);
                 $price = (int) ($d['price'] ?? 0);
-                $couple_price    = (int) ($d['couple_price'] ?? 0); 
+                $couple_price = (int) ($d['couple_price'] ?? 0);
 
                 $balance = $total_seats - $actual_booked;
                 if ($balance < 0)
@@ -142,10 +142,54 @@ class EventCategory extends BaseController
             'event_total_seats' => $totalSeatsSum
         ]);
     }
+    public function getToken()
+    {
+        // Try all possible header names
+        $authHeader = $this->request->getHeaderLine('Authorization');
 
+        if (empty($authHeader)) {
+            $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        }
 
+        if (empty($authHeader)) {
+            $authHeader = $_SERVER['Authorization'] ?? '';
+        }
+
+        // Extract token
+        if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return null;
+    }
     public function getCategoryByEvent()
     {
+        $token = $this->getToken();
+
+        // Optional token: validate ONLY if provided
+        if ($token) {
+            $user = $this->db->table('admin_users')
+                ->where('token', trim($token))
+                ->get()
+                ->getRow();
+
+            // if (!$user) {
+            //     return $this->response->setJSON([
+            //         'status' => false,
+            //         'message' => 'Invalid or expired token.'
+            //     ]);
+            // }
+            if (!$user) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid or expired token.'
+                    ]);
+            }
+
+        }
         $data = $this->request->getJSON(true);
         $event_id = $data['event_id'] ?? null;
 

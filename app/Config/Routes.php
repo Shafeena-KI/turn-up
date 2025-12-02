@@ -21,11 +21,12 @@ $routes->post('api/admin/delete/(:num)', 'Api\Login::deleteAdmin/$1');
 //user login
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
 $routes->post('api/user/verifyotp', 'Api\AppUser::verifyOtp');
-
+$routes->post('api/admin/verifysocial', 'Api\AppUser::verifySocial');
 
 //registration/user management
 $routes->post('api/user/register', 'Api\AppUser::register');
 $routes->post('api/user/getuser', 'Api\AppUser::getUserById');
+$routes->post('api/user/getuser/admin', 'Api\AppUser::AdmingetUserById');
 $routes->post('api/user/completeprofile', 'Api\AppUser::completeProfile');
 $routes->post('api/update-user', 'Api\AppUser::updateUser');
 $routes->post('api/user/delete', 'Api\AppUser::deleteUser');
@@ -38,6 +39,7 @@ $routes->post('api/user/account-status', 'Api\AppUser::updateAccountStatus');
 
 //Event Api 
 $routes->get('api/events', 'Api\EventController::index');
+$routes->get('api/events/admin/(:num)', 'Api\EventController::Adminshow/$1');
 $routes->get('api/events/(:num)', 'Api\EventController::show/$1');
 $routes->post('api/events/create', 'Api\EventController::create');
 $routes->post('api/events/update', 'Api\EventController::update');

@@ -16,6 +16,7 @@ class AppUser extends BaseController
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->appUserModel = new AppUserModel();
+        $this->db = \Config\Database::connect();
     }
     public function UserLogin()
     {
@@ -29,32 +30,55 @@ class AppUser extends BaseController
                 'message' => 'Phone number is required.'
             ]);
         }
-
         // Check existing user
         $user = $this->appUserModel->where('phone', $phone)->first();
         $otp = rand(100000, 999999);
 
         if ($user) {
-            // Only update OTP
+
+            // Existing user → update only OTP
             $this->appUserModel->update($user['user_id'], [
                 'otp' => $otp,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
+
         } else {
-            // New user = store phone_verified score 25
+
+            // NEW USER → Insert and give profile score = 25 (Phone verified)
             $this->appUserModel->insert([
                 'phone' => $phone,
                 'otp' => $otp,
                 'profile_status' => 0,
-                'profile_score' => 25, // PHONE VERIFIED SCORE
+                'profile_score' => 20,
                 'status' => 1,
                 'created_at' => date('Y-m-d H:i:s')
             ]);
 
-            $user['user_id'] = $this->appUserModel->getInsertID();
+            // GET NEW USER ID
+            $newUserId = $this->appUserModel->getInsertID();
+
+            // Default verification row
+            $this->db->table('user_verifications')->insert([
+                'user_id' => $newUserId,
+                'phone_verified' => 1,   // Phone verified at registration
+                'email_verified' => 0,
+                'instagram_verified' => 0,
+                'linkedin_verified' => 0,
+                'location_verified' => 0,
+                'dob_added' => 0,
+                'profile_image_added' => 0,
+                'interest_added' => 0,
+                'score' => 20,  // Add 25 points for phone
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+
+            // Assign to user variable for response
+            $user = [
+                'user_id' => $newUserId
+            ];
         }
 
-        // WhatsApp OTP
+        // Send OTP via WhatsApp
         $whatsappResponse = $this->sendWhatsAppOtp($phone, $otp);
 
         return $this->response->setJSON([
@@ -68,6 +92,7 @@ class AppUser extends BaseController
             ]
         ]);
     }
+
     public function verifyOtp()
     {
         try {
@@ -84,9 +109,8 @@ class AppUser extends BaseController
                 ]);
             }
 
-            // Fetch user by phone
+            // Get user
             $user = $this->appUserModel->where('phone', $phone)->first();
-
             if (!$user) {
                 return $this->response->setJSON([
                     'status' => 404,
@@ -95,7 +119,7 @@ class AppUser extends BaseController
                 ]);
             }
 
-            // Verify OTP
+            // OTP mismatch
             if ((string) $user['otp'] !== (string) $otp) {
                 return $this->response->setJSON([
                     'status' => 401,
@@ -104,13 +128,59 @@ class AppUser extends BaseController
                 ]);
             }
 
-            // Generate JWT Token (same format as adminLogin)
-            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+            // Get verification row
+            $verify = $this->db->table('user_verifications')
+                ->where('user_id', $user['user_id'])
+                ->get()
+                ->getRowArray();
 
+            // If missing → create default row
+            if (!$verify) {
+                $this->db->table('user_verifications')->insert([
+                    'user_id' => $user['user_id'],
+                    'phone_verified' => 0,
+                    'score' => 0,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+
+                $verify = $this->db->table('user_verifications')
+                    ->where('user_id', $user['user_id'])
+                    ->get()
+                    ->getRowArray();
+            }
+
+            $addedScore = 0;
+
+            // ADD PHONE VERIFY SCORE ONLY ONCE
+            if ($verify['phone_verified'] == 0) {
+
+                $addedScore = 20;
+
+                // Update verification table
+                $this->db->table('user_verifications')
+                    ->where('user_id', $user['user_id'])
+                    ->update([
+                        'phone_verified' => 1,
+                        'score' => $verify['score'] + 20,
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+
+                // Update user profile
+                $this->appUserModel->update($user['user_id'], [
+                    'profile_score' => $user['profile_score'] + 20,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+
+                // Reload updated user
+                $user = $this->appUserModel->where('user_id', $user['user_id'])->first();
+            }
+
+            // Generate JWT
+            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
             $payload = [
-                'iss' => 'turn-up',           // Issuer
-                'iat' => time(),              // Issued at
-                'exp' => time() + 3600,       // Expires in 1 hour
+                'iss' => 'turn-up',
+                'iat' => time(),
+                'exp' => time() + 3600,
                 'data' => [
                     'user_id' => $user['user_id'],
                     'phone' => $user['phone']
@@ -119,38 +189,26 @@ class AppUser extends BaseController
 
             $token = \Firebase\JWT\JWT::encode($payload, $key, 'HS256');
 
-            // Clear OTP and update token
-            $this->appUserModel->update($user['user_id'], [
-                'otp' => $otp,
-                'token' => $token,
-                'updated_at' => date('Y-m-d H:i:s')
-            ]);
+            // Save token
+            $this->appUserModel->update($user['user_id'], ['token' => $token]);
 
-            unset($user['password']); // Remove sensitive data
-            $user['token'] = $token;  // Include token in response
-            // *********** SAFE FULL URL HANDLING FOR PROFILE IMAGE ***********
-            if (!empty($user['profile_image'])) {
-
-                // If already full URL, use as-is
-                if (filter_var($user['profile_image'], FILTER_VALIDATE_URL)) {
-                    $user['profile_image'] = $user['profile_image'];
-                } else {
-                    // If only filename, append base URL
-                    $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
-                }
-
+            // Fix profile image path
+            if (!empty($user['profile_image']) && !filter_var($user['profile_image'], FILTER_VALIDATE_URL)) {
+                $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
             } else {
                 $user['profile_image'] = "";
             }
+
             return $this->response->setJSON([
                 'status' => 200,
                 'success' => true,
                 'message' => 'Login successful.',
-                'token' => $token,
-                'data' => $user
+                'new_score_added' => $addedScore,
+                'data' => $user,
+                'token' => $token
             ]);
+
         } catch (\Throwable $e) {
-            log_message('error', 'OTP Verification Error: ' . $e->getMessage());
 
             return $this->response->setJSON([
                 'status' => 500,
@@ -198,7 +256,7 @@ class AppUser extends BaseController
     {
         $auth = $this->getAuthenticatedUser();
 
-        if (isset($auth['error'])) {
+        if (isset($auth['error']) && $auth['error'] != 'Token missing') {
             return $this->response->setJSON([
                 'status' => 401,
                 'success' => false,
@@ -206,8 +264,9 @@ class AppUser extends BaseController
             ]);
         }
 
+
         $user_id = $auth['user_id'];
-        
+
         $json = $this->request->getJSON(true);
         $user_id = $json['user_id'] ?? null;
 
@@ -269,6 +328,97 @@ class AppUser extends BaseController
             'data' => $user
         ]);
     }
+    
+    public function AdmingetUserById()
+    {
+        // Validate admin token
+        $auth = $this->getAuthenticatedUser(); // MUST return admin data OR error
+
+        if (isset($auth['error'])) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => $auth['error']
+                ]);
+        }
+
+        // Logged-in admin
+        $admin_id = $auth['admin_id'];
+
+        // Read JSON body
+        $json = $this->request->getJSON(true);
+        $user_id = $json['user_id'] ?? null;
+
+        if (empty($user_id)) {
+            return $this->response
+                ->setStatusCode(400)
+                ->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'user_id is required.'
+                ]);
+        }
+
+        // Fetch User
+        $user = $this->appUserModel->find($user_id);
+
+        if (!$user) {
+            return $this->response
+                ->setStatusCode(404)
+                ->setJSON([
+                    'status' => 404,
+                    'success' => false,
+                    'message' => 'User not found.'
+                ]);
+        }
+
+        // Profile image handling
+        if (!empty($user['profile_image']) && !preg_match('/^https?:\/\//', $user['profile_image'])) {
+            $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
+        }
+
+        // Gender mapping
+        $genderMap = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple',
+        ];
+        $user['gender'] = $genderMap[(int) $user['gender']] ?? 'Not set';
+
+        // Interests processing
+        $interestList = [];
+        if (!empty($user['interest_id'])) {
+            $ids = explode(',', $user['interest_id']);
+
+            $db = \Config\Database::connect();
+            $interests = $db->table('interests')
+                ->whereIn('interest_id', $ids)
+                ->get()
+                ->getResultArray();
+
+            foreach ($interests as $i) {
+                $interestList[] = [
+                    'interest_id' => $i['interest_id'],
+                    'interest_name' => $i['interest_name'],
+                ];
+            }
+        }
+
+        $user['interests'] = $interestList;
+        unset($user['interest_id']);
+
+        return $this->response
+            ->setStatusCode(200)
+            ->setJSON([
+                'status' => 200,
+                'success' => true,
+                'data' => $user
+            ]);
+    }
+
     // UPDATE USER DETAILS
     public function updateUser()
     {
@@ -311,7 +461,7 @@ class AppUser extends BaseController
 
         // Phone score only first time
         if (!empty($data['phone']) && empty($user['phone'])) {
-            $profileScore += 25;
+            $profileScore += 20;
         }
 
         // Insta score only user first time
@@ -492,7 +642,6 @@ class AppUser extends BaseController
     public function completeProfile()
     {
         $auth = $this->getAuthenticatedUser();
-
         if (isset($auth['error'])) {
             return $this->response->setJSON([
                 'status' => 401,
@@ -502,21 +651,8 @@ class AppUser extends BaseController
         }
 
         $user_id = $auth['user_id'];
-
-        // Get Request Data
         $data = $this->request->getPost();
-        // Fetch User
-        $user_id = $data['user_id'] ?? null;
 
-        if (empty($user_id)) {
-            return $this->response->setJSON([
-                'status' => 400,
-                'success' => false,
-                'message' => 'user_id is required.'
-            ]);
-        }
-
-        // Fetch user
         $user = $this->appUserModel->find($user_id);
         if (!$user) {
             return $this->response->setJSON([
@@ -526,56 +662,139 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Mandatory fields
-        $required_fields = ['name', 'dob', 'insta_id'];
+        // Mandatory fields check
+        $mandatoryFields = ['name', 'dob', 'gender', 'insta_id'];
+        foreach ($mandatoryFields as $field) {
+            if (empty($data[$field])) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => "$field is required."
+                ]);
+            }
+        }
 
-
-        // Profile image upload
+        // PROFILE IMAGE UPLOAD
         $profileImage = $user['profile_image'];
         $file = $this->request->getFile('profile_image');
-
         if ($file && $file->isValid() && !$file->hasMoved()) {
             $newName = 'user_' . time() . '.' . $file->getExtension();
             $uploadPath = FCPATH . 'uploads/profile_images/';
-
             if (!is_dir($uploadPath))
                 mkdir($uploadPath, 0777, true);
-
             $file->move($uploadPath, $newName);
             $profileImage = $newName;
         }
 
-        // PROFILE SCORING
+        // GET VERIFICATION ROW
+        $verify = $this->db->table('user_verifications')->where('user_id', $user_id)->get()->getRowArray();
+        if (!$verify) {
+            $this->db->table('user_verifications')->insert([
+                'user_id' => $user_id,
+                'phone_verified' => 0,
+                'email_verified' => 0,
+                'instagram_verified' => 0,
+                'linkedin_verified' => 0,
+                'location_verified' => 0,
+                'dob_added' => 0,
+                'gender_verified' => 0,
+                'profile_image_added' => 0,
+                'interest_added' => 0,
+                'instagram_score_added' => 0,
+                'linkedin_score_added' => 0,
+                'email_score_added' => 0,
+                'score' => 0,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+            $verify = $this->db->table('user_verifications')->where('user_id', $user_id)->get()->getRowArray();
+        }
+
+        $addedScore = 0;
         $profile_score = (int) $user['profile_score'];
 
-        if ($user['profile_status'] == 0) {
+        $updateVerify = [];
+
+        // SCORING LOGIC
+
+        // Name + gender (mandatory)
+        if ((int) $verify['gender_verified'] === 0) {
             $profile_score += 5;
+            $addedScore += 5;
+            $updateVerify['gender_verified'] = 1;
         }
 
-        if (empty($user['interest_id']) && !empty($data['interest_id'])) {
-            $profile_score += 10;
-        }
-        // Add profile image score only first time
-        if (empty($user['profile_image']) && !empty($profileImage)) {
-            $profile_score += 10;
-        }
-        if (
-            (empty($user['location']) || strtolower($user['location']) !== 'kochi') &&
-            !empty($data['location']) && strtolower($data['location']) === 'kochi'
-        ) {
-            $profile_score += 10;
+        // DOB
+        if ((int) $verify['dob_added'] === 0 && !empty($data['dob'])) {
+            $profile_score += 5;
+            $addedScore += 5;
+            $updateVerify['dob_added'] = 1;
         }
 
+        // Profile image
+        if ((int) $verify['profile_image_added'] === 0 && !empty($profileImage)) {
+            $profile_score += 10;
+            $addedScore += 10;
+            $updateVerify['profile_image_added'] = 1;
+        }
+
+        // Location (any non-empty)
+        $userLocation = strtolower(trim($data['location'] ?? ''));
+        if ((int) $verify['location_verified'] === 0 && !empty($userLocation)) {
+            $profile_score += 10;
+            $addedScore += 10;
+            $updateVerify['location_verified'] = 1;
+        }
+
+        // Interests
+        $interestIds = [];
+        $updateInterest = $user['interest_id'];
+        if (!empty($data['interest_id']) && (int) $verify['interest_added'] === 0) {
+            if (!is_array($data['interest_id'])) {
+                $decoded = json_decode($data['interest_id'], true);
+                $interestIds = json_last_error() === JSON_ERROR_NONE ? $decoded : [$data['interest_id']];
+            } else {
+                $interestIds = $data['interest_id'];
+            }
+            $updateInterest = implode(',', $interestIds);
+            $profile_score += 10;
+            $addedScore += 10;
+            $updateVerify['interest_added'] = 1;
+        }
+
+        // --- ADMIN VERIFIED FIELDS ---
+        if (!empty($data['insta_id']) && (int) $verify['instagram_verified'] === 1 && (int) $verify['instagram_score_added'] === 0) {
+            $profile_score += 20;
+            $addedScore += 20;
+            $updateVerify['instagram_score_added'] = 1;
+        }
+
+        if (!empty($data['linkedin_id']) && (int) $verify['linkedin_verified'] === 1 && (int) $verify['linkedin_score_added'] === 0) {
+            $profile_score += 5;
+            $addedScore += 5;
+            $updateVerify['linkedin_score_added'] = 1;
+        }
+
+        if (!empty($data['email']) && (int) $verify['email_verified'] === 1 && (int) $verify['email_score_added'] === 0) {
+            $profile_score += 15;
+            $addedScore += 15;
+            $updateVerify['email_score_added'] = 1;
+        }
+
+        // --- UPDATE PROFILE SCORE AND VERIFICATION ---
         $profile_score = min(100, $profile_score);
+        if (!empty($updateVerify)) {
+            $updateVerify['score'] = $profile_score;
+            $updateVerify['updated_at'] = date('Y-m-d H:i:s');
+            $this->db->table('user_verifications')->where('user_id', $user_id)->update($updateVerify);
+        }
+
         // GENDER VALIDATION
         $gender = $data['gender'] ?? $user['gender'];
-
         $allowedGender = [1, 2, 3, 4];
-        if (!in_array((int) $gender, $allowedGender)) {
-            $gender = $user['gender']; // fallback to existing
-        }
+        if (!in_array((int) $gender, $allowedGender))
+            $gender = $user['gender'];
 
-        // Update DB
+        // UPDATE USER TABLE
         $updateData = [
             'name' => $data['name'],
             'gender' => $gender,
@@ -584,83 +803,148 @@ class AppUser extends BaseController
             'insta_id' => $data['insta_id'],
             'linkedin_id' => $data['linkedin_id'] ?? $user['linkedin_id'],
             'location' => $data['location'] ?? $user['location'],
-            'interest_id' => $data['interest_id'] ?? $user['interest_id'],
-            'profile_image' => (!empty($profileImage) ? $profileImage : null),
+            'interest_id' => $updateInterest,
+            'profile_image' => $profileImage ?: $user['profile_image'],
             'profile_status' => 1,
             'profile_score' => $profile_score,
+            'updated_at' => date('Y-m-d H:i:s')
         ];
-
-        // Handle Interests
-        $interestIds = [];
-        if (isset($data['interest_id'])) {
-            // Convert string like ["1","2","3"] → array
-            if (!is_array($data['interest_id'])) {
-                $decoded = json_decode($data['interest_id'], true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $interestIds = $decoded;
-                } else {
-                    $interestIds = [$data['interest_id']];
-                }
-            } else {
-                $interestIds = $data['interest_id'];
-            }
-
-            // Store comma separated values in DB
-            $updateData['interest_id'] = implode(",", $interestIds);
-
-        } else {
-            // If not sent in request, take from existing user data
-            $interestIds = !empty($user['interest_id']) ? explode(",", $user['interest_id']) : [];
-            $updateData['interest_id'] = $user['interest_id'];
-        }
-
         $this->appUserModel->update($user_id, $updateData);
 
-        // Fetch interest names directly from table
+        // Prepare response
+        $genderMap = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
+        $genderText = $genderMap[(int) $updateData['gender']] ?? 'Not set';
+
         $interestList = [];
         if (!empty($interestIds)) {
             $db = \Config\Database::connect();
             $builder = $db->table('interests');
             $interests = $builder->whereIn('interest_id', $interestIds)->get()->getResultArray();
-
             foreach ($interests as $i) {
-                $interestList[] = [
-                    'interest_id' => $i['interest_id'],
-                    'interest_name' => $i['interest_name']
-                ];
+                $interestList[] = ['interest_id' => $i['interest_id'], 'interest_name' => $i['interest_name']];
             }
         }
 
-        // Profile Image URL in response
-        if (!empty($profileImage)) {
-            $updateData['profile_image'] = base_url('uploads/profile_images/' . $profileImage);
-        } else {
-            $updateData['profile_image'] = null;
-        }
-        // Map gender number to text
-        $genderMap = [
-            1 => 'Male',
-            2 => 'Female',
-            3 => 'Other',
-            4 => 'Couple',
-        ];
-
-        $genderText = $genderMap[(int) $updateData['gender']] ?? 'Not set';
-
-
-        // Remove 'interest_id' from response, only return 'interests'
         $responseData = $updateData;
-        unset($responseData['interest_id']); // remove CSV field
+        unset($responseData['interest_id']);
         $responseData['interests'] = $interestList;
         $responseData['gender'] = $genderText;
+
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'Profile completed successfully. Pending verification.',
+            'message' => 'Profile completed successfully. Pending admin verification for some fields.',
+            'new_score_added' => $addedScore,
             'data' => array_merge(['user_id' => $user_id], $responseData)
         ]);
-
     }
+    public function verifySocial()
+    {
+        try {
+            $data = $this->request->getJSON(true);
+
+            $user_id = $data['user_id'] ?? null;
+            $type = strtolower($data['type'] ?? "");
+            $status = $data['status'] ?? null; // 1 = verify, 0 = unverify
+
+            if (!$user_id || !in_array($type, ['instagram', 'linkedin']) || !isset($status)) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'user_id, type, and status are required.'
+                ]);
+            }
+
+            // Fetch user
+            $user = $this->appUserModel->find($user_id);
+            if (!$user) {
+                return $this->response->setJSON([
+                    'status' => 404,
+                    'success' => false,
+                    'message' => 'User not found.'
+                ]);
+            }
+
+            // Fetch verifications
+            $verify = $this->db->table('user_verifications')
+                ->where('user_id', $user_id)
+                ->get()
+                ->getRowArray();
+
+            if (!$verify) {
+                return $this->response->setJSON([
+                    'status' => 404,
+                    'success' => false,
+                    'message' => 'Verification record missing.'
+                ]);
+            }
+
+            $profileScore = (int) $verify['score'];
+            $addedScore = 0;
+
+            // -------------------------------
+            // INSTAGRAM VERIFICATION (20 POINTS)
+            // -------------------------------
+            if ($type === 'instagram') {
+
+                // If admin is verifying AND not verified earlier → add score
+                if ($status == 1 && (int) $verify['instagram_verified'] == 0) {
+                    $addedScore = 20;
+                    $profileScore += 20;
+                }
+
+                // Update verification status
+                $this->db->table('user_verifications')
+                    ->where('user_id', $user_id)
+                    ->update([
+                        'instagram_verified' => $status,
+                        'score' => $profileScore,
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+            }
+
+            // -------------------------------
+            // LINKEDIN VERIFICATION (5 POINTS)
+            // -------------------------------
+            if ($type === 'linkedin') {
+
+                if ($status == 1 && (int) $verify['linkedin_verified'] == 0) {
+                    $addedScore = 5;
+                    $profileScore += 5;
+                }
+
+                $this->db->table('user_verifications')
+                    ->where('user_id', $user_id)
+                    ->update([
+                        'linkedin_verified' => $status,
+                        'score' => $profileScore,
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+            }
+
+            // Update user table profile_score
+            $this->appUserModel->update($user_id, [
+                'profile_score' => $profileScore,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => ucfirst($type) . ' verification updated successfully.',
+                'new_score_added' => $addedScore,
+                'total_profile_score' => $profileScore
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->response->setJSON([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
     // DELETE USER (soft delete)
     public function deleteUser()
     {
