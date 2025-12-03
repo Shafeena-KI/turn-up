@@ -328,11 +328,44 @@ class AppUser extends BaseController
             'data' => $user
         ]);
     }
-    
+    private function getAdminAuthenticatedUser()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+
+        if (!$authHeader || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+            return ['error' => 'Authorization token missing'];
+        }
+
+        $token = $matches[1];
+        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+        try {
+            $decoded = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
+            $decoded = (array) $decoded; // Convert to array
+
+            // FIX: Handle both possible structures
+            if (isset($decoded['data'])) {
+                return [
+                    'admin_id' => $decoded['data']->admin_id ?? null,
+                    'email' => $decoded['data']->email ?? null,
+                ];
+            }
+
+            // If token was created without "data" wrapper
+            return [
+                'admin_id' => $decoded['admin_id'] ?? null,
+                'email' => $decoded['email'] ?? null,
+            ];
+
+        } catch (\Throwable $e) {
+            return ['error' => 'Invalid or expired token: ' . $e->getMessage()];
+        }
+    }
+
     public function AdmingetUserById()
     {
         // Validate admin token
-        $auth = $this->getAuthenticatedUser(); // MUST return admin data OR error
+        $auth = $this->getAdminAuthenticatedUser(); // MUST return admin data OR error
 
         if (isset($auth['error'])) {
             return $this->response
@@ -409,7 +442,16 @@ class AppUser extends BaseController
 
         $user['interests'] = $interestList;
         unset($user['interest_id']);
+        
+        $verify = $this->db->table('user_verifications')
+            ->where('user_id', $user_id)
+            ->get()
+            ->getRowArray();
 
+        // If no verification row exists → return default values
+        $user['instagram_verified'] = (int) ($verify['instagram_verified'] ?? 0);
+        $user['linkedin_verified'] = (int) ($verify['linkedin_verified'] ?? 0);
+        $user['profile_score'] = (int) ($verify['score'] ?? 0);
         return $this->response
             ->setStatusCode(200)
             ->setJSON([
