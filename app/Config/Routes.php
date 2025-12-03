@@ -14,8 +14,9 @@ $routes->post('api/admin/logout', 'Api\Login::adminLogout');
 $routes->post('api/admin/create', 'Api\Login::createAdmin');
 $routes->get('api/admin/list', 'Api\Login::listAdmins');
 $routes->get('api/admin/view/(:num)', 'Api\Login::getAdmin/$1');
-$routes->post('api/admin/update/(:num)', 'Api\Login::updateAdmin/$1');
-$routes->post('api/admin/delete/(:num)', 'Api\Login::deleteAdmin/$1');
+$routes->post('api/admin/update', 'Api\Login::updateAdmin');
+$routes->post('api/admin/delete', 'Api\Login::deleteAdmin');
+
 
 
 //user login
