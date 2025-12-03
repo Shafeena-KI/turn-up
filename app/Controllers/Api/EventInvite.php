@@ -53,7 +53,6 @@ class EventInvite extends BaseController
             return ['error' => 'Invalid or expired token: ' . $e->getMessage()];
         }
     }
-
     // Create an invite
     public function createInvite()
     {
@@ -485,40 +484,42 @@ class EventInvite extends BaseController
         $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
         $offset = ($page - 1) * $limit;
 
-        // Join with events, categories, users and event_counts
+        // MAIN BUILDER
         $builder = $this->inviteModel
             ->select("
-        event_invites.*,
-        events.event_name,
-        events.event_city,
-        event_ticket_category.category_name,
-        app_users.name,
-        app_users.phone,
-        app_users.email,
-        app_users.insta_id,
-        app_users.profile_image,
-        app_users.profile_status,
-        ec.total_invites,
-        ec.total_male_invites,
-        ec.total_female_invites,
-        ec.total_other_invites,
-        ec.total_other_invites,
-        ec.total_couple_invites
-    ")
+            event_invites.*,
+            events.event_name,
+            events.event_city,
+            event_ticket_category.category_name,
+            app_users.name,
+            app_users.phone,
+            app_users.email,
+            app_users.insta_id,
+            app_users.profile_image,
+            app_users.profile_status,
+            ec.total_invites,
+            ec.total_male_invites,
+            ec.total_female_invites,
+            ec.total_other_invites,
+            ec.total_couple_invites
+        ")
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
             ->join(
                 'event_counts ec',
                 'ec.event_id = event_invites.event_id 
-         AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
+             AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
                 'left'
             )
             ->where('event_invites.status !=', 4);
+
+        // EVENT FILTER
         if (!empty($event_id)) {
             $builder->where('event_invites.event_id', $event_id);
         }
-        // Search filter
+
+        // SEARCH
         if (!empty($search)) {
             $builder->groupStart()
                 ->like('events.event_name', $search)
@@ -530,20 +531,22 @@ class EventInvite extends BaseController
                 ->groupEnd();
         }
 
-        // Total count
-        $total = $builder->countAllResults(false);
+        // ⚠️ FIX PAGINATION → CLONE BUILDER BEFORE COUNT
+        $countBuilder = clone $builder;
+        $total = $countBuilder->countAllResults();
 
-        // Fetch paginated results
+        // FETCH PAGINATED RESULTS
         $invites = $builder
             ->orderBy('event_invites.invite_id', 'DESC')
             ->findAll($limit, $offset);
 
+        // FORMAT RESULTS
         foreach ($invites as &$invite) {
 
             // Category text
             $invite['category_text'] = $invite['category_name'] ?? 'No Category';
 
-            // Status text
+            // Status
             $statusMap = [
                 0 => 'Pending',
                 1 => 'Approved',
@@ -552,26 +555,26 @@ class EventInvite extends BaseController
             ];
             $invite['status_text'] = $statusMap[$invite['status']] ?? 'Unknown';
 
-            // Entry type mapping
+            // Entry type
             $entryTypeMap = [
                 1 => 'Male',
                 2 => 'Female',
                 3 => 'Other',
                 4 => 'Couple'
             ];
-
             $invite['entry_type_text'] = $entryTypeMap[$invite['entry_type']] ?? 'N/A';
 
-            $invite['partner'] = $invite['partner'] ?? null; // Show only Insta ID
-            unset($invite['partner_details']); // Ensure partner_details is removed
+            // Keep only partner Insta ID
+            $invite['partner'] = $invite['partner'] ?? null;
+            unset($invite['partner_details']);
 
+            // Profile Image Full URL
             $imageBaseUrl = base_url('uploads/profile_images/');
-            // Full Profile Image URL for main user
             $invite['profile_image'] = !empty($invite['profile_image'])
-                ? $imageBaseUrl . $invite['profile_image']
+                ? ($imageBaseUrl . $invite['profile_image'])
                 : null;
 
-            // NEW: Event total counts from event_counts table 
+            // Event invite totals
             $invite['event_counts'] = [
                 'total_invites' => (int) $invite['total_invites'],
                 'total_male_invites' => (int) $invite['total_male_invites'],
@@ -596,8 +599,8 @@ class EventInvite extends BaseController
             ]
         ]);
     }
-    // Approve or Reject Invite (manual)
 
+    // Approve or Reject Invite (manual)
     public function updateInviteStatus()
     {
         $data = $this->request->getJSON(true);

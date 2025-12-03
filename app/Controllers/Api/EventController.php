@@ -37,7 +37,6 @@ class EventController extends BaseController
 
         return null;
     }
-
     //  Get All Events
     public function index()
     {
@@ -65,7 +64,11 @@ class EventController extends BaseController
 
         // No token → skip authentication
 
-        $events = $this->eventModel->findAll();
+        $events = $this->eventModel
+            ->orderBy('status', 'ASC')             // upcoming → completed → cancelled
+            ->orderBy('event_date_start', 'ASC')   // sort upcoming by date
+            ->findAll();
+
         $baseUrl = base_url('public/uploads/events/');
         $today = strtotime(date("Y-m-d"));
 
@@ -125,7 +128,6 @@ class EventController extends BaseController
             'data' => $events
         ], JSON_UNESCAPED_SLASHES);
     }
-
     //  Get Single Event by ID
     public function show($id)
     {
