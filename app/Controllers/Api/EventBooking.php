@@ -145,24 +145,24 @@ class EventBooking extends BaseController
         // Join with events, categories, users and event_counts
         $builder = $this->bookingModel
             ->select("
-        event_booking.*,
-        events.event_name,
-        events.event_city,
-        event_ticket_category.category_name,
-        app_users.name,
-        app_users.phone,
-        app_users.email,
-        app_users.insta_id,
-        app_users.profile_image,
-        app_users.profile_status,
-        event_invites.entry_type,  
-        event_invites.partner,     
-        event_counts.total_booking,
-        event_counts.total_male_booking,
-        event_counts.total_female_booking,
-        event_counts.total_other_booking,
-        event_counts.total_couple_booking
-    ")
+            event_booking.*,
+            events.event_name,
+            events.event_city,
+            event_ticket_category.category_name,
+            app_users.name,
+            app_users.phone,
+            app_users.email,
+            app_users.insta_id,
+            app_users.profile_image,
+            app_users.profile_status,
+            event_invites.entry_type,  
+            event_invites.partner,     
+            event_counts.total_booking,
+            event_counts.total_male_booking,
+            event_counts.total_female_booking,
+            event_counts.total_other_booking,
+            event_counts.total_couple_booking
+        ")
             ->join('events', 'events.event_id = event_booking.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_booking.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
@@ -184,9 +184,9 @@ class EventBooking extends BaseController
                 ->orLike('app_users.phone', $search)
                 ->orLike('app_users.email', $search)
                 ->orLike("CASE 
-                    WHEN event_ticket_category.category_name = 1 THEN 'VIP'
-                    WHEN event_ticket_category.category_name = 2 THEN 'Normal'
-                 END", $search)
+                        WHEN event_ticket_category.category_name = 1 THEN 'VIP'
+                        WHEN event_ticket_category.category_name = 2 THEN 'Normal'
+                    END", $search)
                 ->groupEnd();
         }
 
@@ -548,7 +548,7 @@ class EventBooking extends BaseController
         $tz = new \DateTimeZone('Asia/Kolkata');
 
         // Fix end time if it is 00:00:00 → consider full day till 23:59:59
-        $endTime = ($event['event_time_end'] === '00:00:00')
+        $endTime = ($event['event_time_end'] === null)
             ? '23:59:59'
             : $event['event_time_end'];
 
@@ -664,56 +664,27 @@ class EventBooking extends BaseController
             'booking_id' => $booking['booking_id']
         ];
 
-        // $this->db->table("checkin")->insert($checkinData);
-
-        // Update booking status (set to attended / checked-in)
-        // $this->bookingModel->update($booking['booking_id'], [
-        //     'status' => 3,
-        //     'updated_at' => date('Y-m-d H:i:s'),
-        //     // keep checked_in_at optional; markAsIn didn't set it, but it's okay to set if you want:
-        //     'checked_in_at' => $checkinTime
-        // ]);
-
-        // Update event_counts (same as markAsIn)
-        // $counts = $this->eventCountsModel
-        //     ->where('event_id', $booking['event_id'])
-        //     ->where('category_id', $booking['category_id'])
-        //     ->first();
-
-        // if ($counts) {
-
-        // Initialize update array
-        // $update = [
-        //     'total_checkin' => $counts['total_checkin'],
-        //     'total_male_checkin' => $counts['total_male_checkin'],
-        //     'total_female_checkin' => $counts['total_female_checkin'],
-        //     'total_couple_checkin' => $counts['total_couple_checkin'],
-        //     'total_other_checkin' => $counts['total_other_checkin'],
-        // ];
-
-        // Entry type conditions
-        //     if ($entry_type == "Male") {
-        //         $update['total_checkin'] = $counts['total_checkin'] + 1;
-        //         $update['total_male_checkin'] = $counts['total_male_checkin'] + 1;
-        //     } elseif ($entry_type == "Female") {
-        //         $update['total_checkin'] = $counts['total_checkin'] + 1;
-        //         $update['total_female_checkin'] = $counts['total_female_checkin'] + 1;
-        //     } elseif ($entry_type == "Other") {
-        //         $update['total_checkin'] = $counts['total_checkin'] + 1;
-        //         $update['total_other_checkin'] = $counts['total_other_checkin'] + 1;
-        //     } elseif ($entry_type == "Couple") {
-        //         $update['total_checkin'] = $counts['total_checkin'] + 2; // 2 people
-        //         $update['total_couple_checkin'] = $counts['total_couple_checkin'] + 1; // 1 couple
-        //     }
-
-        //     $this->eventCountsModel->update($counts['id'], $update);
-        // }
-
 
         // Load user details for response
         $user = $this->db->table('app_users')
             ->where('user_id', $booking['user_id'])
             ->get()->getRowArray();
+
+        $genderMap = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple'
+        ];
+
+        $userGender = $genderMap[$user['gender']] ?? 'Unknown';
+
+        $baseURL = base_url();
+        $profileImage = !empty($user['profile_image'])
+            ? $baseURL . '/uploads/profile/' . $user['profile_image']
+            : $baseURL . '/uploads/profile/default.jpg';
+
+
 
         return $this->response->setJSON([
             'status' => true,
@@ -725,6 +696,8 @@ class EventBooking extends BaseController
                 'user_name' => $user['name'] ?? ($invite['name'] ?? ''),
                 'ticket_type' => $ticketType,
                 'entry_type' => $entry_type,
+                'gender' => $userGender,
+                'profile_image' => $profileImage,
                 'checked_in_at' => $checkinTime,
                 'checked_in_by' => $admin_name
             ]
