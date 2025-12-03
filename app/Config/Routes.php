@@ -72,7 +72,6 @@ $routes->get('api/event/totalinvitescount', 'Api\EventInvite::getAllEventInviteC
 $routes->post('api/category/create', 'Api\EventCategory::createCategory');
 $routes->post('api/category/event', 'Api\EventCategory::getCategoryByEvent');
 $routes->post('api/category/update', 'Api\EventCategory::updatecategory');
-$routes->post('api/category/delete', 'Api\EventCategory::deletecategory');
 
 
 // Event Bookings

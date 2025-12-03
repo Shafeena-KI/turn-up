@@ -279,6 +279,7 @@ class EventCategory extends BaseController
                 'category_name',
                 'total_seats',
                 'price',
+                'couple_price',
                 'status',
                 'actual_booked_seats',
                 'dummy_booked_seats',
@@ -330,33 +331,6 @@ class EventCategory extends BaseController
             'message' => 'Categories updated successfully.',
             'event_id' => $event_id,
             'data' => $updatedList
-        ]);
-    }
-    // Delete Category
-    public function deleteCategory()
-    {
-        $data = $this->request->getJSON(true);
-        $category_id = $data['category_id'] ?? null;
-
-        if (empty($category_id)) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'category_id is required.'
-            ]);
-        }
-
-        $category = $this->categoryModel->find($category_id);
-        if (!$category) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Category not found.'
-            ]);
-        }
-
-        $this->categoryModel->update($category_id, ['status' => 4]);
-        return $this->response->setJSON([
-            'status' => true,
-            'message' => 'Category deleted successfully.'
         ]);
     }
 
