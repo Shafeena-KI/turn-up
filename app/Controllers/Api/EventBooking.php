@@ -46,21 +46,24 @@ class EventBooking extends BaseController
             c.category_name,
             c.total_seats,
 
-            COUNT(eb.booking_id) AS total_booking,
+            -- Calculate total people count
+            (
+                SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN ei.entry_type = 3 THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN ei.entry_type = 4 THEN 2 ELSE 0 END)
+            ) AS total_booking,
+
+            -- Quantity from booking table
             SUM(eb.quantity) AS total_quantity,
 
-            -- Male booking
+            -- Individual breakdown
             SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) AS total_male_booking,
-
-            -- Female booking
             SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) AS total_female_booking,
-
-             -- Other booking
             SUM(CASE WHEN ei.entry_type = 3 THEN 1 ELSE 0 END) AS total_other_booking,
-
-            -- Couple booking
             SUM(CASE WHEN ei.entry_type = 4 THEN 1 ELSE 0 END) AS total_couple_booking
         ");
+
 
         $builder->join('events e', 'e.event_id = eb.event_id', 'left');
         $builder->join('event_ticket_category c', 'c.category_id = eb.category_id', 'left');
@@ -268,8 +271,6 @@ class EventBooking extends BaseController
             ]
         ]);
     }
-
-
     public function getTotalBookingCounts($event_id)
     {
         // Validate event_id
@@ -455,8 +456,6 @@ class EventBooking extends BaseController
             'message' => 'Booking cancelled successfully.'
         ]);
     }
-
-
     protected function getAdminIdFromToken()
     {
         $authHeader = $this->request->getHeaderLine('Authorization');
