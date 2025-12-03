@@ -17,6 +17,7 @@ class EventCategory extends BaseController
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->categoryModel = new EventCategoryModel();
         $this->eventModel = new EventModel();
+        $this->db = \Config\Database::connect();
     }
     //  Create Category
     public function createCategory()
@@ -144,51 +145,54 @@ class EventCategory extends BaseController
     }
     public function getToken()
     {
-        // Try all possible header names
+        // Check all possible headers
         $authHeader = $this->request->getHeaderLine('Authorization');
 
-        if (empty($authHeader)) {
-            $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        if (!$authHeader && isset($_SERVER['HTTP_AUTHORIZATION'])) {
+            $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
         }
 
-        if (empty($authHeader)) {
-            $authHeader = $_SERVER['Authorization'] ?? '';
+        if (!$authHeader && isset($_SERVER['Authorization'])) {
+            $authHeader = $_SERVER['Authorization'];
         }
 
-        // Extract token
+        if (!$authHeader) {
+            return null; // No token provided (optional)
+        }
+
+        // Extract Bearer token
         if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
-            return trim($matches[1]);
+            return $matches[1];
         }
 
         return null;
     }
+
     public function getCategoryByEvent()
     {
         $token = $this->getToken();
 
-        // Optional token: validate ONLY if provided
-        if ($token) {
-            $user = $this->db->table('admin_users')
-                ->where('token', trim($token))
-                ->get()
-                ->getRow();
+        // TOKEN MUST BE PROVIDED
+        if (!$token) {
+            return $this->response->setStatusCode(401)->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => 'Token missing.'
+            ]);
+        }
 
-            // if (!$user) {
-            //     return $this->response->setJSON([
-            //         'status' => false,
-            //         'message' => 'Invalid or expired token.'
-            //     ]);
-            // }
-            if (!$user) {
-                return $this->response
-                    ->setStatusCode(401)
-                    ->setJSON([
-                        'status' => 401,
-                        'success' => false,
-                        'message' => 'Invalid or expired token.'
-                    ]);
-            }
+        // VALIDATE TOKEN
+        $user = $this->db->table('admin_users')
+            ->where('token', trim($token))
+            ->get()
+            ->getRow();
 
+        if (!$user) {
+            return $this->response->setStatusCode(401)->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => 'Invalid or expired token.'
+            ]);
         }
         $data = $this->request->getJSON(true);
         $event_id = $data['event_id'] ?? null;

@@ -354,24 +354,25 @@ class EventController extends BaseController
         }
 
         $event = [
-            'event_name' => $_POST['event_name'] ?? '',
-            'event_description' => $_POST['event_description'] ?? '',
-            'event_location' => $_POST['event_location'] ?? '',
-            'event_map' => $_POST['event_map'] ?? '',
-            'event_date_start' => $_POST['event_date_start'] ?? '',
-            'event_date_end' => $_POST['event_date_end'] ?? '',
-            'dress_code' => $_POST['dress_code'] ?? '',
-            'event_code' => $_POST['event_code'] ?? '',
-            'whatsappmessage_code' => $_POST['whatsappmessage_code'] ?? '',
-            'age_limit' => $_POST['age_limit'] ?? '',
-            'event_type' => $_POST['event_type'] ?? '',
-            'created_by' => $_POST['created_by'] ?? '',
-            'event_time_start' => $_POST['event_time_start'] ?? '',
-            'event_time_end' => $_POST['event_time_end'] ?? '',
-            'event_city' => $_POST['event_city'] ?? '',
-            'total_seats' => $_POST['total_seats'] ?? '',
+            'event_name' => $_POST['event_name'] ?? null,
+            'event_description' => $_POST['event_description'] ?? null,
+            'event_location' => $_POST['event_location'] ?? null,
+            'event_map' => $_POST['event_map'] ?? null,
+            'event_date_start' => $_POST['event_date_start'] ?? null,
+            'event_date_end' => $_POST['event_date_end'] ?? null,
+            'dress_code' => $_POST['dress_code'] ?? null,
+            'event_code' => $_POST['event_code'] ?? null,
+            'whatsappmessage_code' => $_POST['whatsappmessage_code'] ?? null,
+            'age_limit' => $_POST['age_limit'] ?? null,
+            'event_type' => $_POST['event_type'] ?? null,
+            'created_by' => $_POST['created_by'] ?? null,
+            'event_time_start' => !empty($_POST['event_time_start']) ? $_POST['event_time_start'] : null,
+            'event_time_end' => !empty($_POST['event_time_end']) ? $_POST['event_time_end'] : null,
+            'event_city' => $_POST['event_city'] ?? null,
+            'total_seats' => $_POST['total_seats'] ?? null,
         ];
-        // ----- STATUS BASED ON DATE + TIME -----
+
+        // STATUS BASED ON DATE + TIME 
 
         $startDateTime = strtotime(
             ($_POST['event_date_start'] ?? '') . ' ' .

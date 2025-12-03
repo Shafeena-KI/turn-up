@@ -41,7 +41,7 @@ class EventBooking extends BaseController
             e.event_time_start,
             e.event_date_end,
             e.event_time_end,
-
+             e.total_seats AS event_total_seats, 
             c.category_id,
             c.category_name,
             c.total_seats,
@@ -120,7 +120,7 @@ class EventBooking extends BaseController
             ];
 
             // Overall totals
-            $finalData[$eventId]['overall_total']['total_seats'] += (int) $row['total_seats'];
+            $finalData[$eventId]['overall_total']['total_seats'] = (int) $row['event_total_seats'];
             $finalData[$eventId]['overall_total']['total_booking'] += (int) $row['total_booking'];
             $finalData[$eventId]['overall_total']['total_quantity'] += (int) $row['total_quantity'];
             $finalData[$eventId]['overall_total']['total_male_booking'] += (int) $row['total_male_booking'];
