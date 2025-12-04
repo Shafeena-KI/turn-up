@@ -484,42 +484,40 @@ class EventInvite extends BaseController
         $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
         $offset = ($page - 1) * $limit;
 
-        // MAIN BUILDER
+        // Join with events, categories, users and event_counts
         $builder = $this->inviteModel
             ->select("
-            event_invites.*,
-            events.event_name,
-            events.event_city,
-            event_ticket_category.category_name,
-            app_users.name,
-            app_users.phone,
-            app_users.email,
-            app_users.insta_id,
-            app_users.profile_image,
-            app_users.profile_status,
-            ec.total_invites,
-            ec.total_male_invites,
-            ec.total_female_invites,
-            ec.total_other_invites,
-            ec.total_couple_invites
-        ")
+        event_invites.*,
+        events.event_name,
+        events.event_city,
+        event_ticket_category.category_name,
+        app_users.name,
+        app_users.phone,
+        app_users.email,
+        app_users.insta_id,
+        app_users.profile_image,
+        app_users.profile_status,
+        ec.total_invites,
+        ec.total_male_invites,
+        ec.total_female_invites,
+        ec.total_other_invites,
+        ec.total_other_invites,
+        ec.total_couple_invites
+    ")
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
             ->join(
                 'event_counts ec',
                 'ec.event_id = event_invites.event_id 
-             AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
+         AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
                 'left'
             )
             ->where('event_invites.status !=', 4);
-
-        // EVENT FILTER
         if (!empty($event_id)) {
             $builder->where('event_invites.event_id', $event_id);
         }
-
-        // SEARCH
+        // Search filter
         if (!empty($search)) {
             $builder->groupStart()
                 ->like('events.event_name', $search)
@@ -531,22 +529,20 @@ class EventInvite extends BaseController
                 ->groupEnd();
         }
 
-        // ⚠️ FIX PAGINATION → CLONE BUILDER BEFORE COUNT
-        $countBuilder = clone $builder;
-        $total = $countBuilder->countAllResults();
+        // Total count
+        $total = $builder->countAllResults(false);
 
-        // FETCH PAGINATED RESULTS
+        // Fetch paginated results
         $invites = $builder
             ->orderBy('event_invites.invite_id', 'DESC')
             ->findAll($limit, $offset);
 
-        // FORMAT RESULTS
         foreach ($invites as &$invite) {
 
             // Category text
             $invite['category_text'] = $invite['category_name'] ?? 'No Category';
 
-            // Status
+            // Status text
             $statusMap = [
                 0 => 'Pending',
                 1 => 'Approved',
@@ -555,26 +551,26 @@ class EventInvite extends BaseController
             ];
             $invite['status_text'] = $statusMap[$invite['status']] ?? 'Unknown';
 
-            // Entry type
+            // Entry type mapping
             $entryTypeMap = [
                 1 => 'Male',
                 2 => 'Female',
                 3 => 'Other',
                 4 => 'Couple'
             ];
+
             $invite['entry_type_text'] = $entryTypeMap[$invite['entry_type']] ?? 'N/A';
 
-            // Keep only partner Insta ID
-            $invite['partner'] = $invite['partner'] ?? null;
-            unset($invite['partner_details']);
+            $invite['partner'] = $invite['partner'] ?? null; // Show only Insta ID
+            unset($invite['partner_details']); // Ensure partner_details is removed
 
-            // Profile Image Full URL
             $imageBaseUrl = base_url('uploads/profile_images/');
+            // Full Profile Image URL for main user
             $invite['profile_image'] = !empty($invite['profile_image'])
-                ? ($imageBaseUrl . $invite['profile_image'])
+                ? $imageBaseUrl . $invite['profile_image']
                 : null;
 
-            // Event invite totals
+            // NEW: Event total counts from event_counts table 
             $invite['event_counts'] = [
                 'total_invites' => (int) $invite['total_invites'],
                 'total_male_invites' => (int) $invite['total_male_invites'],
@@ -599,7 +595,6 @@ class EventInvite extends BaseController
             ]
         ]);
     }
-
     // Approve or Reject Invite (manual)
     public function updateInviteStatus()
     {
@@ -788,7 +783,6 @@ class EventInvite extends BaseController
             ]);
         }
     }
-
     private function createQrForBooking($booking_code)
     {
         // Fetch booking
@@ -878,32 +872,57 @@ class EventInvite extends BaseController
     }
     public function getAllEventInviteCounts()
     {
-        $builder = $this->db->table('event_counts ec');
-        $builder->select("
-        ec.event_id,
-        e.event_name,
-        e.event_code,
-        e.event_location,
-        e.event_city,
-        e.event_date_start,
-        e.event_time_start,
-        e.event_date_end,
-        e.event_time_end,
-        e.total_seats AS event_total_seats, 
-        c.category_id,
-        c.category_name,
-        c.total_seats,
-        SUM(ec.total_invites) AS total_invites,
-        SUM(ec.total_male_invites) AS total_male,
-        SUM(ec.total_female_invites) AS total_female,
-        SUM(ec.total_other_invites) AS total_other,
-        SUM(ec.total_couple_invites) AS total_couple
-    ");
-        $builder->join('events e', 'e.event_id = ec.event_id', 'left');
-        $builder->join('event_ticket_category c', 'c.category_id = ec.category_id', 'left');
-        $builder->groupBy('ec.event_id, ec.category_id');
+        $page = (int) $this->request->getGet('current_page') ?: 1;
+        $limit = (int) $this->request->getGet('per_page') ?: 10;
+        $keyword = $this->request->getGet('keyword');
 
+        $offset = ($page - 1) * $limit;
+
+        // MAIN BUILDER
+        $builder = $this->db->table('event_counts ec')
+            ->select("
+            ec.event_id,
+            e.event_name,
+            e.event_code,
+            e.event_location,
+            e.event_city,
+            e.event_date_start,
+            e.event_time_start,
+            e.event_date_end,
+            e.event_time_end,
+            e.total_seats AS event_total_seats, 
+            c.category_id,
+            c.category_name,
+            c.total_seats,
+            SUM(ec.total_invites) AS total_invites,
+            SUM(ec.total_male_invites) AS total_male,
+            SUM(ec.total_female_invites) AS total_female,
+            SUM(ec.total_other_invites) AS total_other,
+            SUM(ec.total_couple_invites) AS total_couple
+        ")
+            ->join('events e', 'e.event_id = ec.event_id', 'left')
+            ->join('event_ticket_category c', 'c.category_id = ec.category_id', 'left')
+            ->groupBy('ec.event_id, ec.category_id');
+
+        // SEARCH FILTER
+        if (!empty($keyword)) {
+            $builder->groupStart()
+                ->like('e.event_name', $keyword)
+                ->orLike('e.event_city', $keyword)
+                ->orLike('e.event_code', $keyword)
+                ->groupEnd();
+        }
+
+        // ----- TOTAL COUNT -----
+        // Count distinct event IDs returned by the grouped query
+        $countBuilder = clone $builder;
+        $totalEvents = count($countBuilder->get()->getResultArray());
+
+        // ----- PAGINATION -----
+        $builder->limit($limit, $offset);
         $rows = $builder->get()->getResultArray();
+
+        // ----- FORMAT RESPONSE -----
         $finalData = [];
 
         foreach ($rows as $row) {
@@ -926,7 +945,7 @@ class EventInvite extends BaseController
 
                     'categories' => [],
                     'overall_total' => [
-                        'total_seats' => (int) $row['event_total_seats'],   // EVENT TOTAL SEATS
+                        'total_seats' => (int) $row['event_total_seats'],
                         'total_invites' => 0,
                         'total_male' => 0,
                         'total_female' => 0,
@@ -939,7 +958,7 @@ class EventInvite extends BaseController
             // CATEGORY WISE
             $finalData[$eventId]['categories'][$categoryKey] = [
                 'category_id' => $categoryId,
-                'seats' => (int) $row['total_seats'],  // category seats
+                'seats' => (int) $row['total_seats'],
                 'total_invites' => (int) $row['total_invites'],
                 'total_male' => (int) $row['total_male'],
                 'total_female' => (int) $row['total_female'],
@@ -955,19 +974,22 @@ class EventInvite extends BaseController
             $finalData[$eventId]['overall_total']['total_couple'] += (int) $row['total_couple'];
         }
 
+        // Prepare final result array
+        $result = array_values($finalData);
 
-        // remove helper _seen_category_ids before returning
-        foreach ($finalData as &$evt) {
-            if (isset($evt['_seen_category_ids'])) {
-                unset($evt['_seen_category_ids']);
-            }
-        }
-        unset($evt);
+        $totalPages = ceil($totalEvents / $limit);
 
         return $this->response->setJSON([
             'status' => 200,
-            'message' => 'All event invite counts fetched successfully',
-            'data' => array_values($finalData)
+            'message' => 'Event invite counts fetched successfully',
+            'data' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'keyword' => $keyword,
+                'total_records' => $totalEvents,
+                'total_pages' => $totalPages,
+                'events' => $result
+            ]
         ]);
     }
 
