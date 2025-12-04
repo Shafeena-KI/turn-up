@@ -487,23 +487,23 @@ class EventInvite extends BaseController
         // Join with events, categories, users and event_counts
         $builder = $this->inviteModel
             ->select("
-        event_invites.*,
-        events.event_name,
-        events.event_city,
-        event_ticket_category.category_name,
-        app_users.name,
-        app_users.phone,
-        app_users.email,
-        app_users.insta_id,
-        app_users.profile_image,
-        app_users.profile_status,
-        ec.total_invites,
-        ec.total_male_invites,
-        ec.total_female_invites,
-        ec.total_other_invites,
-        ec.total_other_invites,
-        ec.total_couple_invites
-    ")
+                event_invites.*,
+                events.event_name,
+                events.event_city,
+                event_ticket_category.category_name,
+                app_users.name,
+                app_users.phone,
+                app_users.email,
+                app_users.insta_id,
+                app_users.profile_image,
+                app_users.profile_status,
+                ec.total_invites,
+                ec.total_male_invites,
+                ec.total_female_invites,
+                ec.total_other_invites,
+                ec.total_other_invites,
+                ec.total_couple_invites
+            ")
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
@@ -875,10 +875,9 @@ class EventInvite extends BaseController
         $page = (int) $this->request->getGet('current_page') ?: 1;
         $limit = (int) $this->request->getGet('per_page') ?: 10;
         $keyword = $this->request->getGet('keyword');
-
         $offset = ($page - 1) * $limit;
 
-        // MAIN BUILDER
+        // ----- MAIN QUERY -----
         $builder = $this->db->table('event_counts ec')
             ->select("
             ec.event_id,
@@ -913,23 +912,15 @@ class EventInvite extends BaseController
                 ->groupEnd();
         }
 
-        // ----- TOTAL COUNT -----
-        // Count distinct event IDs returned by the grouped query
-        $countBuilder = clone $builder;
-        $totalEvents = count($countBuilder->get()->getResultArray());
-
-        // ----- PAGINATION -----
-        $builder->limit($limit, $offset);
+        // ----- FETCH DATA -----
         $rows = $builder->get()->getResultArray();
 
-        // ----- FORMAT RESPONSE -----
+        // ----- FORMAT RESPONSE BY EVENT -----
         $finalData = [];
-
         foreach ($rows as $row) {
-
             $eventId = $row['event_id'];
-            $categoryId = (int) $row['category_id'];
             $categoryKey = strtolower($row['category_name']);
+            $categoryId = (int) $row['category_id'];
 
             if (!isset($finalData[$eventId])) {
                 $finalData[$eventId] = [
@@ -942,7 +933,6 @@ class EventInvite extends BaseController
                     'event_time_start' => $row['event_time_start'],
                     'event_date_end' => $row['event_date_end'],
                     'event_time_end' => $row['event_time_end'],
-
                     'categories' => [],
                     'overall_total' => [
                         'total_seats' => (int) $row['event_total_seats'],
@@ -955,7 +945,7 @@ class EventInvite extends BaseController
                 ];
             }
 
-            // CATEGORY WISE
+            // CATEGORY DATA
             $finalData[$eventId]['categories'][$categoryKey] = [
                 'category_id' => $categoryId,
                 'seats' => (int) $row['total_seats'],
@@ -974,8 +964,10 @@ class EventInvite extends BaseController
             $finalData[$eventId]['overall_total']['total_couple'] += (int) $row['total_couple'];
         }
 
-        // Prepare final result array
-        $result = array_values($finalData);
+        // ----- PAGINATION (AFTER GROUPING BY EVENT) -----
+        $allEvents = array_values($finalData);
+        $totalEvents = count($allEvents);
+        $paginatedEvents = array_slice($allEvents, $offset, $limit);
 
         $totalPages = ceil($totalEvents / $limit);
 
@@ -988,7 +980,7 @@ class EventInvite extends BaseController
                 'keyword' => $keyword,
                 'total_records' => $totalEvents,
                 'total_pages' => $totalPages,
-                'events' => $result
+                'events' => $paginatedEvents
             ]
         ]);
     }
