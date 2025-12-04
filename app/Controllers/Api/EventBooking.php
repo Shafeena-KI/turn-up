@@ -29,56 +29,75 @@ class EventBooking extends BaseController
     }
     public function getAllEventBookingCounts()
     {
-        $builder = $this->db->table('event_booking eb');
+        $page = (int) $this->request->getGet('current_page') ?: 1;
+        $limit = (int) $this->request->getGet('per_page') ?: 10;
+        $keyword = $this->request->getGet('keyword');
 
-        $builder->select("
-        eb.event_id,
-        e.event_name,
-        e.event_code,
-        e.event_location,
-        e.event_city,
-        e.event_date_start,
-        e.event_time_start,
-        e.event_date_end,
-        e.event_time_end,
-        e.total_seats AS event_total_seats, 
-        
-        c.category_id,
-        c.category_name,
-        c.total_seats,
+        $offset = ($page - 1) * $limit;
 
-        -- TOTAL PEOPLE COUNT
-        (
-            SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) +   -- Male
-            SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) +   -- Female
-            SUM(CASE WHEN ei.entry_type = 3 THEN 1 ELSE 0 END) +   -- Other
-            SUM(CASE WHEN ei.entry_type = 4 THEN 2 ELSE 0 END)     -- Couple = 2
-        ) AS total_booking,
+        // MAIN BUILDER
+        $builder = $this->db->table('event_booking eb')
+            ->select("
+            eb.event_id,
+            e.event_name,
+            e.event_code,
+            e.event_location,
+            e.event_city,
+            e.event_date_start,
+            e.event_time_start,
+            e.event_date_end,
+            e.event_time_end,
+            e.total_seats AS event_total_seats, 
+            
+            c.category_id,
+            c.category_name,
+            c.total_seats,
 
-        -- Quantity of bookings
-        SUM(eb.quantity) AS total_quantity,
+            -- PEOPLE COUNT
+            (
+                SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) + 
+                SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN ei.entry_type = 3 THEN 1 ELSE 0 END) +
+                SUM(CASE WHEN ei.entry_type = 4 THEN 2 ELSE 0 END)
+            ) AS total_booking,
 
-        -- BREAKDOWN
-        SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) AS total_male_booking,
-        SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) AS total_female_booking,
-        SUM(CASE WHEN ei.entry_type = 3 THEN 1 ELSE 0 END) AS total_other_booking,
-        SUM(CASE WHEN ei.entry_type = 4 THEN 1 ELSE 0 END) AS total_couple_booking   -- count couples only once
-    ");
+            SUM(eb.quantity) AS total_quantity,
 
-        $builder->join('events e', 'e.event_id = eb.event_id', 'left');
-        $builder->join('event_ticket_category c', 'c.category_id = eb.category_id', 'left');
-        $builder->join('event_invites ei', 'ei.invite_id = eb.invite_id', 'left');
+            SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) AS total_male_booking,
+            SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) AS total_female_booking,
+            SUM(CASE WHEN ei.entry_type = 3 THEN 1 ELSE 0 END) AS total_other_booking,
+            SUM(CASE WHEN ei.entry_type = 4 THEN 1 ELSE 0 END) AS total_couple_booking
+        ")
+            ->join('events e', 'e.event_id = eb.event_id', 'left')
+            ->join('event_ticket_category c', 'c.category_id = eb.category_id', 'left')
+            ->join('event_invites ei', 'ei.invite_id = eb.invite_id', 'left')
+            ->groupBy('eb.event_id, eb.category_id');
 
-        $builder->groupBy('eb.event_id, eb.category_id');
+        // SEARCH FILTER
+        if (!empty($keyword)) {
+            $builder->groupStart()
+                ->like('e.event_name', $keyword)
+                ->orLike('e.event_city', $keyword)
+                ->orLike('e.event_code', $keyword)
+                ->groupEnd();
+        }
 
+        // ----- COUNT TOTAL EVENTS (AFTER GROUPING) -----
+        $countBuilder = clone $builder;
+        $totalRows = $countBuilder->get()->getResultArray();
+        $totalEvents = count($totalRows);
+
+        // ----- PAGINATION -----
+        $builder->limit($limit, $offset);
         $rows = $builder->get()->getResultArray();
 
+        // ----- FORMAT -----
         $finalData = [];
 
         foreach ($rows as $row) {
 
             $eventId = $row['event_id'];
-            $categoryText = $row['category_name']; // Category name text directly
+            $categoryText = $row['category_name'];
             $categoryKey = strtolower($categoryText);
 
             if (!isset($finalData[$eventId])) {
@@ -101,13 +120,14 @@ class EventBooking extends BaseController
                         'total_male_booking' => 0,
                         'total_female_booking' => 0,
                         'total_other_booking' => 0,
-                        'total_couple_booking' => 0
+                        'total_couple_booking' => 0,
                     ]
                 ];
             }
 
             // CATEGORY WISE
-            $finalData[$eventId]['categories'][$categoryText] = [
+            $finalData[$eventId]['categories'][$categoryKey] = [
+                'category_id' => (int) $row['category_id'],
                 'seats' => (int) $row['total_seats'],
                 'total_booking' => (int) $row['total_booking'],
                 'total_quantity' => (int) $row['total_quantity'],
@@ -117,7 +137,7 @@ class EventBooking extends BaseController
                 'total_couple_booking' => (int) $row['total_couple_booking']
             ];
 
-            // OVERALL TOTALS
+            // OVERALL TOTAL
             $finalData[$eventId]['overall_total']['total_booking'] += (int) $row['total_booking'];
             $finalData[$eventId]['overall_total']['total_quantity'] += (int) $row['total_quantity'];
             $finalData[$eventId]['overall_total']['total_male_booking'] += (int) $row['total_male_booking'];
@@ -126,12 +146,23 @@ class EventBooking extends BaseController
             $finalData[$eventId]['overall_total']['total_couple_booking'] += (int) $row['total_couple_booking'];
         }
 
+        $result = array_values($finalData);
+        $totalPages = ceil($totalEvents / $limit);
+
         return $this->response->setJSON([
             'status' => 200,
-            'message' => 'All event booking counts fetched successfully',
-            'data' => array_values($finalData)
+            'message' => 'Event booking counts fetched successfully',
+            'data' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'keyword' => $keyword,
+                'total_records' => $totalEvents,
+                'total_pages' => $totalPages,
+                'events' => $result
+            ]
         ]);
     }
+
     public function listBookings($event_id = null, $search = '')
     {
         $page = (int) $this->request->getGet('current_page') ?: 1;
@@ -139,7 +170,7 @@ class EventBooking extends BaseController
         $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
         $offset = ($page - 1) * $limit;
 
-        // MAIN BUILDER
+        // Join with events, categories, users and event_counts
         $builder = $this->bookingModel
             ->select("
             event_booking.*,
@@ -165,14 +196,14 @@ class EventBooking extends BaseController
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
             ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
             ->join('event_counts', 'event_counts.event_id = event_booking.event_id', 'left')
-            ->where('event_booking.status !=', 4)
-            ->groupBy('event_booking.booking_id');
+            ->where('event_booking.status !=', 4);
 
-        // FILTERS
+        // FIX DUPLICATES
+        $builder->groupBy('event_booking.booking_id');
         if (!empty($event_id)) {
             $builder->where('event_booking.event_id', $event_id);
         }
-
+        // Search filter
         if (!empty($search)) {
             $builder->groupStart()
                 ->like('events.event_name', $search)
@@ -180,22 +211,78 @@ class EventBooking extends BaseController
                 ->orLike('app_users.name', $search)
                 ->orLike('app_users.phone', $search)
                 ->orLike('app_users.email', $search)
+                ->orLike("CASE 
+                        WHEN event_ticket_category.category_name = 1 THEN 'VIP'
+                        WHEN event_ticket_category.category_name = 2 THEN 'Normal'
+                    END", $search)
                 ->groupEnd();
         }
 
-        // ⚠️ CLONE BUILDER FOR COUNT
-        $countBuilder = clone $builder;
-        $total = $countBuilder->countAllResults();
+        // Total count
+        $total = $builder->countAllResults(false);
 
-        // FETCH PAGINATED RESULTS
+        // Fetch paginated list
         $bookings = $builder
             ->orderBy('event_booking.booking_id', 'DESC')
             ->findAll($limit, $offset);
 
-        // FORMAT DATA...
         foreach ($bookings as &$booking) {
-            // your processing logic
+
+            // Category text
+            $categoryMap = [
+                1 => 'VIP',
+                2 => 'Normal'
+            ];
+            $booking['category_text'] = $categoryMap[$booking['category_name']] ?? 'Unknown';
+
+
+            // Status text
+            $statusMap = [
+                1 => 'Booked',
+                2 => 'Cancelled',
+                3 => 'Attended'
+            ];
+            $booking['status_text'] = $statusMap[$booking['status']] ?? 'Unknown';
+            $entryTypeMap = [
+                1 => 'Male',
+                2 => 'Female',
+                3 => 'Other',
+                4 => 'Couple'
+            ];
+            $booking['entry_type'] = $entryTypeMap[$booking['entry_type']] ?? 'N/A';
+
+
+            //  FETCH PARTNER ID USING invite_id FROM event_invites
+            $invite = $this->db->table('event_invites')
+                ->select('partner, entry_type')
+                ->where('invite_id', $booking['invite_id'])
+                ->get()
+                ->getRow();
+
+            $partnerId = ($invite && $invite->entry_type == 4) ? $invite->partner : null;
+
+            // Partner Insta ID only
+            $booking['partner'] = $booking['partner'] ?? null;
+
+            // Format user's profile image URL
+            $booking['profile_image'] = !empty($booking['profile_image'])
+                ? base_url('uploads/profile_images/' . $booking['profile_image'])
+                : null;
+
+            // Remove partner_details completely
+            unset($booking['partner_details']);
+
+
+            // Event booking totals
+            $booking['event_counts'] = [
+                'total_booking' => (int) $booking['total_booking'],
+                'total_male_booking' => (int) $booking['total_male_booking'],
+                'total_female_booking' => (int) $booking['total_female_booking'],
+                'total_other_booking' => (int) $booking['total_other_booking'],
+                'total_couple_booking' => (int) $booking['total_couple_booking'],
+            ];
         }
+
 
         $totalPages = ceil($total / $limit);
 

@@ -42,16 +42,16 @@ class EventController extends BaseController
     {
         $token = $this->getToken();
 
-        // Optional Token: validate only if token exists
         if ($token) {
-            // Validate user using token
+
             $user = $this->db->table('app_users')
+                ->select('user_id, token')
                 ->where('token', trim($token))
                 ->get()
-                ->getRow();
+                ->getRowArray();
 
-            // If token exists but no user found → invalid token
-            if (!$user) {
+            // If token exists but no matching user → token invalid
+            if (!$user || $user['token'] != trim($token)) {
                 return $this->response
                     ->setStatusCode(401)
                     ->setJSON([
@@ -60,7 +60,11 @@ class EventController extends BaseController
                         'message' => 'Invalid or expired token.'
                     ]);
             }
+
+            // Set the valid token user_id
+            $loggedUserId = $user['user_id'];
         }
+
 
         // No token → skip authentication
 
@@ -108,19 +112,22 @@ class EventController extends BaseController
             $event['tag_id'] = json_decode($event['tag_id'], true) ?? [];
 
             $event['ticket_categories'] = $this->db->table('event_ticket_category')
-                ->select('category_name, price')
+                ->select('category_id, category_name, price, dummy_invites, dummy_booked_seats')
                 ->where('event_id', $event['event_id'])
                 ->where('status', 1)
                 ->get()
                 ->getResultArray();
 
+
+            // Fetch total_booking + total_invites
             $eventCounts = $this->db->table('event_counts')
-                ->select('total_booking')
+                ->select('total_booking, total_invites')
                 ->where('event_id', $event['event_id'])
                 ->get()
                 ->getRowArray();
 
             $event['total_booking'] = $eventCounts['total_booking'] ?? 0;
+            $event['total_invites'] = $eventCounts['total_invites'] ?? 0;
         }
 
         return $this->response->setJSON([
@@ -133,20 +140,16 @@ class EventController extends BaseController
     {
         $token = $this->getToken();
 
-        // Optional token: validate ONLY if provided
         if ($token) {
+
             $user = $this->db->table('app_users')
+                ->select('user_id, token')
                 ->where('token', trim($token))
                 ->get()
-                ->getRow();
+                ->getRowArray();
 
-            // if (!$user) {
-            //     return $this->response->setJSON([
-            //         'status' => false,
-            //         'message' => 'Invalid or expired token.'
-            //     ]);
-            // }
-            if (!$user) {
+            // If token exists but no matching user → token invalid
+            if (!$user || $user['token'] != trim($token)) {
                 return $this->response
                     ->setStatusCode(401)
                     ->setJSON([
@@ -156,7 +159,10 @@ class EventController extends BaseController
                     ]);
             }
 
+            // Set the valid token user_id
+            $loggedUserId = $user['user_id'];
         }
+
 
         $event = $this->eventModel->find($id);
 
@@ -204,19 +210,22 @@ class EventController extends BaseController
         }
 
         $event['ticket_categories'] = $this->db->table('event_ticket_category')
-            ->select('category_name, price')
-            ->where('event_id', $id)
+            ->select('category_id, category_name, price, dummy_invites, dummy_booked_seats')
+            ->where('event_id', $event['event_id'])
             ->where('status', 1)
             ->get()
             ->getResultArray();
 
+
+        // Fetch total_booking + total_invites
         $eventCounts = $this->db->table('event_counts')
-            ->select('total_booking')
-            ->where('event_id', $id)
+            ->select('total_booking, total_invites')
+            ->where('event_id', $event['event_id'])
             ->get()
             ->getRowArray();
 
         $event['total_booking'] = $eventCounts['total_booking'] ?? 0;
+        $event['total_invites'] = $eventCounts['total_invites'] ?? 0;
 
         unset($event['host_id'], $event['tag_id']);
         $event['hosts'] = $hosts;
