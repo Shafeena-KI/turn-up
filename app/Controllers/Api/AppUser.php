@@ -442,7 +442,7 @@ class AppUser extends BaseController
 
         $user['interests'] = $interestList;
         unset($user['interest_id']);
-        
+
         $verify = $this->db->table('user_verifications')
             ->where('user_id', $user_id)
             ->get()
@@ -924,18 +924,22 @@ class AppUser extends BaseController
             $profileScore = (int) $verify['score'];
             $addedScore = 0;
 
-            // -------------------------------
-            // INSTAGRAM VERIFICATION (20 POINTS)
-            // -------------------------------
+            // instagram toggle logic
             if ($type === 'instagram') {
 
-                // If admin is verifying AND not verified earlier → add score
-                if ($status == 1 && (int) $verify['instagram_verified'] == 0) {
+                // If currently unverified and now verifying → ADD score
+                if ((int) $verify['instagram_verified'] == 0 && $status == 1) {
                     $addedScore = 20;
                     $profileScore += 20;
                 }
 
-                // Update verification status
+                // If currently verified and now unverifying → MINUS score
+                if ((int) $verify['instagram_verified'] == 1 && $status == 0) {
+                    $addedScore = -20;
+                    $profileScore -= 20;
+                }
+
+                // Save update
                 $this->db->table('user_verifications')
                     ->where('user_id', $user_id)
                     ->update([
@@ -944,15 +948,17 @@ class AppUser extends BaseController
                         'updated_at' => date('Y-m-d H:i:s')
                     ]);
             }
-
-            // -------------------------------
-            // LINKEDIN VERIFICATION (5 POINTS)
-            // -------------------------------
+            // linkedin toggle logic
             if ($type === 'linkedin') {
 
-                if ($status == 1 && (int) $verify['linkedin_verified'] == 0) {
+                if ((int) $verify['linkedin_verified'] == 0 && $status == 1) {
                     $addedScore = 5;
                     $profileScore += 5;
+                }
+
+                if ((int) $verify['linkedin_verified'] == 1 && $status == 0) {
+                    $addedScore = -5;
+                    $profileScore -= 5;
                 }
 
                 $this->db->table('user_verifications')
@@ -1084,27 +1090,28 @@ class AppUser extends BaseController
     //profile status 
     public function updateProfileStatus()
     {
-        $json = $this->request->getJSON(true);
-        $userId = $json['user_id'] ?? $this->request->getVar('user_id');
-        $status = isset($json['profile_status'])
-            ? (int) $json['profile_status']
-            : (int) $this->request->getVar('profile_status');
-        if (empty($userId)) {
+        $userId = $this->request->getVar('user_id');
+        $status = $this->request->getVar('profile_status');
+
+        // Validate input
+        if (empty($userId) || empty($status)) {
             return $this->response->setJSON([
                 'status' => 400,
                 'success' => false,
-                'message' => 'User ID is required'
+                'message' => 'User ID and profile status are required'
             ]);
         }
 
-        if (!in_array($status, [2, 3])) {
+        // Ensure valid status values (1=pending, 2=verified, 3=rejected)
+        if (!in_array($status, [1, 2, 3])) {
             return $this->response->setJSON([
                 'status' => 400,
                 'success' => false,
-                'message' => 'Invalid status! Only 2 (Verified) or 3 (Rejected) allowed'
+                'message' => 'Invalid profile status value'
             ]);
         }
 
+        // Check if user exists
         $user = $this->appUserModel->find($userId);
         if (!$user) {
             return $this->response->setJSON([
@@ -1114,40 +1121,21 @@ class AppUser extends BaseController
             ]);
         }
 
-        $profile_score = (int) ($user['profile_score'] ?? 0);
-        $updatedScore = $profile_score;
-        $updateData = ['profile_status' => $status];
+        // Update profile status
+        $update = $this->appUserModel->update($userId, ['profile_status' => $status]);
 
-        if ($status == 2) {
-
-            // Add missing scores only once
-            if (!empty($user['email'])) {
-                $updatedScore += 15;
-            }
-
-            if (!empty($user['insta_id'])) {
-                $updatedScore += 20;
-            }
-
-            if (!empty($user['linkedin_id'])) {
-                $updatedScore += 5;
-            }
-
-            // Score should not exceed 100
-            $updatedScore = min($updatedScore, 100);
-            $updateData['profile_score'] = $updatedScore;
+        if ($update) {
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Profile status updated successfully'
+            ]);
         }
 
-        $this->appUserModel->update($userId, $updateData);
-        $genderMap = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
-        $genderText = $genderMap[(int) $user['gender']] ?? 'Not set';
         return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => "Profile status updated successfully.",
-            'previous_score' => $profile_score,
-            'updated_score' => $updatedScore,
-            'gender' => $genderText,
+            'status' => 500,
+            'success' => false,
+            'message' => 'Failed to update profile status'
         ]);
     }
     //Account status Updates 
