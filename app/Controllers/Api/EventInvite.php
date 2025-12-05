@@ -227,14 +227,12 @@ class EventInvite extends BaseController
         // FINAL INVITE CODE (IN + EVENTCODE + padded number)
         $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
 
-        // Determine initial inviteStatus based on category (VIP may be auto-approved if seats available)
         $inviteStatus = 0; // default pending
 
         if ($categoryType === 1) { // VIP - check seats before auto-approve
-            // get total seats from the category record (this is already $category)
+            
             $vip_total_seats = (int) $category->total_seats;
 
-            // current counts for this event/category (use real category_id FK)
             $countsTable = $db->table('event_counts');
             $vipCounts = $countsTable
                 ->where('event_id', $event_id)
@@ -454,10 +452,9 @@ class EventInvite extends BaseController
         if (strpos($phone, '+91') !== 0) {
             $phone = '+91' . ltrim($phone, '0');
         }
-        // SIMPLE PAYLOAD SAME AS OTP 
+        // PAYLOAD  
         $payload = [
             "phone" => $phone,
-            "name" => "Test",
             "username" => $name,
             "event_name" => $event_name
         ];
@@ -487,7 +484,6 @@ class EventInvite extends BaseController
             "phone" => $phone,
             "username" => $name,
             "event_name" => $event_name,
-            "template" => "event_request_approval_v2" // IMPORTANT!
         ];
 
         $ch = curl_init($url);

@@ -361,7 +361,6 @@ class AppUser extends BaseController
             return ['error' => 'Invalid or expired token: ' . $e->getMessage()];
         }
     }
-
     public function AdmingetUserById()
     {
         // Validate admin token
@@ -499,26 +498,25 @@ class AppUser extends BaseController
         $profileScore = (int) ($user['profile_score'] ?? 0);
         $updatedBy = $data['updated_by'] ?? 'user'; // default user
 
-        /* ---------- Scoring Rules ---------- */
-
         // Phone score only first time
         if (!empty($data['phone']) && empty($user['phone'])) {
             $profileScore += 20;
         }
 
-        // Insta score only user first time
-        if ($updatedBy == 'user' && !empty($data['insta_id']) && empty($user['insta_id'])) {
+        // Insta score only admin verification first time
+        if ($updatedBy == 'admin' && !empty($data['insta_id']) && empty($user['insta_id'])) {
             $profileScore += 20;
         }
+
+        // LinkedIn score only admin verification first time
+        if ($updatedBy == 'admin' && !empty($data['linkedin_id']) && empty($user['linkedin_id'])) {
+            $profileScore += 5;
+        }
+
 
         // Email score only admin verification first time
         if ($updatedBy == 'admin' && !empty($data['email']) && empty($user['email'])) {
             $profileScore += 15;
-        }
-
-        // LinkedIn only user first time
-        if ($updatedBy == 'user' && !empty($data['linkedin_id']) && empty($user['linkedin_id'])) {
-            $profileScore += 5;
         }
 
         // Interest score first time
@@ -540,7 +538,7 @@ class AppUser extends BaseController
             $profileScore += 5;
         }
 
-        /* ---------- Profile Image ---------- */
+        //  Profile Image
         $profileImage = $user['profile_image'];
         $file = $this->request->getFile('profile_image');
 
