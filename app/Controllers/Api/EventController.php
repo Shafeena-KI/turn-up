@@ -585,12 +585,13 @@ class EventController extends BaseController
 
             // --- TOTAL BOOKINGS FROM event_counts ---
             $eventCounts = $this->db->table('event_counts')
-                ->select('total_booking')
+                ->selectSum('total_booking')
                 ->where('event_id', $event['event_id'])
                 ->get()
                 ->getRowArray();
 
-            $event['total_booking'] = $eventCounts['total_booking'] ?? 0;
+            $event['total_booking'] = (int) ($eventCounts['total_booking'] ?? 0);
+
         }
 
         $totalPages = ceil($total / $limit);
