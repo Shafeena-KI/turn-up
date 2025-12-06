@@ -447,10 +447,13 @@ class AppUser extends BaseController
             ->get()
             ->getRowArray();
 
-        // If no verification row exists → return default values
+        // Replace admin score return logic
         $user['instagram_verified'] = (int) ($verify['instagram_verified'] ?? 0);
         $user['linkedin_verified'] = (int) ($verify['linkedin_verified'] ?? 0);
-        $user['profile_score'] = (int) ($verify['score'] ?? 0);
+
+        // Use score from app_user table
+        $user['profile_score'] = (int) $user['profile_score'];
+
         return $this->response
             ->setStatusCode(200)
             ->setJSON([
@@ -459,7 +462,6 @@ class AppUser extends BaseController
                 'data' => $user
             ]);
     }
-
     // UPDATE USER DETAILS
     public function updateUser()
     {
@@ -919,34 +921,33 @@ class AppUser extends BaseController
                 ]);
             }
 
-            $profileScore = (int) $verify['score'];
+            // FIXED → use app_user table score
+            $profileScore = (int) $user['profile_score'];
             $addedScore = 0;
 
-            // instagram toggle logic
+            // instagram
             if ($type === 'instagram') {
 
-                // If currently unverified and now verifying → ADD score
                 if ((int) $verify['instagram_verified'] == 0 && $status == 1) {
                     $addedScore = 20;
                     $profileScore += 20;
                 }
 
-                // If currently verified and now unverifying → MINUS score
                 if ((int) $verify['instagram_verified'] == 1 && $status == 0) {
                     $addedScore = -20;
                     $profileScore -= 20;
                 }
 
-                // Save update
+                // update verification flag only
                 $this->db->table('user_verifications')
                     ->where('user_id', $user_id)
                     ->update([
                         'instagram_verified' => $status,
-                        'score' => $profileScore,
                         'updated_at' => date('Y-m-d H:i:s')
                     ]);
             }
-            // linkedin toggle logic
+
+            // linkedin
             if ($type === 'linkedin') {
 
                 if ((int) $verify['linkedin_verified'] == 0 && $status == 1) {
@@ -963,7 +964,6 @@ class AppUser extends BaseController
                     ->where('user_id', $user_id)
                     ->update([
                         'linkedin_verified' => $status,
-                        'score' => $profileScore,
                         'updated_at' => date('Y-m-d H:i:s')
                     ]);
             }

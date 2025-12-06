@@ -230,7 +230,7 @@ class EventInvite extends BaseController
         $inviteStatus = 0; // default pending
 
         if ($categoryType === 1) { // VIP - check seats before auto-approve
-            
+
             $vip_total_seats = (int) $category->total_seats;
 
             $countsTable = $db->table('event_counts');
@@ -447,8 +447,10 @@ class EventInvite extends BaseController
 
     private function sendInviteConfirmation($phone, $name, $event_name)
     {
-        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute";
-
+        $url = [
+            "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute",
+            "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/6932bced35cc1fd9bcef7ebc/webhook/execute"
+        ];
         if (strpos($phone, '+91') !== 0) {
             $phone = '+91' . ltrim($phone, '0');
         }
@@ -474,7 +476,10 @@ class EventInvite extends BaseController
     }
     private function sendEventConfirmation($phone, $name, $event_name)
     {
-        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute";
+        $url = [
+            "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute",
+            "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/6932bd0735cc1fd9bcef7ef4/webhook/execute"
+        ];
 
         if (strpos($phone, '+91') !== 0) {
             $phone = '+91' . ltrim($phone, '0');
