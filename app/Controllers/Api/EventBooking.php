@@ -163,142 +163,7 @@ class EventBooking extends BaseController
         ]);
     }
 
-    public function listBookings($event_id = null, $search = '')
-    {
-        $page = (int) $this->request->getGet('current_page') ?: 1;
-        $limit = (int) $this->request->getGet('per_page') ?: 10;
-        $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
-        $offset = ($page - 1) * $limit;
 
-        // Join with events, categories, users and event_counts
-        $builder = $this->bookingModel
-            ->select("
-            event_booking.*,
-            events.event_name,
-            events.event_city,
-            event_ticket_category.category_name,
-            app_users.name,
-            app_users.phone,
-            app_users.email,
-            app_users.insta_id,
-            app_users.profile_image,
-            app_users.profile_status,
-            event_invites.entry_type,  
-            event_invites.partner,     
-            event_counts.total_booking,
-            event_counts.total_male_booking,
-            event_counts.total_female_booking,
-            event_counts.total_other_booking,
-            event_counts.total_couple_booking
-        ")
-            ->join('events', 'events.event_id = event_booking.event_id', 'left')
-            ->join('event_ticket_category', 'event_ticket_category.category_id = event_booking.category_id', 'left')
-            ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
-            ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
-            ->join('event_counts', 'event_counts.event_id = event_booking.event_id', 'left')
-            ->where('event_booking.status !=', 4);
-
-        // FIX DUPLICATES
-        $builder->groupBy('event_booking.booking_id');
-        if (!empty($event_id)) {
-            $builder->where('event_booking.event_id', $event_id);
-        }
-        // Search filter
-        if (!empty($search)) {
-            $builder->groupStart()
-                ->like('events.event_name', $search)
-                ->orLike('events.event_city', $search)
-                ->orLike('app_users.name', $search)
-                ->orLike('app_users.phone', $search)
-                ->orLike('app_users.email', $search)
-                ->orLike("CASE 
-                        WHEN event_ticket_category.category_name = 1 THEN 'VIP'
-                        WHEN event_ticket_category.category_name = 2 THEN 'Normal'
-                    END", $search)
-                ->groupEnd();
-        }
-
-        // Total count
-        $total = $builder->countAllResults(false);
-
-        // Fetch paginated list
-        $bookings = $builder
-            ->orderBy('event_booking.booking_id', 'DESC')
-            ->findAll($limit, $offset);
-
-        foreach ($bookings as &$booking) {
-
-            // Category text
-            $categoryMap = [
-                1 => 'VIP',
-                2 => 'Normal'
-            ];
-            $booking['category_text'] = $categoryMap[$booking['category_name']] ?? 'Unknown';
-
-
-            // Status text
-            $statusMap = [
-                1 => 'Booked',
-                2 => 'Cancelled',
-                3 => 'Attended'
-            ];
-            $booking['status_text'] = $statusMap[$booking['status']] ?? 'Unknown';
-            $entryTypeMap = [
-                1 => 'Male',
-                2 => 'Female',
-                3 => 'Other',
-                4 => 'Couple'
-            ];
-            $booking['entry_type'] = $entryTypeMap[$booking['entry_type']] ?? 'N/A';
-
-
-            //  FETCH PARTNER ID USING invite_id FROM event_invites
-            $invite = $this->db->table('event_invites')
-                ->select('partner, entry_type')
-                ->where('invite_id', $booking['invite_id'])
-                ->get()
-                ->getRow();
-
-            $partnerId = ($invite && $invite->entry_type == 4) ? $invite->partner : null;
-
-            // Partner Insta ID only
-            $booking['partner'] = $booking['partner'] ?? null;
-
-            // Format user's profile image URL
-            $booking['profile_image'] = !empty($booking['profile_image'])
-                ? base_url('uploads/profile_images/' . $booking['profile_image'])
-                : null;
-
-            // Remove partner_details completely
-            unset($booking['partner_details']);
-
-
-            // Event booking totals
-            $booking['event_counts'] = [
-                'total_booking' => (int) $booking['total_booking'],
-                'total_male_booking' => (int) $booking['total_male_booking'],
-                'total_female_booking' => (int) $booking['total_female_booking'],
-                'total_other_booking' => (int) $booking['total_other_booking'],
-                'total_couple_booking' => (int) $booking['total_couple_booking'],
-            ];
-        }
-
-
-        $totalPages = ceil($total / $limit);
-
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'data' => [
-                'current_page' => $page,
-                'per_page' => $limit,
-                'keyword' => $search,
-                'total_records' => $total,
-                'total_pages' => $totalPages,
-                'bookings' => $bookings
-            ]
-        ]);
-    }
     public function getTotalBookingCounts($event_id)
     {
         // Validate event_id
@@ -658,13 +523,25 @@ class EventBooking extends BaseController
         }
 
         // Get admin id from token
+        // $admin_id = $this->getAdminIdFromToken();
+
+        // if (!$admin_id) {
+        //     return $this->response->setJSON([
+        //         'status' => false,
+        //         'message' => 'Unauthorized - Admin ID missing in token'
+        //     ]);
+        // }
+
         $admin_id = $this->getAdminIdFromToken();
 
         if (!$admin_id) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Unauthorized - Admin ID missing in token'
-            ]);
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Unauthorized - Admin ID missing in token'
+                ]);
         }
 
         // Fetch admin name

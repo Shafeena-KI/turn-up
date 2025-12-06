@@ -149,22 +149,22 @@ class Login extends BaseController
     //  Validate Token 
     // ============================================================
     private function validateToken()
-    {
-        $authHeader = $this->request->getHeaderLine('Authorization');
-        if (!$authHeader) {
-            return ['status' => false, 'message' => 'Authorization token required'];
-        }
+        {
+            $authHeader = $this->request->getHeaderLine('Authorization');
+            if (!$authHeader) {
+                return ['status' => false, 'message' => 'Authorization token required'];
+            }
 
-        $token = str_replace('Bearer ', '', $authHeader);
-        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+            $token = str_replace('Bearer ', '', $authHeader);
+            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
 
-        try {
-            $decoded = JWT::decode($token, new Key($key, 'HS256'));
-            return ['status' => true, 'admin_id' => $decoded->data->admin_id];
-        } catch (\Throwable $e) {
-            return ['status' => false, 'message' => 'Invalid or expired token'];
+            try {
+                $decoded = JWT::decode($token, new Key($key, 'HS256'));
+                return ['status' => true, 'admin_id' => $decoded->data->admin_id];
+            } catch (\Throwable $e) {
+                return ['status' => false, 'message' => 'Invalid or expired token'];
+            }
         }
-    }
 
     // ============================================================
     //  CREATE ADMIN
@@ -205,19 +205,43 @@ class Login extends BaseController
     // ============================================================
     //  LIST ALL ADMINS
     // ============================================================
+    // public function listAdmins()
+    // {
+    //     $auth = $this->validateToken();
+    //     if (!$auth['status']) return $this->response->setJSON($auth);
+
+    //     $admins = $this->adminModel->orderBy('admin_id', 'DESC')->findAll();
+
+    //     return $this->response->setJSON([
+    //         'status' => 200,
+    //         'success' => true,
+    //         'data' => $admins
+    //     ]);
+    // }
+
     public function listAdmins()
-    {
+{
+    // Read token from headers
+    $token = $this->request->getHeaderLine('Authorization');
+
+    // If token is provided, validate it
+    if (!empty($token)) {
         $auth = $this->validateToken();
-        if (!$auth['status']) return $this->response->setJSON($auth);
-
-        $admins = $this->adminModel->orderBy('admin_id', 'DESC')->findAll();
-
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'data' => $admins
-        ]);
+        if (!$auth['status']) {
+            return $this->response->setStatusCode(401)->setJSON($auth);
+        }
     }
+
+    // No token or token OK → return data
+    $admins = $this->adminModel->orderBy('admin_id', 'DESC')->findAll();
+
+    return $this->response->setJSON([
+        'status' => 200,
+        'success' => true,
+        'data' => $admins
+    ]);
+}
+
 
     // ============================================================
     //  GET SINGLE ADMIN

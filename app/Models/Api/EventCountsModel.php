@@ -15,8 +15,8 @@ class EventCountsModel extends Model
         'total_other_invites',
         'total_booking', 'total_male_booking', 'total_female_booking', 'total_couple_booking',
         'total_other_booking',
-        'total_checkin', 'total_male_checkin', 'total_female_checkin', 'total_couple_checkin',
-        'total_other_checkin',
+        'total_checkin', 'total_male_checkin', 'total_female_checkin', 'total_other_checkin', 'total_couple_checkin',
+        
         'updated_at'
     ];
 }
