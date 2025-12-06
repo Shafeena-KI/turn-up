@@ -38,7 +38,7 @@ class PaymentController extends ResourceController
         
         try {
             $input = $this->request->getJSON(true);
-            $userId = "1"; //$this->request->getPost('user_id') ?? '5';
+            $userId = $this->request->getPost('user_id');
             $clientIP = $this->request->getIPAddress();
             
             // Validate authentication

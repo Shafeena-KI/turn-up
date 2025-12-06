@@ -13,7 +13,6 @@ class PaymentFilter implements FilterInterface
 {
     public function before(RequestInterface $request, $arguments = null)
     {
-        return true;
         $uri = $request->getUri()->getPath();
         
         // Only process create-order requests
