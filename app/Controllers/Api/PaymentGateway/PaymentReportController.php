@@ -39,14 +39,19 @@ class PaymentReportController extends ResourceController
             transactions.status, 
             transactions.initiated_at,
             transactions.completed_at,
+            events.event_name,
             payments.invite_id, 
-            payments.event_id, 
-            payments.user_id, 
+            payments.event_id,  
+            event_booking.booking_id,
+            event_booking.booking_code, 
             app_users.name as user_name, 
-            events.event_name')
+            app_users.profile_image, 
+            app_users.profile_status, 
+            app_users.email')
             ->join('payments', 'payments.payment_id = transactions.payment_id')
             ->join('app_users', 'app_users.user_id = payments.user_id')
             ->join('events', 'events.event_id = payments.event_id')
+            ->join('event_booking', 'event_booking.booking_id = payments.booking_id', 'left')
             ->orderBy('transactions.initiated_at', $order);
             
         if ($status) {
@@ -75,7 +80,14 @@ class PaymentReportController extends ResourceController
         
         // Get event details with transaction counts
         $eventDetails = $this->transactionModel
-            ->select('events.event_id, events.event_name, events.event_location, events.event_date_start, events.event_date_end, events.total_seats, events.status as event_status')
+            ->select('events.event_id, 
+                events.event_name, 
+                events.event_location, 
+                events.event_date_start, 
+                events.event_date_end, 
+                events.total_seats, 
+                events.status as event_status
+            ')
             ->join('payments', 'payments.payment_id = transactions.payment_id')
             ->join('events', 'events.event_id = payments.event_id')
             ->groupBy('events.event_id')
@@ -217,10 +229,19 @@ class PaymentReportController extends ResourceController
             payments.invite_id, 
             payments.event_id, 
             events.event_name, 
-            event_invites.invite_code')
+            event_invites.invite_code,
+            event_booking.booking_code, 
+            event_booking.booking_id,
+            app_users.name as user_name, 
+            app_users.profile_image, 
+            app_users.profile_status, 
+            app_users.email
+            ')
             ->join('payments', 'payments.payment_id = transactions.payment_id')
+            ->join('app_users', 'app_users.user_id = payments.user_id')
             ->join('events', 'events.event_id = payments.event_id')
             ->join('event_invites', 'event_invites.invite_id = payments.invite_id')
+            ->join('event_booking', 'event_booking.booking_id = payments.booking_id', 'left')
             ->where('payments.user_id', $userId)
             ->orderBy('transactions.initiated_at', $order)
             ->paginate($limit, 'default', $page);
@@ -260,13 +281,21 @@ class PaymentReportController extends ResourceController
             transactions.status,
             transactions.initiated_at,
             transactions.completed_at,
-            payments.invite_id, 
-            payments.user_id, 
+            event_invites.invite_code,
+            event_booking.booking_id,
+            event_booking.booking_code, 
             app_users.name as user_name, 
-            event_invites.invite_code')
+            app_users.profile_image, 
+            app_users.profile_status, 
+            app_users.email,
+            events.event_id,
+            events.event_name
+            ')
             ->join('payments', 'payments.payment_id = transactions.payment_id')
             ->join('app_users', 'app_users.user_id = payments.user_id')
             ->join('event_invites', 'event_invites.invite_id = payments.invite_id')
+            ->join('events', 'events.event_id = event_invites.event_id')
+            ->join('event_booking', 'event_booking.booking_id = payments.booking_id', 'left')
             ->where('payments.event_id', $eventId)
             ->orderBy('transactions.initiated_at', $order);
             
