@@ -103,6 +103,7 @@ class EventInviteModel extends Model
                 event_invites.event_id,
                 event_invites.user_id,
                 event_invites.category_id,
+                event_invites.invite_code,
                 event_invites.entry_type,
                 event_ticket_category.price,
                 event_invites.status,

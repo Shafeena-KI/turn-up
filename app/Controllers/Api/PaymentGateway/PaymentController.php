@@ -3,6 +3,9 @@
 namespace App\Controllers\Api\PaymentGateway;
 
 use App\Libraries\BookingLibrary;
+use App\Libraries\CategoryLibrary;
+
+use App\Models\Api\EventCategoryModel;
 use App\Models\Api\PaymentModel;
 use App\Libraries\CashfreePayment;
 use App\Models\Api\EventInviteModel;
@@ -15,18 +18,24 @@ class PaymentController extends ResourceController
     protected $cashfree;
     protected $paymentModel;
     protected $bookingLibrary;
+    protected $categoryLibrary;
     protected $eventInviteModel;
     protected $transactionModel;
     protected $eventBookingModel;
+    protected $eventCategorygModel;
+
 
     public function __construct()
     {
-        $this->bookingLibrary       = new BookingLibrary();
         $this->paymentModel         = new PaymentModel();
         $this->cashfree             = new CashfreePayment();
         $this->eventInviteModel     = new EventInviteModel();
         $this->transactionModel     = new TransactionModel();
         $this->eventBookingModel    = new EventBookingModel();
+        $this->eventCategorygModel  = new EventCategoryModel();
+
+        $this->bookingLibrary       = new BookingLibrary();
+        $this->categoryLibrary      = new CategoryLibrary();
     }
 
     /**
@@ -69,11 +78,25 @@ class PaymentController extends ResourceController
 
             // Only allow payments for APPROVED invites
             if ($invite['status'] == EventInviteModel::PAYMENT_PENDING) {
-                throw new \InvalidArgumentException('Your initial payment attempt has failed. Please request admin approval to retry the payment.');
+
+                $invCategory = $this->eventCategorygModel->getInviteCategory($inviteId);
+                $totalInvite = $this->categoryLibrary->count($invCategory->entry_type);
+
+                if(!empty($invCategory) && !empty($totalInvite))
+                {
+                    if($invCategory->balance_seats < $totalInvite['invite_total'])
+                    {
+                        throw new \InvalidArgumentException('Your booking cannot be completed because the required number of seats is not available.');
+                    }
+                }
+                else
+                {
+                    throw new \InvalidArgumentException('Your initial payment attempt has failed. Please request admin approval to retry the payment.');
+                }
             }
 
             // Only allow payments for APPROVED invites
-            if ($invite['status'] != EventInviteModel::APPROVED) {
+            if ($invite['status'] != EventInviteModel::APPROVED && $invite['status'] != EventInviteModel::PAYMENT_PENDING) {
                 throw new \InvalidArgumentException('Invite must be approved for payment');
             }
 
@@ -552,45 +575,19 @@ class PaymentController extends ResourceController
                 
             if ($existingBooking) {
                 $this->paymentModel->update($payment['payment_id'], ['booking_id' => $existingBooking['booking_id']]);
+                log_message('info', 'Booking already exists for invite_id: ' . $payment['invite_id']);
                 return true;
             }
             
-            $invite = $this->eventInviteModel->find($payment['invite_id']);
-            if (!$invite) {
-                log_message('error', 'Invite not found: ' . $payment['invite_id']);
-                return false;
-            }
+            // Call BookEvent from BookingLibrary
+            $bookingResult = $this->bookingLibrary->BookEvent($payment['invite_id'], $payment['user_id']);
             
-            $this->eventBookingModel->transStart();
-            
-            $bookingCode = 'BK' . strtoupper(substr(md5($payment['invite_id'] . time() . rand()), 0, 8));
-            
-            $bookingData = [
-                'user_id' => $payment['user_id'],
-                'event_id' => $payment['event_id'],
-                'category_id' => $invite['category_id'],
-                'invite_id' => $payment['invite_id'],
-                'total_price' => $payment['amount'],
-                'booking_code' => $bookingCode,
-                'qr_code' => '',
-                'quantity' => 1,
-                'status' => 1,
-                'created_at' => date('Y-m-d H:i:s')
-            ];
-            
-            $bookingId = $this->eventBookingModel->insert($bookingData);
-            
-            if ($bookingId) {
-                $this->paymentModel->update($payment['payment_id'], ['booking_id' => $bookingId]);
+            if ($bookingResult['success']) {
+                $this->paymentModel->update($payment['payment_id'], ['booking_id' => $bookingResult['booking_id']]);
                 
-                $qrUrl = base_url('api/scan-qr?code=' . $bookingCode);
-                $this->eventBookingModel->update($bookingId, ['qr_code' => $qrUrl]);
-                
-                $this->eventBookingModel->transCommit();
-                
-                log_message('info', 'Booking created successfully', [
-                    'booking_id' => $bookingId,
-                    'booking_code' => $bookingCode,
+                log_message('info', 'Booking created successfully via BookingLibrary', [
+                    'booking_id' => $bookingResult['booking_id'],
+                    'booking_code' => $bookingResult['booking_code'],
                     'user_id' => $payment['user_id'],
                     'invite_id' => $payment['invite_id']
                 ]);
@@ -598,13 +595,10 @@ class PaymentController extends ResourceController
                 return true;
             }
             
-            $this->eventBookingModel->transRollback();
+            log_message('error', 'BookEvent failed: ' . ($bookingResult['message'] ?? 'Unknown error'));
             return false;
             
         } catch (\Exception $e) {
-            if (isset($this->eventBookingModel)) {
-                $this->eventBookingModel->transRollback();
-            }
             log_message('error', 'Booking creation failed: ' . $e->getMessage());
             return false;
         }
