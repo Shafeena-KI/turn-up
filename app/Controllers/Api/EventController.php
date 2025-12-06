@@ -777,5 +777,4 @@ class EventController extends BaseController
             'message' => $updated ? 'Event deleted successfully' : 'Failed to delete event'
         ]);
     }
-
 }

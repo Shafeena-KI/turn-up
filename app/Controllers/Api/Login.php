@@ -22,7 +22,6 @@ class Login extends BaseController
 
     public function adminLogin()
     {
-
         try {
             $data = $this->request->getJSON(true);
 
@@ -36,7 +35,10 @@ class Login extends BaseController
                     'message' => 'Email and Password are required.'
                 ]);
             }
+
+            // Verify credentials
             $result = $this->adminModel->verifyAdmin($email, $password);
+
             if (isset($result['error']) && $result['error'] === true) {
                 return $this->response->setJSON([
                     'status' => 401,
@@ -44,15 +46,43 @@ class Login extends BaseController
                     'message' => $result['message']
                 ]);
             }
+
             $admin = $result['data'];
 
-            // Use .env secret key
+            // STATUS CHECK (MOST IMPORTANT PART)
+
+            if ($admin['status'] == 2) {
+                return $this->response->setJSON([
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Your account is suspended. Please contact Super Admin.'
+                ]);
+            }
+
+            if ($admin['status'] == 3) {
+                return $this->response->setJSON([
+                    'status' => 410,
+                    'success' => false,
+                    'message' => 'This admin account has been deleted.'
+                ]);
+            }
+
+            // ONLY ACTIVE ADMINS CAN LOGIN
+            if ($admin['status'] != 1) {
+                return $this->response->setJSON([
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Admin account is not active.'
+                ]);
+            }
+
+            // Generate JWT token
             $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
 
             $payload = [
                 'iss' => 'turn-up',
                 'iat' => time(),
-                'exp' => time() + 3600,         // Expiration time (1 hour)
+                'exp' => time() + 3600, // 1 hour
                 'data' => [
                     'admin_id' => $admin['admin_id'],
                     'email' => $admin['email']
@@ -61,31 +91,83 @@ class Login extends BaseController
 
             $token = JWT::encode($payload, $key, 'HS256');
 
-            // Make sure token column is allowed and admin_id exists
+            // Save token
             if (!empty($admin['admin_id'])) {
-                $updated = $this->adminModel->update($admin['admin_id'], ['token' => $token]);
-                if (!$updated) {
-                    log_message('error', 'Failed to update token: ' . json_encode($this->adminModel->errors()));
-                }
+                $this->adminModel->update($admin['admin_id'], [
+                    'token' => $token
+                ]);
             }
 
             return $this->response->setJSON([
                 'status' => 200,
                 'success' => true,
-                'data' => $admin,
                 'message' => 'Login successful',
-                'token' => $token,
-
+                'data' => [
+                    'admin_id' => $admin['admin_id'],
+                    'email' => $admin['email'],
+                    'role_id' => $admin['role_id'] ?? null
+                ],
+                'token' => $token
             ]);
+
         } catch (\Throwable $e) {
+
+            log_message('error', $e->getMessage());
+
             return $this->response->setJSON([
                 'status' => 500,
                 'success' => false,
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'message' => 'Internal Server Error'
             ]);
         }
     }
+    public function updateAdminUserStatus()
+    {
+        $auth = $this->validateToken();
+        if (!$auth['status'])
+            return $this->response->setJSON($auth);
+        $data = $this->request->getJSON(true);
+
+        $adminId = $data['admin_id'] ?? null;
+        $status = $data['status'] ?? null;
+
+        // Validation
+        if (!$adminId || !$status) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Admin ID and status are required'
+            ])->setStatusCode(400);
+        }
+
+        // Allowed statuses
+        // 1 = Active, 2 = Suspended, 3 = Deleted
+        if (!in_array((int) $status, [1, 2, 3, 4])) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Invalid status value'
+            ])->setStatusCode(400);
+        }
+
+        // Check admin exists
+        $admin = $this->adminModel->find($adminId);
+        if (!$admin) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Admin user not found'
+            ])->setStatusCode(404);
+        }
+
+        // Update status
+        $this->adminModel->update($adminId, [
+            'status' => $status
+        ]);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Admin account status updated successfully'
+        ])->setStatusCode(200);
+    }
+
     public function adminLogout()
     {
         try {
@@ -145,26 +227,24 @@ class Login extends BaseController
         }
     }
 
-    // ============================================================
     //  Validate Token 
-    // ============================================================
     private function validateToken()
-        {
-            $authHeader = $this->request->getHeaderLine('Authorization');
-            if (!$authHeader) {
-                return ['status' => false, 'message' => 'Authorization token required'];
-            }
-
-            $token = str_replace('Bearer ', '', $authHeader);
-            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
-
-            try {
-                $decoded = JWT::decode($token, new Key($key, 'HS256'));
-                return ['status' => true, 'admin_id' => $decoded->data->admin_id];
-            } catch (\Throwable $e) {
-                return ['status' => false, 'message' => 'Invalid or expired token'];
-            }
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+        if (!$authHeader) {
+            return ['status' => false, 'message' => 'Authorization token required'];
         }
+
+        $token = str_replace('Bearer ', '', $authHeader);
+        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+        try {
+            $decoded = JWT::decode($token, new Key($key, 'HS256'));
+            return ['status' => true, 'admin_id' => $decoded->data->admin_id];
+        } catch (\Throwable $e) {
+            return ['status' => false, 'message' => 'Invalid or expired token'];
+        }
+    }
 
     // ============================================================
     //  CREATE ADMIN
@@ -172,7 +252,8 @@ class Login extends BaseController
     public function createAdmin()
     {
         $auth = $this->validateToken();
-        if (!$auth['status']) return $this->response->setJSON($auth);
+        if (!$auth['status'])
+            return $this->response->setJSON($auth);
 
         $data = $this->request->getJSON(true);
 
@@ -185,12 +266,12 @@ class Login extends BaseController
         }
 
         $insert = [
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'phone'     => $data['phone'] ?? '',
-            'role_id'   => $data['role_id'] ?? 0,
-            'password'  => password_hash($data['password'], PASSWORD_DEFAULT),
-            'status'    => 1
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'phone' => $data['phone'] ?? '',
+            'role_id' => $data['role_id'] ?? 0,
+            'password' => password_hash($data['password'], PASSWORD_DEFAULT),
+            'status' => 1
         ];
 
         $this->adminModel->insert($insert);
@@ -220,27 +301,27 @@ class Login extends BaseController
     // }
 
     public function listAdmins()
-{
-    // Read token from headers
-    $token = $this->request->getHeaderLine('Authorization');
+    {
+        // Read token from headers
+        $token = $this->request->getHeaderLine('Authorization');
 
-    // If token is provided, validate it
-    if (!empty($token)) {
-        $auth = $this->validateToken();
-        if (!$auth['status']) {
-            return $this->response->setStatusCode(401)->setJSON($auth);
+        // If token is provided, validate it
+        if (!empty($token)) {
+            $auth = $this->validateToken();
+            if (!$auth['status']) {
+                return $this->response->setStatusCode(401)->setJSON($auth);
+            }
         }
+
+        // No token or token OK → return data
+        $admins = $this->adminModel->orderBy('admin_id', 'DESC')->findAll();
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'data' => $admins
+        ]);
     }
-
-    // No token or token OK → return data
-    $admins = $this->adminModel->orderBy('admin_id', 'DESC')->findAll();
-
-    return $this->response->setJSON([
-        'status' => 200,
-        'success' => true,
-        'data' => $admins
-    ]);
-}
 
 
     // ============================================================
@@ -249,7 +330,8 @@ class Login extends BaseController
     public function getAdmin($id)
     {
         $auth = $this->validateToken();
-        if (!$auth['status']) return $this->response->setJSON($auth);
+        if (!$auth['status'])
+            return $this->response->setJSON($auth);
 
         $admin = $this->adminModel->find($id);
 
@@ -271,63 +353,64 @@ class Login extends BaseController
     // ============================================================
     //  UPDATE ADMIN
     // ============================================================
-public function updateAdmin()
-{
-    // Validate token
-    $auth = $this->validateToken();
-    if (!$auth['status']) return $this->response->setJSON($auth);
+    public function updateAdmin()
+    {
+        // Validate token
+        $auth = $this->validateToken();
+        if (!$auth['status'])
+            return $this->response->setJSON($auth);
 
-    // Detect JSON
-    $contentType = $this->request->getHeaderLine('Content-Type');
-    $isJson = strpos($contentType, 'application/json') !== false;
-    $json = $isJson ? $this->request->getJSON(true) : [];
+        // Detect JSON
+        $contentType = $this->request->getHeaderLine('Content-Type');
+        $isJson = strpos($contentType, 'application/json') !== false;
+        $json = $isJson ? $this->request->getJSON(true) : [];
 
-    // Get admin ID from JSON or POST
-    $id = $isJson ? ($json['id'] ?? null) : $this->request->getPost('id');
-    if (empty($id)) {
-        return $this->response->setJSON([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Admin ID is required'
-        ]);
-    }
-
-    // Find admin
-    $admin = $this->adminModel->find($id);
-    if (!$admin) {
-        return $this->response->setJSON([
-            'status' => 404,
-            'success' => false,
-            'message' => 'Admin not found'
-        ]);
-    }
-
-    // Fields to update
-    $fields = ['name', 'email', 'phone', 'role_id', 'status', 'password'];
-    $update = [];
-
-    foreach ($fields as $field) {
-        $value = $isJson ? ($json[$field] ?? null) : $this->request->getPost($field);
-        if ($value !== null && $value !== '') {
-            if ($field == 'password') {
-                $value = password_hash($value, PASSWORD_DEFAULT);
-            }
-            $update[$field] = $value;
+        // Get admin ID from JSON or POST
+        $id = $isJson ? ($json['id'] ?? null) : $this->request->getPost('id');
+        if (empty($id)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Admin ID is required'
+            ]);
         }
+
+        // Find admin
+        $admin = $this->adminModel->find($id);
+        if (!$admin) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'Admin not found'
+            ]);
+        }
+
+        // Fields to update
+        $fields = ['name', 'email', 'phone', 'role_id', 'status', 'password'];
+        $update = [];
+
+        foreach ($fields as $field) {
+            $value = $isJson ? ($json[$field] ?? null) : $this->request->getPost($field);
+            if ($value !== null && $value !== '') {
+                if ($field == 'password') {
+                    $value = password_hash($value, PASSWORD_DEFAULT);
+                }
+                $update[$field] = $value;
+            }
+        }
+
+        $this->adminModel->update($id, $update);
+
+        // Fetch updated admin
+        $updatedAdmin = $this->adminModel->find($id);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Admin updated successfully',
+            'data' => $updatedAdmin
+        ]);
     }
-
-    $this->adminModel->update($id, $update);
-
-    // Fetch updated admin
-    $updatedAdmin = $this->adminModel->find($id);
-
-    return $this->response->setJSON([
-        'status' => 200,
-        'success' => true,
-        'message' => 'Admin updated successfully',
-        'data' => $updatedAdmin
-    ]);
-}
 
 
 
@@ -335,45 +418,46 @@ public function updateAdmin()
     //  DELETE ADMIN
     // ============================================================
     public function deleteAdmin()
-{
-    // Validate token
-    $auth = $this->validateToken();
-    if (!$auth['status']) return $this->response->setJSON($auth);
+    {
+        // Validate token
+        $auth = $this->validateToken();
+        if (!$auth['status'])
+            return $this->response->setJSON($auth);
 
-    // Detect JSON
-    $contentType = $this->request->getHeaderLine('Content-Type');
-    $isJson = strpos($contentType, 'application/json') !== false;
-    $json = $isJson ? $this->request->getJSON(true) : [];
+        // Detect JSON
+        $contentType = $this->request->getHeaderLine('Content-Type');
+        $isJson = strpos($contentType, 'application/json') !== false;
+        $json = $isJson ? $this->request->getJSON(true) : [];
 
-    // Get admin ID from JSON or POST
-    $id = $isJson ? ($json['id'] ?? null) : $this->request->getPost('id');
-    if (empty($id)) {
+        // Get admin ID from JSON or POST
+        $id = $isJson ? ($json['id'] ?? null) : $this->request->getPost('id');
+        if (empty($id)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Admin ID is required'
+            ]);
+        }
+
+        // Find admin
+        $admin = $this->adminModel->find($id);
+        if (!$admin) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'Admin not found'
+            ]);
+        }
+
+        // Delete admin
+        $this->adminModel->delete($id);
+
         return $this->response->setJSON([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Admin ID is required'
+            'status' => 200,
+            'success' => true,
+            'message' => 'Admin deleted successfully'
         ]);
     }
-
-    // Find admin
-    $admin = $this->adminModel->find($id);
-    if (!$admin) {
-        return $this->response->setJSON([
-            'status' => 404,
-            'success' => false,
-            'message' => 'Admin not found'
-        ]);
-    }
-
-    // Delete admin
-    $this->adminModel->delete($id);
-
-    return $this->response->setJSON([
-        'status' => 200,
-        'success' => true,
-        'message' => 'Admin deleted successfully'
-    ]);
-}
 
 
 }

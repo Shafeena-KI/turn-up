@@ -16,7 +16,7 @@ $routes->get('api/admin/list', 'Api\Login::listAdmins');
 $routes->get('api/admin/view/(:num)', 'Api\Login::getAdmin/$1');
 $routes->post('api/admin/update', 'Api\Login::updateAdmin');
 $routes->post('api/admin/delete', 'Api\Login::deleteAdmin');
-
+$routes->post('api/admin/account-status', 'Api\Login::updateAdminUserStatus');
 
 
 //user login
@@ -63,9 +63,13 @@ $routes->post('api/event/invite/update-status', 'Api\EventInvite::updateInviteSt
 $routes->post('api/event/invite/by-event', 'Api\EventInvite::getInvitesByEvent');
 $routes->post('api/event/invite/by-user', 'Api\EventInvite::getInvitesByUser');
 $routes->post('api/event/invite/expire-old', 'Api\EventInvite::expireOldInvites');
+$routes->get('api/event/invites/download','Api\EventInvite::downloadEventInviteExcel');
 $routes->get('api/event/invites', 'Api\EventInvite::listInvites'); 
 $routes->get('api/event/invites/(:any)', 'Api\EventInvite::listInvites/$1'); 
 $routes->get('api/event/totalinvitescount', 'Api\EventInvite::getAllEventInviteCounts'); 
+
+
+
 
 
 // Event Category
