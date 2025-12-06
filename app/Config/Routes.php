@@ -114,3 +114,27 @@ $routes->get('api/dashboard/total-users', 'Api\Dashboard::getTotalUsers');
 $routes->get('api/dashboard/total-events', 'Api\Dashboard::getTotalEvents');
 // Dashboard - Upcoming Events Details
 $routes->get('api/dashboard/upcoming-events', 'Api\Dashboard::getUpcomingEventsDetails');
+
+
+// Payment Gateway Routes
+#################################################################################################################################################
+$routes->post('api/payment/create-order', 'Api\PaymentGateway\PaymentController::createOrder', ['filter' => 'PaymentFilter']);
+$routes->get('api/payment/verify/(:any)', 'Api\PaymentGateway\PaymentController::verifyPayment/$1');
+$routes->get('api/payment/status/(:any)', 'Api\PaymentGateway\PaymentController::getStatus/$1');
+$routes->get('api/payment/failure/(:any)', 'Api\PaymentGateway\PaymentController::getFailureDetails/$1');
+$routes->get('api/payment/callback', 'Api\PaymentGateway\PaymentController::callback');
+$routes->post('api/payment/webhook', 'Api\PaymentGateway\PaymentController::webhook');
+
+$routes->get('api/payment/failed', 'Api\PaymentGateway\PaymentController::failed');
+$routes->get('api/payment/success', 'Api\PaymentGateway\PaymentController::success');
+
+$routes->get('api/payment/manual-verify/(:any)', 'Api\PaymentGateway\PaymentController::manualVerify/$1');
+$routes->get('api/payment/reconcile', 'Api\PaymentGateway\PaymentController::reconcilePayments');
+$routes->post('api/payment/cleanup-abandoned', 'Api\PaymentGateway\PaymentController::cleanupAbandonedPayments');
+$routes->get('api/payment/test-method/(:any)', 'Api\PaymentGateway\PaymentController::testPaymentMethod/$1');
+
+// Transaction APIs
+$routes->get('api/transactions', 'Api\PaymentGateway\PaymentReportController::getAllTransactions');
+$routes->get('api/event-transactions', 'Api\PaymentGateway\PaymentReportController::getAllEventTransaction');
+$routes->get('api/transactions/user/(:num)', 'Api\PaymentGateway\PaymentReportController::getUserTransactions/$1');
+$routes->get('api/transactions/event/(:num)', 'Api\PaymentGateway\PaymentReportController::getEventTransactions/$1');

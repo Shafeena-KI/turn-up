@@ -22,4 +22,8 @@ class EventCategoryModel extends Model
     ];
 
     protected $useTimestamps = false;
+
+    const VIP_CATEGORY_CODE = 1;
+    const NORMAL_CATEGORY_CODE = 2;
+
 }

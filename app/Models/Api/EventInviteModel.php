@@ -2,6 +2,7 @@
 namespace App\Models\Api;
 
 use CodeIgniter\Model;
+use App\Models\Api\EventModel;
 
 class EventInviteModel extends Model
 {
@@ -30,6 +31,8 @@ class EventInviteModel extends Model
     const APPROVED = 1;
     const REJECETD = 2;
     const EXPIRED = 3;
+    const PAYMENT_PENDING = 4;
+    const PAYED = 5;
 
     public function getInvitesByEvent($event_id)
     {
@@ -83,4 +86,38 @@ class EventInviteModel extends Model
         return $data;
     }
 
+    public function findUserInvite($inviteId, $userId)
+    {
+        return (bool) $this->db->table('event_invites')
+            ->where('user_id', $userId)
+            ->where('invite_id', $inviteId)
+            ->countAllResults();
+    }
+
+
+    public function getInviteDetails($inviteId, $userId)
+    {
+        return $this->db->table('event_invites')
+            ->select('
+                event_invites.invite_id,
+                event_invites.event_id,
+                event_invites.user_id,
+                event_invites.category_id,
+                event_invites.entry_type,
+                event_ticket_category.price,
+                event_invites.status,
+                events.event_name,
+                app_users.name AS customer_name,
+                app_users.email AS customer_email,
+                app_users.phone AS customer_phone
+            ')
+            ->join('events', 'events.event_id = event_invites.event_id', 'left')
+            ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
+            ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
+            ->where('event_invites.user_id', $userId)
+            ->where('event_invites.invite_id', $inviteId)
+            ->where('events.status', EventModel::UPCOMING)
+            ->get()
+            ->getRow();   // <-- important
+    }
 }
