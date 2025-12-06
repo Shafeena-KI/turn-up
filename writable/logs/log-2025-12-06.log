@@ -1,0 +1,61 @@
+CRITICAL - 2025-12-06 09:56:56 --> ErrorException: Undefined property: App\Controllers\Api\Login::$adminUserModel
+[Method: POST, Route: api/admin/account-status]
+in APPPATH\Controllers\Api\Login.php on line 149.
+ 1 APPPATH\Controllers\Api\Login.php(149): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined property: App\\Controllers\\Api\\Login::$adminUserModel', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 149)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->updateAdminUserStatus()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-12-06 09:58:30 --> ErrorException: Undefined property: App\Controllers\Api\Login::$adminUserModel
+[Method: POST, Route: api/admin/account-status]
+in APPPATH\Controllers\Api\Login.php on line 156.
+ 1 APPPATH\Controllers\Api\Login.php(156): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined property: App\\Controllers\\Api\\Login::$adminUserModel', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 156)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->updateAdminUserStatus()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-12-06 10:00:43 --> ErrorException: Undefined property: App\Controllers\Api\Login::$adminUserModel
+[Method: POST, Route: api/admin/account-status]
+in APPPATH\Controllers\Api\Login.php on line 149.
+ 1 APPPATH\Controllers\Api\Login.php(149): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined property: App\\Controllers\\Api\\Login::$adminUserModel', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 149)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->updateAdminUserStatus()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-12-06 10:01:27 --> ErrorException: Undefined property: App\Controllers\Api\Login::$adminUserModel
+[Method: POST, Route: api/admin/account-status]
+in APPPATH\Controllers\Api\Login.php on line 149.
+ 1 APPPATH\Controllers\Api\Login.php(149): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined property: App\\Controllers\\Api\\Login::$adminUserModel', 'C:\\wamp64\\www\\turn-up\\app\\Controllers\\Api\\Login.php', 149)
+ 2 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\Login->updateAdminUserStatus()
+ 3 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\Login))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-12-06 10:15:43 --> TypeError: curl_init(): Argument #1 ($url) must be of type ?string, array given
+[Method: POST, Route: api/event/invite/create]
+in APPPATH\Controllers\Api\EventInvite.php on line 464.
+ 1 APPPATH\Controllers\Api\EventInvite.php(464): curl_init([...])
+ 2 APPPATH\Controllers\Api\EventInvite.php(414): App\Controllers\Api\EventInvite->sendInviteConfirmation('+917034467880', 'asna', 'Musical Night')
+ 3 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\EventInvite->createInvite()
+ 4 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\EventInvite))
+ 5 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 6 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 7 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 8 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-12-06 10:20:57 --> sendInviteConfirmation error: curl_init(): Argument #1 ($url) must be of type ?string, array given
+CRITICAL - 2025-12-06 11:59:00 --> Error: Class "PhpOffice\PhpSpreadsheet\Spreadsheet" not found
+[Method: GET, Route: api/event/invites/download]
+in APPPATH\Controllers\Api\EventInvite.php on line 1101.
+ 1 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\EventInvite->downloadEventInviteExcel()
+ 2 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\EventInvite))
+ 3 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 4 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))

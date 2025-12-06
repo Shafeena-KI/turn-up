@@ -30,13 +30,44 @@ class AppUser extends BaseController
                 'message' => 'Phone number is required.'
             ]);
         }
-        // Check existing user
+
+        // Check if user exists
         $user = $this->appUserModel->where('phone', $phone)->first();
+
+        // If user exists → check if BLOCKED / SUSPENDED / DELETED
+        if ($user) {
+
+            if ($user['status'] == 3) { // BLOCKED
+                return $this->response->setJSON([
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Your account is blocked. Please contact support.'
+                ]);
+            }
+
+            if ($user['status'] == 2) { // SUSPENDED
+                return $this->response->setJSON([
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Your account is suspended.'
+                ]);
+            }
+
+            if ($user['status'] == 4) { // DELETED
+                return $this->response->setJSON([
+                    'status' => 410, // Gone
+                    'success' => false,
+                    'message' => 'This account has been deleted.'
+                ]);
+            }
+        }
+
+        // Generate OTP
         $otp = rand(100000, 999999);
 
         if ($user) {
 
-            // Existing user → update only OTP
+            // Existing user → update OTP only
             $this->appUserModel->update($user['user_id'], [
                 'otp' => $otp,
                 'updated_at' => date('Y-m-d H:i:s')
@@ -44,13 +75,13 @@ class AppUser extends BaseController
 
         } else {
 
-            // NEW USER → Insert and give profile score = 25 (Phone verified)
+            // NEW USER → Insert
             $this->appUserModel->insert([
                 'phone' => $phone,
                 'otp' => $otp,
                 'profile_status' => 0,
                 'profile_score' => 20,
-                'status' => 1,
+                'status' => 1, // Active by default
                 'created_at' => date('Y-m-d H:i:s')
             ]);
 
@@ -60,7 +91,7 @@ class AppUser extends BaseController
             // Default verification row
             $this->db->table('user_verifications')->insert([
                 'user_id' => $newUserId,
-                'phone_verified' => 1,   // Phone verified at registration
+                'phone_verified' => 1,
                 'email_verified' => 0,
                 'instagram_verified' => 0,
                 'linkedin_verified' => 0,
@@ -68,17 +99,14 @@ class AppUser extends BaseController
                 'dob_added' => 0,
                 'profile_image_added' => 0,
                 'interest_added' => 0,
-                'score' => 20,  // Add 25 points for phone
+                'score' => 20,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
 
-            // Assign to user variable for response
-            $user = [
-                'user_id' => $newUserId
-            ];
+            $user = ['user_id' => $newUserId];
         }
 
-        // Send OTP via WhatsApp
+        // Send WhatsApp OTP
         $whatsappResponse = $this->sendWhatsAppOtp($phone, $otp);
 
         return $this->response->setJSON([
@@ -92,7 +120,6 @@ class AppUser extends BaseController
             ]
         ]);
     }
-
     public function verifyOtp()
     {
         try {
@@ -1139,52 +1166,60 @@ class AppUser extends BaseController
     //Account status Updates 
     public function updateAccountStatus()
     {
-        $userId = $this->request->getVar('user_id');
-        $status = $this->request->getVar('status');
+        $auth = $this->getAdminAuthenticatedUser(); // MUST return admin data OR error
+
+        if (isset($auth['error'])) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => $auth['error']
+                ]);
+        }
+
+        // Logged-in admin
+        $admin_id = $auth['admin_id'];
+        $data = $this->request->getJSON(true); // READ JSON BODY
+
+        $userId = $data['user_id'] ?? null;
+        $status = $data['status'] ?? null;
 
         // Validate inputs
-        if (empty($userId) || empty($status)) {
+        if (!$userId || !$status) {
             return $this->response->setJSON([
-                'status' => 400,
                 'success' => false,
-                'message' => 'User ID and account status are required'
-            ]);
+                'message' => 'User ID and status are required'
+            ])->setStatusCode(400);
         }
 
-        // Ensure valid status values (1=active, 2=suspended, 3=blocked, 4=deleted)
-        if (!in_array($status, [1, 2, 3, 4])) {
+        // Allowed status values
+        // 1 = Active | 2 = Suspended | 3 = Blocked | 4 = Deleted
+        if (!in_array((int) $status, [1, 2, 3, 4])) {
             return $this->response->setJSON([
-                'status' => 400,
                 'success' => false,
-                'message' => 'Invalid account status value'
-            ]);
+                'message' => 'Invalid account status'
+            ])->setStatusCode(400);
         }
 
-        // Check if user exists
+        // Check user exists
         $user = $this->appUserModel->find($userId);
         if (!$user) {
             return $this->response->setJSON([
-                'status' => 404,
                 'success' => false,
                 'message' => 'User not found'
-            ]);
+            ])->setStatusCode(404);
         }
 
-        // Update account status
-        $update = $this->appUserModel->update($userId, ['status' => $status]);
-
-        if ($update) {
-            return $this->response->setJSON([
-                'status' => 200,
-                'success' => true,
-                'message' => 'Account status updated successfully'
-            ]);
-        }
+        // Update status
+        $this->appUserModel->update($userId, [
+            'status' => $status
+        ]);
 
         return $this->response->setJSON([
-            'status' => 500,
-            'success' => false,
-            'message' => 'Failed to update account status'
-        ]);
+            'success' => true,
+            'message' => 'Account status updated successfully'
+        ])->setStatusCode(200);
     }
+
 }

@@ -13,6 +13,7 @@
         "php": "^8.1",
         "ext-intl": "*",
         "ext-mbstring": "*",
+        "cashfree/cashfree-pg": "*",
         "endroid/qr-code": "^6.0",
         "firebase/php-jwt": "^6.11",
         "laminas/laminas-escaper": "^2.17",
@@ -60,7 +61,10 @@
     "config": {
         "optimize-autoloader": true,
         "preferred-install": "dist",
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
     },
     "scripts": {
         "test": "phpunit"
