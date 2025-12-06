@@ -138,3 +138,4 @@ $routes->get('api/transactions', 'Api\PaymentGateway\PaymentReportController::ge
 $routes->get('api/event-transactions', 'Api\PaymentGateway\PaymentReportController::getAllEventTransaction');
 $routes->get('api/transactions/user/(:num)', 'Api\PaymentGateway\PaymentReportController::getUserTransactions/$1');
 $routes->get('api/transactions/event/(:num)', 'Api\PaymentGateway\PaymentReportController::getEventTransactions/$1');
+
