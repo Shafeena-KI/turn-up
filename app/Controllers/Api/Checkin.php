@@ -77,6 +77,40 @@ class Checkin extends BaseController
             ]);
         }
 
+         // -------------------------
+        // Validate Admin Token
+        // -------------------------
+        // $admin_id = $this->getAdminIdFromToken();
+
+        // if (!$admin_id) {
+        //     return $this->response->setJSON([
+        //         'status' => false,
+        //         'message' => 'Unauthorized - Admin ID missing in token'
+        //     ]);
+        // }
+
+        $admin_id = $this->getAdminIdFromToken();
+
+        if (!$admin_id) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Unauthorized - Admin ID missing in token'
+                ]);
+        }
+
+        $db = db_connect();
+
+        $adminDetails = $db->table('admin_users')
+            ->where('admin_id', $admin_id)
+            ->get()
+            ->getRowArray();
+
+        $admin_name = $adminDetails['name'] ?? 'Unknown';
+    // -------------------------
+
         $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
         if (!$booking) {
             return $this->response->setJSON([
@@ -143,6 +177,16 @@ class Checkin extends BaseController
                 ->getRowArray();
 
             if (!$checkin) {
+
+                // Get check-in admin name
+                    $checkedAdmin = $db->table('admin_users')
+                        ->where('admin_id', $checkin['checkedin_by'])
+                        ->get()
+                        ->getRowArray();
+
+                    $checkedInBy = $checkedAdmin['name'] ?? 'Unknown';
+                    $time = date('d-m-Y H:i:s', strtotime($checkin['checkin_time']));
+
                 return $this->response->setJSON([
                     'status' => false,
                     'message' => 'Ticket is expired'
@@ -158,22 +202,24 @@ class Checkin extends BaseController
             ->get()
             ->getRowArray();
 
-        if ($checkin) {
+       if ($checkin) {
 
-            // Directly use the value stored in checkin table
-            $checkedInBy = $checkin['checkedin_by'] ?? 'Unknown';
+    // Fetch Admin Name
+    $admin_row = $db->table('admin_users')
+        ->where('admin_id', $checkin['checkedin_by'])
+        ->get()
+        ->getRowArray();
 
-            // If empty string, replace with Unknown
-            if (trim($checkedInBy) === '') {
-                $checkedInBy = 'Unknown';
-            }
-            $formattedTime = date('d-m-Y H:i:s', strtotime($checkin['checkin_time']));
+    $admin_name = $admin_row['name'] ?? 'Unknown';
 
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => "{$user['name']} already checked in at {$checkin['checkin_time']} by {$checkedInBy}"
-            ]);
-        }
+    // Format check-in time
+    $formattedTime = date('d-m-Y H:i:s', strtotime($checkin['checkin_time']));
+
+    return $this->response->setJSON([
+        'status' => false,
+        'message' => "{$user['name']} already checked in at {$formattedTime} by {$admin_name}"
+    ]);
+}
 
         $ticketType = '';
         if (!empty($category)) {
@@ -275,296 +321,309 @@ class Checkin extends BaseController
 
 
     public function markAsIn()
-    {
-        $data = $this->request->getJSON(true);
+        {
+            $data = $this->request->getJSON(true);
 
-        if (empty($data['booking_code'])) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'booking_code is required'
-            ]);
-        }
-
-        // Get Booking
-        $booking = $this->bookingModel->where('booking_code', $data['booking_code'])->first();
-        if (!$booking) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'No Booking Code Found.'
-            ]);
-        }
-
-        $invite = $this->inviteModel->find($booking['invite_id']);
-
-        // DB
-        $db = db_connect();
-        $event = $db->table('events')->where('event_id', $booking['event_id'])->get()->getRowArray();
-
-        // Remarks
-        $remark_ids = $data['entry_remarks_id'] ?? [];
-
-        if (!empty($remark_ids)) {
-            if (!is_array($remark_ids)) {
+            if (empty($data['booking_code'])) {
                 return $this->response->setJSON([
                     'status' => false,
-                    'message' => 'entry_remarks_id must be an array'
+                    'message' => 'booking_code is required'
                 ]);
             }
 
-            $validRemarks = $db->table('entry_remarks')
-                ->whereIn('entry_remarks_id', $remark_ids)
-                ->get()
-                ->getResultArray();
-
-            if (count($validRemarks) != count($remark_ids)) {
+            // Get Booking
+            $booking = $this->bookingModel->where('booking_code', $data['booking_code'])->first();
+            if (!$booking) {
                 return $this->response->setJSON([
                     'status' => false,
-                    'message' => 'One or more invalid remarks selected'
-                ]);
-            }
-        }
-
-        // ----- MINIMAL FIXES: ensure these exist before use -----
-        $partner_in = $data['partner_in'] ?? $data['partner'] ?? null; // accept either partner_in or legacy partner
-        $stag_type = $data['stag_type'] ?? null; // 1=Male 2=Female 3=Other
-        $comment_id = null; // ensure defined even if comment block doesn't run
-        // ---------------------------------------------------------
-
-        // -------------------- ENTRY TYPE FIX --------------------
-        $entry_type = (int) ($invite['entry_type'] ?? 3);
-
-        if ($partner_in == 1) {
-            $entry_type = 4; // Set to Couple
-        }
-
-        // If couple and partner is NOT coming → convert to stag type
-        if ($entry_type == 4 && $partner_in == 0) {
-
-            if (empty($stag_type)) {
-                return $this->response->setJSON([
-                    'status' => false,
-                    'message' => 'stag_type is required when partner_in = 0'
+                    'message' => 'No Booking Code Found.'
                 ]);
             }
 
-            // convert couple (4) to stag_type (1/2/3)
-            $entry_type = (int) $stag_type;
-        }
+            $invite = $this->inviteModel->find($booking['invite_id']);
+
+            // DB
+            $db = db_connect();
+            $event = $db->table('events')->where('event_id', $booking['event_id'])->get()->getRowArray();
+
+            // Remarks
+            $remark_ids = $data['entry_remarks_id'] ?? [];
+
+            if (!empty($remark_ids)) {
+                if (!is_array($remark_ids)) {
+                    return $this->response->setJSON([
+                        'status' => false,
+                        'message' => 'entry_remarks_id must be an array'
+                    ]);
+                }
+
+                $validRemarks = $db->table('entry_remarks')
+                    ->whereIn('entry_remarks_id', $remark_ids)
+                    ->get()
+                    ->getResultArray();
+
+                if (count($validRemarks) != count($remark_ids)) {
+                    return $this->response->setJSON([
+                        'status' => false,
+                        'message' => 'One or more invalid remarks selected'
+                    ]);
+                }
+            }
+
+            // ----- MINIMAL FIXES: ensure these exist before use -----
+            $partner_in = $data['partner_in'] ?? $data['partner'] ?? null; // accept either partner_in or legacy partner
+            $stag_type = $data['stag_type'] ?? null; // 1=Male 2=Female 3=Other
+            $comment_id = null; // ensure defined even if comment block doesn't run
+            // ---------------------------------------------------------
+
+            // -------------------- ENTRY TYPE FIX --------------------
+            $entry_type = (int) ($invite['entry_type'] ?? 3);
+
+            if ($partner_in == 1) {
+                $entry_type = 4; // Set to Couple
+            }
+
+            // If couple and partner is NOT coming → convert to stag type
+            if ($entry_type == 4 && $partner_in == 0) {
+
+                if (empty($stag_type)) {
+                    return $this->response->setJSON([
+                        'status' => false,
+                        'message' => 'stag_type is required when partner_in = 0'
+                    ]);
+                }
+
+                // convert couple (4) to stag_type (1/2/3)
+                $entry_type = (int) $stag_type;
+            }
 
 
-        $entryTypeMap = [
-            1 => "Male",
-            2 => "Female",
-            3 => "Other",
-            4 => "Couple"
-        ];
-
-        $entry_type_text = $entryTypeMap[$entry_type] ?? "Other";
-        // ---------------------------------------------------------
-
-        $partner_id = ($entry_type == 4) ? $invite['partner'] : null;
-
-
-        $entry_comment = null;
-        if ($entry_type == 4 && $partner_in) { // Couple changed to Stag (legacy block kept)
-            // Determine booked vs attended
-            $booked = strtolower($invite['partner'] ?? 'male'); // Assuming booked partner
-            $attended = strtolower($partner_in);
-
-            // Mapping all 8 cases to entry_comments_id
-            $comment_map = [
-                'male-female-missing' => 1,
-                'male-female-attended-but-male-missing' => 2,
-                'female-male-missing' => 3,
-                'female-male-attended-but-female-missing' => 4,
-                'other-other-missing' => 5,
-                'other-male-attended-but-other-missing' => 6,
-                'other-female-attended-but-other-missing' => 7,
-                'other-other-attended-but-other-missing' => 8
+            $entryTypeMap = [
+                1 => "Male",
+                2 => "Female",
+                3 => "Other",
+                4 => "Couple"
             ];
 
-            // Determine comment ID
-            if ($booked == 'male' && $attended == null)
-                $comment_id = 1;
-            elseif ($booked == 'male' && $attended == 'female')
-                $comment_id = 2;
-            elseif ($booked == 'female' && $attended == null)
-                $comment_id = 3;
-            elseif ($booked == 'female' && $attended == 'male')
-                $comment_id = 4;
-            elseif ($booked == 'other' && $attended == null)
-                $comment_id = 5;
-            elseif ($booked == 'other' && $attended == 'male')
-                $comment_id = 6;
-            elseif ($booked == 'other' && $attended == 'female')
-                $comment_id = 7;
-            elseif ($booked == 'other' && $attended == 'other')
-                $comment_id = 8;
+            $entry_type_text = $entryTypeMap[$entry_type] ?? "Other";
+            // ---------------------------------------------------------
 
-            $comment_row = $db->table('entry_comments')->where('entry_comments_id', $comment_id)->get()->getRowArray();
-            $entry_comment = $comment_row['entry_comments'] ?? null;
+            $partner_id = ($entry_type == 4) ? $invite['partner'] : null;
 
 
-        }
+            $entry_comment = null;
+            if ($entry_type == 4 && $partner_in) { // Couple changed to Stag (legacy block kept)
+                // Determine booked vs attended
+                $booked = strtolower($invite['partner'] ?? 'male'); // Assuming booked partner
+                $attended = strtolower($partner_in);
+
+                // Mapping all 8 cases to entry_comments_id
+                $comment_map = [
+                    'male-female-missing' => 1,
+                    'male-female-attended-but-male-missing' => 2,
+                    'female-male-missing' => 3,
+                    'female-male-attended-but-female-missing' => 4,
+                    'other-other-missing' => 5,
+                    'other-male-attended-but-other-missing' => 6,
+                    'other-female-attended-but-other-missing' => 7,
+                    'other-other-attended-but-other-missing' => 8
+                ];
+
+                // Determine comment ID
+                if ($booked == 'male' && $attended == null)
+                    $comment_id = 1;
+                elseif ($booked == 'male' && $attended == 'female')
+                    $comment_id = 2;
+                elseif ($booked == 'female' && $attended == null)
+                    $comment_id = 3;
+                elseif ($booked == 'female' && $attended == 'male')
+                    $comment_id = 4;
+                elseif ($booked == 'other' && $attended == null)
+                    $comment_id = 5;
+                elseif ($booked == 'other' && $attended == 'male')
+                    $comment_id = 6;
+                elseif ($booked == 'other' && $attended == 'female')
+                    $comment_id = 7;
+                elseif ($booked == 'other' && $attended == 'other')
+                    $comment_id = 8;
+
+                $comment_row = $db->table('entry_comments')->where('entry_comments_id', $comment_id)->get()->getRowArray();
+                $entry_comment = $comment_row['entry_comments'] ?? null;
+
+
+            }
 
 
 
-        // Date validation
-        $today = date('Y-m-d');
-        $eventDate = date('Y-m-d', strtotime($event['event_date'] ?? $today));
+            // Date validation
+            $today = date('Y-m-d');
+            $eventDate = date('Y-m-d', strtotime($event['event_date'] ?? $today));
 
-        if ($today < $eventDate) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => "Ticket is not valid for today's event"
-            ]);
-        }
+            if ($today < $eventDate) {
+                return $this->response->setJSON([
+                    'status' => false,
+                    'message' => "Ticket is not valid for today's event"
+                ]);
+            }
 
-        if ($today > $eventDate) {
+            if ($today > $eventDate) {
+                $checkin = $db->table('checkin')
+                    ->where('booking_code', $booking['booking_code'])
+                    ->get()
+                    ->getRowArray();
+
+                if (!$checkin) {
+                    return $this->response->setJSON([
+                        'status' => false,
+                        'message' => 'Ticket is expired'
+                    ]);
+                }
+            }
+
             $checkin = $db->table('checkin')
                 ->where('booking_code', $booking['booking_code'])
+                ->where('entry_status', 1)
                 ->get()
                 ->getRowArray();
 
-            if (!$checkin) {
+            if ($checkin) {
+                $userDetails = $this->userModel->find($booking['user_id']);
+                $user_name = $userDetails['name'] ?? 'User';
+
+                    $admin_row = $db->table('admin_users')
+            ->where('admin_id', $checkin['checkedin_by'])
+            ->get()
+            ->getRowArray();
+
+        $admin_name = $admin_row['name'] ?? 'Unknown';
+
+
                 return $this->response->setJSON([
                     'status' => false,
-                    'message' => 'Ticket is expired'
+                    'message' => "{$user_name} already checked in. Checkin by {$admin_name} at {$checkin['checkin_time']}"
                 ]);
             }
-        }
 
-        $checkin = $db->table('checkin')
-            ->where('booking_code', $booking['booking_code'])
-            ->where('entry_status', 1)
-            ->get()
-            ->getRowArray();
+            // Admin token
+            // $admin_id = $this->getAdminIdFromToken();
 
-        if ($checkin) {
-            $userDetails = $this->userModel->find($booking['user_id']);
-            $user_name = $userDetails['name'] ?? 'User';
+            // if (!$admin_id) {
+            //     return $this->response->setJSON([
+            //         'status' => false,
+            //         'message' => 'Unauthorized - Admin ID missing in token'
+            //     ]);
+            // }
 
-                $admin_row = $db->table('admin_users')
-        ->where('admin_id', $checkin['checkedin_by'])
-        ->get()
-        ->getRowArray();
+            $admin_id = $this->getAdminIdFromToken();
 
-    $admin_name = $admin_row['name'] ?? 'Unknown';
+                    if (!$admin_id) {
+                        return $this->response
+                            ->setStatusCode(401)
+                            ->setJSON([
+                                'status' => 401,
+                                'success' => false,
+                                'message' => 'Unauthorized - Admin ID missing in token'
+                            ]);
+                    }
 
+            $adminDetails = $db->table('admin_users')
+                ->where('admin_id', $admin_id)
+                ->get()
+                ->getRowArray();
 
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => "{$user_name} already checked in. Checkin by {$admin_name} at {$checkin['checkin_time']}"
-            ]);
-        }
+            $admin_name = $adminDetails['name'] ?? "Unknown";
 
-        // Admin token
-        $admin_id = $this->getAdminIdFromToken();
+            $userDetails = $db->table('app_users')
+                ->where('user_id', $booking['user_id'])
+                ->get()
+                ->getRowArray();
 
-        if (!$admin_id) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Unauthorized - Admin ID missing in token'
-            ]);
-        }
+            $user_name = $userDetails['name'] ?? 'Guest';
 
-        $adminDetails = $db->table('admin_users')
-            ->where('admin_id', $admin_id)
-            ->get()
-            ->getRowArray();
+            // -------------------- SAVE CHECK-IN --------------------
+            $checkinData = [
+                'user_id' => $booking['user_id'],
+                'event_id' => $booking['event_id'],
+                'booking_code' => $booking['booking_code'],
+                'partner' => $partner_id,
+                'category_id' => $booking['category_id'],
+                'invite_id' => $booking['invite_id'],
+                'entry_comments_id' => $comment_id ?? null,
+                'entry_status' => 1,
+                'checkin_time' => date('Y-m-d H:i:s'),
+                'checkedin_by' => $admin_id, 
 
-        $admin_name = $adminDetails['name'] ?? "Unknown";
-
-        $userDetails = $db->table('app_users')
-            ->where('user_id', $booking['user_id'])
-            ->get()
-            ->getRowArray();
-
-        $user_name = $userDetails['name'] ?? 'Guest';
-
-        // -------------------- SAVE CHECK-IN --------------------
-        $checkinData = [
-            'user_id' => $booking['user_id'],
-            'event_id' => $booking['event_id'],
-            'booking_code' => $booking['booking_code'],
-            'partner' => $partner_id,
-            'category_id' => $booking['category_id'],
-            'invite_id' => $booking['invite_id'],
-            'entry_comments_id' => $comment_id ?? null,
-            'entry_status' => 1,
-            'checkin_time' => date('Y-m-d H:i:s'),
-             'checkedin_by' => $admin_id, 
-
-            // FIXED → DB should store ID, not text
-            'entry_type' => $entry_type,
-            'booking_id' => $booking['booking_id'],
-            'entry_remarks_id' => json_encode($remark_ids)
-        ];
-
-        $db->table("checkin")->insert($checkinData);
-
-        // booking update
-        $this->bookingModel->update($booking['booking_id'], [
-            'status' => 3,
-            'updated_at' => date('Y-m-d H:i:s')
-        ]);
-
-        // -------------------- EVENT COUNTS FIX --------------------
-        $counts = $this->eventCountsModel
-            ->where('event_id', $booking['event_id'])
-            ->where('category_id', $booking['category_id'])
-            ->first();
-
-        if ($counts) {
-
-            $update = [
-                'total_checkin' => $counts['total_checkin'],
-                'total_male_checkin' => $counts['total_male_checkin'],
-                'total_female_checkin' => $counts['total_female_checkin'],
-                'total_couple_checkin' => $counts['total_couple_checkin'],
-                'total_other_checkin' => $counts['total_other_checkin'],
+                // FIXED → DB should store ID, not text
+                'entry_type' => $entry_type,
+                'booking_id' => $booking['booking_id'],
+                'entry_remarks_id' => json_encode($remark_ids)
             ];
 
-            // FIXED → use ID, not text
-            if ($entry_type == 1) { // Male
-                $update['total_checkin'] += 1;
-                $update['total_male_checkin'] += 1;
+            $db->table("checkin")->insert($checkinData);
 
-            } elseif ($entry_type == 2) { // Female
-                $update['total_checkin'] += 1;
-                $update['total_female_checkin'] += 1;
+            // booking update
+            $this->bookingModel->update($booking['booking_id'], [
+                'status' => 3,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
 
-            } elseif ($entry_type == 3) { // Other
-                $update['total_checkin'] += 1;
-                $update['total_other_checkin'] += 1;
+            // -------------------- EVENT COUNTS FIX --------------------
+            $counts = $this->eventCountsModel
+                ->where('event_id', $booking['event_id'])
+                ->where('category_id', $booking['category_id'])
+                ->first();
 
-            } elseif ($entry_type == 4) { // Couple
-                $update['total_checkin'] += 2;
-                $update['total_couple_checkin'] += 1;
+            if ($counts) {
+                
+                $update = [
+                    'total_checkin' => $counts['total_checkin'],
+                    'total_male_checkin' => $counts['total_male_checkin'],
+                    'total_female_checkin' => $counts['total_female_checkin'],
+                    'total_couple_checkin' => $counts['total_couple_checkin'],
+                    'total_other_checkin' => $counts['total_other_checkin'],
+                ];
+
+                // FIXED → use ID, not text
+                if ($entry_type == 1) { // Male
+                    $update['total_checkin'] += 1;
+                    $update['total_male_checkin'] += 1;
+
+                } elseif ($entry_type == 2) { // Female
+                    $update['total_checkin'] += 1;
+                    $update['total_female_checkin'] += 1;
+
+                } elseif ($entry_type == 3) { // Other
+                    $update['total_checkin'] += 1;
+                    $update['total_other_checkin'] += 1;
+
+                } elseif ($entry_type == 4) { // Couple
+                    $update['total_checkin'] += 2;
+                    $update['total_couple_checkin'] += 1;
+                }
+
+                $this->eventCountsModel->update($counts['id'], $update);
             }
 
-            $this->eventCountsModel->update($counts['id'], $update);
+            // Response
+            return $this->response->setJSON([
+                'status' => true,
+                'message' => 'Marked as IN successfully and booking status updated',
+                'data' => [
+                    'booking_id' => $booking['booking_id'],
+                    'booking_code' => $booking['booking_code'],
+                    'event_name' => $event['event_name'] ?? '',
+                    'user_name' => $invite['name'] ?? '',
+                    'checked_in_at' => $checkinData['checkin_time'],
+                    'checked_in_by' => $admin_name,
+                    'entry_comment' => $entry_comment
+                ]
+            ]);
         }
 
-        // Response
-        return $this->response->setJSON([
-            'status' => true,
-            'message' => 'Marked as IN successfully and booking status updated',
-            'data' => [
-                'booking_id' => $booking['booking_id'],
-                'booking_code' => $booking['booking_code'],
-                'event_name' => $event['event_name'] ?? '',
-                'user_name' => $invite['name'] ?? '',
-                'checked_in_at' => $checkinData['checkin_time'],
-                'checked_in_by' => $admin_name,
-                'entry_comment' => $entry_comment
-            ]
-        ]);
-    }
 
 
-
-    // -------------------------------------------------------------------
+    
+        // -------------------------------------------------------------------
     // MARK AS IN LIST
     // -------------------------------------------------------------------
 
@@ -614,12 +673,15 @@ class Checkin extends BaseController
             ->join('events e', 'e.event_id = c.event_id', 'left')
             ->join('app_users u', 'u.user_id = c.user_id', 'left') // 👈 NEW JOIN
             ->where('c.entry_status', 1)
-            ->groupBy('c.event_id');
+           ->groupBy('c.event_id');
+
 
 
         if (!empty($event_id)) {
-            $builder->where('c.event_id', $event_id);
-        }
+    $builder->where('c.event_id', $event_id);
+    $builder->groupBy('c.checkin_id'); // FIX: show each checkin separately
+}
+
 
         if (!empty($search)) {
             $builder->groupStart()
@@ -701,13 +763,20 @@ class Checkin extends BaseController
             }
 
             // Event counts including total booked
-            $eventCounts = $db->table('event_counts')
-                ->select('total_booking, total_checkin, total_male_checkin, total_female_checkin, total_couple_checkin, total_other_checkin')
-                ->where('event_id', $checkin['event_id'])
-                ->orderBy('id', 'DESC')
-                ->limit(1)
-                ->get()
-                ->getRowArray();
+$eventCounts = $db->table('event_counts')
+    ->select('
+        SUM(total_booking) AS total_booking,
+        SUM(total_checkin) AS total_checkin,
+        SUM(total_male_checkin) AS total_male_checkin,
+        SUM(total_female_checkin) AS total_female_checkin,
+        SUM(total_couple_checkin) AS total_couple_checkin,
+        SUM(total_other_checkin) AS total_other_checkin
+    ')
+    ->where('event_id', $checkin['event_id'])
+    ->get()
+    ->getRowArray();
+
+
 
             $checkin['event_counts'] = $eventCounts ? [
                 'total_booking' => (int) $eventCounts['total_booking'],
@@ -751,11 +820,10 @@ class Checkin extends BaseController
         ]);
     }
 
-
-
-
-
-
-
-
 }
+
+
+
+
+
+
