@@ -11,8 +11,6 @@ use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\API\ResponseTrait;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 class EventInvite extends BaseController
 {
     protected $inviteModel;
@@ -1066,105 +1064,6 @@ class EventInvite extends BaseController
                 'events' => $paginatedEvents
             ]
         ]);
-    }
-    public function downloadEventInviteExcel()
-    {
-        $eventId = $this->request->getGet('event_id');
-
-        if (!$eventId) {
-            return $this->response->setStatusCode(400)->setJSON([
-                'status' => false,
-                'message' => 'event_id is required'
-            ]);
-        }
-
-        // ---- FETCH INVITES ----
-        $rows = $this->db->table('event_invites i')
-            ->select('i.*, e.event_name, e.event_code, c.category_name, u.name AS user_name, u.phone')
-            ->join('events e', 'e.event_id = i.event_id', 'left')
-            ->join('event_ticket_category c', 'c.category_id = i.category_id', 'left')
-            ->join('app_users u', 'u.user_id = i.user_id', 'left')
-            ->where('i.event_id', $eventId)
-            ->orderBy('i.requested_at', 'DESC')
-            ->get()
-            ->getResultArray();
-
-        // ---- HANDLE EMPTY DATA ----
-        if (empty($rows)) {
-            return $this->response->setStatusCode(404)->setJSON([
-                'status' => false,
-                'message' => 'No invites found for this event.'
-            ]);
-        }
-
-        // ---- CREATE EXCEL ----
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-
-        $headers = [
-            'A1' => 'Event Code',
-            'B1' => 'Event Name',
-            'C1' => 'Category',
-            'D1' => 'Invite Code',
-            'E1' => 'Entry Type',
-            'F1' => 'Male',
-            'G1' => 'Female',
-            'H1' => 'Other',
-            'I1' => 'Couple',
-            'J1' => 'User Name',
-            'K1' => 'Phone',
-            'L1' => 'Status',
-            'M1' => 'Requested At'
-        ];
-
-        foreach ($headers as $cell => $label) {
-            $sheet->setCellValue($cell, $label);
-        }
-
-        $entryTypeMap = [
-            1 => 'Male',
-            2 => 'Female',
-            3 => 'Other',
-            4 => 'Couple'
-        ];
-
-        $rowNo = 2;
-        foreach ($rows as $row) {
-            $sheet->setCellValue('A' . $rowNo, $row['event_code'] ?? '');
-            $sheet->setCellValue('B' . $rowNo, $row['event_name'] ?? '');
-            $sheet->setCellValue('C' . $rowNo, $row['category_name'] ?? '');
-            $sheet->setCellValue('D' . $rowNo, $row['invite_code'] ?? '');
-            $sheet->setCellValue('E' . $rowNo, $entryTypeMap[$row['entry_type']] ?? '');
-            $sheet->setCellValue('F' . $rowNo, $row['entry_type'] == 1 ? 1 : 0);
-            $sheet->setCellValue('G' . $rowNo, $row['entry_type'] == 2 ? 1 : 0);
-            $sheet->setCellValue('H' . $rowNo, $row['entry_type'] == 3 ? 1 : 0);
-            $sheet->setCellValue('I' . $rowNo, $row['entry_type'] == 4 ? 1 : 0);
-            $sheet->setCellValue('J' . $rowNo, $row['user_name'] ?? '');
-            $sheet->setCellValue('K' . $rowNo, $row['phone'] ?? '');
-            $sheet->setCellValue('L' . $rowNo, $row['status'] == 1 ? 'Approved' : 'Pending');
-            $sheet->setCellValue(
-                'M' . $rowNo,
-                $row['requested_at'] ? date('d-m-Y H:i', strtotime($row['requested_at'])) : ''
-            );
-
-            $rowNo++;
-        }
-
-        foreach (range('A', 'M') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        // ---- DOWNLOAD EXCEL ----
-        $fileName = 'event_invites_' . $eventId . '.xlsx';
-
-        // Proper headers for Excel download
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="' . $fileName . '"');
-        header('Cache-Control: max-age=0');
-
-        $writer = new Xlsx($spreadsheet);
-        $writer->save('php://output');
-        exit;
     }
 
 }
