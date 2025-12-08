@@ -121,4 +121,56 @@ class EventInviteModel extends Model
             ->get()
             ->getRow();   // <-- important
     }
+    public function getInvitesByEventDetails($event_id)
+    {
+        $data = $this->db->table('event_invites')
+            ->select("
+            event_invites.*,
+            event_ticket_category.category_name,
+            app_users.name AS guest_name,
+            app_users.email AS guest_email,
+            app_users.phone AS guest_phone
+        ")
+            ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
+            ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
+            ->where('event_invites.event_id', $event_id)
+            ->get()
+            ->getResultArray();
+
+        // Convert entry_type number → NAME
+        foreach ($data as &$invite) {
+
+            // Entry Type map
+            $entryTypes = [
+                1 => 'Male',
+                2 => 'Female',
+                3 => 'Other',
+                4 => 'Couple',
+            ];
+
+            // Status map
+            $statuses = [
+                0 => 'Pending',
+                1 => 'Approved',
+                2 => 'Rejected',
+                3 => 'Expired',
+            ];
+
+            // ENTRY TYPE
+            $entryTypeKey = (int) ($invite['entry_type'] ?? -1);
+            $invite['entry_type'] = $entryTypes[$entryTypeKey] ?? 'N/A';
+
+            // STATUS
+            $statusKey = (int) ($invite['status'] ?? -1);
+            $invite['status'] = $statuses[$statusKey] ?? 'N/A';
+
+            // APPROVAL TYPE
+            $invite['approval_type'] = ((int) ($invite['approval_type'] ?? 0) === 1)
+                ? 'Auto'
+                : 'Manual';
+        }
+
+        return $data;
+    }
+
 }

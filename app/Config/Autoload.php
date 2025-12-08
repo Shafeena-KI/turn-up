@@ -20,6 +20,8 @@ use CodeIgniter\Config\AutoloadConfig;
  */
 class Autoload extends AutoloadConfig
 {
+    public bool $composer = true;
+
     /**
      * -------------------------------------------------------------------
      * Namespaces
