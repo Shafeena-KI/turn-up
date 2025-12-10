@@ -61,19 +61,19 @@ class EventInvite extends BaseController
         $db = $this->db;
 
         try {
-            // $auth = $this->getAuthenticatedUser();
+            $auth = $this->getAuthenticatedUser();
 
-            // if (isset($auth['error'])) {
-            //     return $this->response
-            //         ->setStatusCode(401)
-            //         ->setJSON([
-            //             'status' => 401,
-            //             'success' => false,
-            //             'message' => 'Invalid or expired token.'
-            //         ]);
-            // }
+            if (isset($auth['error'])) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid or expired token.'
+                    ]);
+            }
 
-            // $tokenUserId = $auth['user_id']; // token user (unused in original logic but kept)
+            $tokenUserId = $auth['user_id']; // token user (unused in original logic but kept)
 
             $data = $this->request->getJSON(true);
 
