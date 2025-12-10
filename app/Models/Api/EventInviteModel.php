@@ -125,49 +125,73 @@ class EventInviteModel extends Model
     {
         $data = $this->db->table('event_invites')
             ->select("
-            event_invites.*,
+            event_invites.invite_id,
+            event_invites.invite_code,
+            event_invites.entry_type,
+            event_invites.partner,
+            event_invites.status,
+            event_invites.requested_at,
+            event_invites.approved_at,
+
             event_ticket_category.category_name,
+
             app_users.name AS guest_name,
             app_users.email AS guest_email,
-            app_users.phone AS guest_phone
+            app_users.phone AS guest_phone,
+            app_users.profile_status
         ")
-            ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
+            ->join(
+                'event_ticket_category',
+                'event_ticket_category.category_id = event_invites.category_id',
+                'left'
+            )
             ->where('event_invites.event_id', $event_id)
             ->get()
             ->getResultArray();
 
-        // Convert entry_type number → NAME
+        // MAP VALUES
+        $entryTypes = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple',
+        ];
+
+        $statuses = [
+            0 => 'Pending',
+            1 => 'Approved',
+            2 => 'Rejected',
+            3 => 'Expired',
+        ];
+
+        $profileStatuses = [
+            0 => 'Incomplete',
+            1 => 'Pending',
+            2 => 'Verified',
+            3 => 'Rejected',
+        ];
+
+        // ✅ Ticket Type mapping
+        $ticketTypes = [
+            1 => 'VIP',
+            2 => 'NORMAL',
+        ];
+
         foreach ($data as &$invite) {
 
-            // Entry Type map
-            $entryTypes = [
-                1 => 'Male',
-                2 => 'Female',
-                3 => 'Other',
-                4 => 'Couple',
-            ];
+            $invite['entry_type'] =
+                $entryTypes[(int) ($invite['entry_type'] ?? -1)] ?? 'N/A';
 
-            // Status map
-            $statuses = [
-                0 => 'Pending',
-                1 => 'Approved',
-                2 => 'Rejected',
-                3 => 'Expired',
-            ];
+            $invite['status'] =
+                $statuses[(int) ($invite['status'] ?? -1)] ?? 'N/A';
 
-            // ENTRY TYPE
-            $entryTypeKey = (int) ($invite['entry_type'] ?? -1);
-            $invite['entry_type'] = $entryTypes[$entryTypeKey] ?? 'N/A';
+            $invite['profile_status'] =
+                $profileStatuses[(int) ($invite['profile_status'] ?? -1)] ?? 'N/A';
 
-            // STATUS
-            $statusKey = (int) ($invite['status'] ?? -1);
-            $invite['status'] = $statuses[$statusKey] ?? 'N/A';
-
-            // APPROVAL TYPE
-            $invite['approval_type'] = ((int) ($invite['approval_type'] ?? 0) === 1)
-                ? 'Auto'
-                : 'Manual';
+            // ✅ Ticket Type
+            $invite['ticket_type'] =
+                $ticketTypes[(int) ($invite['category_name'] ?? -1)] ?? 'N/A';
         }
 
         return $data;

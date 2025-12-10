@@ -81,6 +81,7 @@ $routes->post('api/category/update', 'Api\EventCategory::updatecategory');
 
 
 // Event Bookings
+$routes->get('api/event-bookings/download','Api\ExcelDownload::downloadBookings');
 $routes->get('api/event/booking/list', 'Api\EventBooking::listBookings');
 $routes->get('api/event/booking/list/(:any)', 'Api\EventBooking::listBookings/$1'); 
 $routes->get('api/event/totalbookingscount', 'Api\EventBooking::getAllEventBookingCounts');

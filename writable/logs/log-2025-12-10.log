@@ -1,0 +1,98 @@
+ERROR - 2025-12-10 03:36:46 --> sendInviteConfirmation error: curl_init(): Argument #1 ($url) must be of type ?string, array given
+ERROR - 2025-12-10 03:37:37 --> sendInviteConfirmation error: curl_init(): Argument #1 ($url) must be of type ?string, array given
+ERROR - 2025-12-10 03:37:58 --> sendEventConfirmation error: curl_init(): Argument #1 ($url) must be of type ?string, array given
+CRITICAL - 2025-12-10 04:07:02 --> CodeIgniter\HTTP\Exceptions\BadRequestException: The URI you submitted has disallowed characters: "event_id=14"
+[Method: GET, Route: api/event-bookings/download/event_id=14]
+in SYSTEMPATH\Router\Router.php on line 741.
+ 1 SYSTEMPATH\Router\Router.php(207): CodeIgniter\Router\Router->checkDisallowedChars('api/event-bookings/download/event_id=14')
+ 2 SYSTEMPATH\CodeIgniter.php(832): CodeIgniter\Router\Router->handle('api/event-bookings/download/event_id=14')
+ 3 SYSTEMPATH\CodeIgniter.php(455): CodeIgniter\CodeIgniter->tryToRouteIt(Object(CodeIgniter\Router\RouteCollection))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-12-10 04:07:09 --> CodeIgniter\HTTP\Exceptions\BadRequestException: The URI you submitted has disallowed characters: "event_id=15"
+[Method: GET, Route: api/event-bookings/download/event_id=15]
+in SYSTEMPATH\Router\Router.php on line 741.
+ 1 SYSTEMPATH\Router\Router.php(207): CodeIgniter\Router\Router->checkDisallowedChars('api/event-bookings/download/event_id=15')
+ 2 SYSTEMPATH\CodeIgniter.php(832): CodeIgniter\Router\Router->handle('api/event-bookings/download/event_id=15')
+ 3 SYSTEMPATH\CodeIgniter.php(455): CodeIgniter\CodeIgniter->tryToRouteIt(Object(CodeIgniter\Router\RouteCollection))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-12-10 04:08:05 --> CodeIgniter\HTTP\Exceptions\BadRequestException: The URI you submitted has disallowed characters: "event_id=15"
+[Method: GET, Route: api/event-bookings/download/event_id=15]
+in SYSTEMPATH\Router\Router.php on line 741.
+ 1 SYSTEMPATH\Router\Router.php(207): CodeIgniter\Router\Router->checkDisallowedChars('api/event-bookings/download/event_id=15')
+ 2 SYSTEMPATH\CodeIgniter.php(832): CodeIgniter\Router\Router->handle('api/event-bookings/download/event_id=15')
+ 3 SYSTEMPATH\CodeIgniter.php(455): CodeIgniter\CodeIgniter->tryToRouteIt(Object(CodeIgniter\Router\RouteCollection))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-12-10 04:10:43 --> CodeIgniter\HTTP\Exceptions\BadRequestException: The URI you submitted has disallowed characters: "event_id=15"
+[Method: GET, Route: api/event-bookings/download/event_id=15]
+in SYSTEMPATH\Router\Router.php on line 741.
+ 1 SYSTEMPATH\Router\Router.php(207): CodeIgniter\Router\Router->checkDisallowedChars('api/event-bookings/download/event_id=15')
+ 2 SYSTEMPATH\CodeIgniter.php(832): CodeIgniter\Router\Router->handle('api/event-bookings/download/event_id=15')
+ 3 SYSTEMPATH\CodeIgniter.php(455): CodeIgniter\CodeIgniter->tryToRouteIt(Object(CodeIgniter\Router\RouteCollection))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-12-10 04:12:55 --> CodeIgniter\HTTP\Exceptions\BadRequestException: The URI you submitted has disallowed characters: "event_id=15"
+[Method: GET, Route: api/event-bookings/download/event_id=15]
+in SYSTEMPATH\Router\Router.php on line 741.
+ 1 SYSTEMPATH\Router\Router.php(207): CodeIgniter\Router\Router->checkDisallowedChars('api/event-bookings/download/event_id=15')
+ 2 SYSTEMPATH\CodeIgniter.php(832): CodeIgniter\Router\Router->handle('api/event-bookings/download/event_id=15')
+ 3 SYSTEMPATH\CodeIgniter.php(455): CodeIgniter\CodeIgniter->tryToRouteIt(Object(CodeIgniter\Router\RouteCollection))
+ 4 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 5 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 6 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 7 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2025-12-10 04:13:49 --> mysqli_sql_exception: Table 'turn_up.event_bookings' doesn't exist in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:327
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(327): mysqli->query('SELECT `event_b...', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(729): CodeIgniter\Database\MySQLi\Connection->execute('SELECT `event_b...')
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(646): CodeIgniter\Database\BaseConnection->simpleQuery('SELECT `event_b...')
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT `event_b...', Array, false)
+#4 C:\wamp64\www\turn-up\app\Models\Api\EventBookingModel.php(96): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\ExcelDownload.php(199): App\Models\Api\EventBookingModel->getBookingsByEventDetails('15')
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\ExcelDownload->downloadBookings()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\ExcelDownload))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+ERROR - 2025-12-10 04:14:48 --> mysqli_sql_exception: Unknown column 'event_booking.entry_type' in 'field list' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:327
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(327): mysqli->query('SELECT `event_b...', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(729): CodeIgniter\Database\MySQLi\Connection->execute('SELECT `event_b...')
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(646): CodeIgniter\Database\BaseConnection->simpleQuery('SELECT `event_b...')
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT `event_b...', Array, false)
+#4 C:\wamp64\www\turn-up\app\Models\Api\EventBookingModel.php(96): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\ExcelDownload.php(199): App\Models\Api\EventBookingModel->getBookingsByEventDetails('15')
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\ExcelDownload->downloadBookings()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\ExcelDownload))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
+ERROR - 2025-12-10 04:17:12 --> mysqli_sql_exception: Unknown column 'event_booking.payment_status' in 'field list' in C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php:327
+Stack trace:
+#0 C:\wamp64\www\turn-up\system\Database\MySQLi\Connection.php(327): mysqli->query('SELECT `event_b...', 0)
+#1 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(729): CodeIgniter\Database\MySQLi\Connection->execute('SELECT `event_b...')
+#2 C:\wamp64\www\turn-up\system\Database\BaseConnection.php(646): CodeIgniter\Database\BaseConnection->simpleQuery('SELECT `event_b...')
+#3 C:\wamp64\www\turn-up\system\Database\BaseBuilder.php(1649): CodeIgniter\Database\BaseConnection->query('SELECT `event_b...', Array, false)
+#4 C:\wamp64\www\turn-up\app\Models\Api\EventBookingModel.php(97): CodeIgniter\Database\BaseBuilder->get()
+#5 C:\wamp64\www\turn-up\app\Controllers\Api\ExcelDownload.php(199): App\Models\Api\EventBookingModel->getBookingsByEventDetails('15')
+#6 C:\wamp64\www\turn-up\system\CodeIgniter.php(933): App\Controllers\Api\ExcelDownload->downloadBookings()
+#7 C:\wamp64\www\turn-up\system\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\ExcelDownload))
+#8 C:\wamp64\www\turn-up\system\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(NULL, Object(Config\Cache), false)
+#9 C:\wamp64\www\turn-up\system\Boot.php(363): CodeIgniter\CodeIgniter->run()
+#10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+#11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+#12 {main}
