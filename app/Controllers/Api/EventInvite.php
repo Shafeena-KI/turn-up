@@ -18,6 +18,7 @@ class EventInvite extends BaseController
     protected $userModel;
     protected $bookingModel;
     protected $categoryModel;
+    protected $notificationLibrary;
     public function __construct()
     {
         header('Access-Control-Allow-Origin: *');
@@ -29,6 +30,7 @@ class EventInvite extends BaseController
         $this->bookingModel = new EventBookingModel();
         $this->categoryModel = new EventCategoryModel();
         $this->db = \Config\Database::connect();
+         $this->notificationLibrary = new \App\Libraries\NotificationLibrary();
     }
     private function getAuthenticatedUser()
     {
@@ -59,19 +61,19 @@ class EventInvite extends BaseController
         $db = $this->db;
 
         try {
-            $auth = $this->getAuthenticatedUser();
+            // $auth = $this->getAuthenticatedUser();
 
-            if (isset($auth['error'])) {
-                return $this->response
-                    ->setStatusCode(401)
-                    ->setJSON([
-                        'status' => 401,
-                        'success' => false,
-                        'message' => 'Invalid or expired token.'
-                    ]);
-            }
+            // if (isset($auth['error'])) {
+            //     return $this->response
+            //         ->setStatusCode(401)
+            //         ->setJSON([
+            //             'status' => 401,
+            //             'success' => false,
+            //             'message' => 'Invalid or expired token.'
+            //         ]);
+            // }
 
-            $tokenUserId = $auth['user_id']; // token user (unused in original logic but kept)
+            // $tokenUserId = $auth['user_id']; // token user (unused in original logic but kept)
 
             $data = $this->request->getJSON(true);
 
@@ -204,12 +206,11 @@ class EventInvite extends BaseController
             $entryLabels = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
             $entryTypeText = $entryLabels[$entryTypeValue] ?? '';
 
-            // ----------------------------
             // START TRANSACTION - only DB operations
-            // ----------------------------
+
             $db->transStart();
 
-            // --- event_counters (ONE GLOBAL COUNTER) ---
+            // --- event_counters (INVITE COUNTER ONLY) ---
             $counterTable = $db->table('event_counters');
             $counter = $counterTable->get()->getRow();
 
@@ -228,38 +229,14 @@ class EventInvite extends BaseController
                 ]);
             }
 
-            // FINAL INVITE CODE (IN + EVENTCODE + padded number)
+            // FINAL INVITE CODE
             $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
 
-            $inviteStatus = 0; // default pending
+            // SIMPLE STATUS RULE
+            // VIP = Approved, Normal = Pending
+            $inviteStatus = ($categoryType === 1) ? 1 : 0;
 
-            if ($categoryType === 1) { // VIP - check seats before auto-approve
-
-                $vip_total_seats = (int) $category->total_seats;
-
-                $countsTable = $db->table('event_counts');
-                $vipCounts = $countsTable
-                    ->where('event_id', $event_id)
-                    ->where('category_id', $category_id)
-                    ->get()
-                    ->getRow();
-
-                $vip_used_seats = $vipCounts ? (int) $vipCounts->total_booking : 0;
-                $requiredSeats = $invite_total; // seats needed for this invite
-
-                if (($vip_used_seats + $requiredSeats) <= $vip_total_seats) {
-                    // seats available -> approve
-                    $inviteStatus = 1;
-                } else {
-                    // seats not available -> pending
-                    $inviteStatus = 0;
-                }
-            } else {
-                // Normal category - keep pending
-                $inviteStatus = 0;
-            }
-
-            // SAVE INVITE (use real FK category_id)
+            // SAVE INVITE
             $insertData = [
                 'event_id' => $event_id,
                 'user_id' => $data['user_id'],
@@ -282,7 +259,7 @@ class EventInvite extends BaseController
                 ]);
             }
 
-            // UPDATE event_counts INVITES
+            // UPDATE event_counts (INVITES ONLY)
             $countsTable = $db->table('event_counts');
 
             $eventCount = $countsTable
@@ -310,163 +287,46 @@ class EventInvite extends BaseController
                     'total_other_invites' => $other_total,
                     'total_couple_invites' => $couple_total,
                     'total_booking' => 0,
-                    'total_male_booking' => 0,
-                    'total_female_booking' => 0,
-                    'total_other_booking' => 0,
-                    'total_couple_booking' => 0,
                     'total_checkin' => 0,
-                    'total_male_checkin' => 0,
-                    'total_female_checkin' => 0,
-                    'total_other_checkin' => 0,
-                    'total_couple_checkin' => 0,
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
             }
 
-            // Variables that will be used after transaction
-            $qr_url = null;
-            $whatsappResponse = null;
-            $booking_code = null;
-
-            // If auto-approved -> create booking and update booking counts (still inside transaction)
-            if ((int) $inviteStatus === 1) {
-
-                // refresh counter for booking (get latest)
-                $counter = $counterTable->get()->getRow();
-                if (!$counter) {
-                    $db->transRollback();
-                    return $this->response->setJSON([
-                        'status' => 500,
-                        'success' => false,
-                        'message' => 'Counter record missing.'
-                    ]);
-                }
-
-                $new_booking_no = (int) $counter->last_booking_no + 1;
-                $counterTable->where('id', $counter->id)->update([
-                    'last_booking_no' => $new_booking_no,
-                    'updated_at' => date('Y-m-d H:i:s')
-                ]);
-
-                $booking_code = 'BK' . $event_code . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
-
-                // SAVE BOOKING
-                $bookingData = [
-                    'invite_id' => $invite_id,
-                    'event_id' => $event_id,
-                    'user_id' => $data['user_id'],
-                    'category_id' => $category_id,
-                    'booking_code' => $booking_code,
-                    'total_price' => $category->price,
-                    'quantity' => $invite_total,
-                    'status' => 1,
-                    'created_at' => date('Y-m-d H:i:s')
-                ];
-                $db->table('event_booking')->insert($bookingData);
-
-                // Update booking counts
-                $eventCount = $countsTable
-                    ->where('event_id', $event_id)
-                    ->where('category_id', $category_id)
-                    ->get()
-                    ->getRow();
-
-                if ($eventCount) {
-                    $countsTable->where('id', $eventCount->id)->update([
-                        'total_booking' => $eventCount->total_booking + $invite_total,
-                        'total_male_booking' => $eventCount->total_male_booking + $male_total,
-                        'total_female_booking' => $eventCount->total_female_booking + $female_total,
-                        'total_other_booking' => $eventCount->total_other_booking + $other_total,
-                        'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]);
-                } else {
-                    // If counts row was missing (unlikely here) insert with booking counts
-                    $countsTable->insert([
-                        'event_id' => $event_id,
-                        'category_id' => $category_id,
-                        'total_invites' => 0,
-                        'total_male_invites' => 0,
-                        'total_female_invites' => 0,
-                        'total_other_invites' => 0,
-                        'total_couple_invites' => 0,
-                        'total_booking' => $invite_total,
-                        'total_male_booking' => $male_total,
-                        'total_female_booking' => $female_total,
-                        'total_other_booking' => $other_total,
-                        'total_couple_booking' => $couple_total,
-                        'total_checkin' => 0,
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]);
-                }
-
-                // UPDATE SEATS (your existing helper) - keep inside transaction as it updates DB
-                $this->updateCategorySeatsFromEventCounts($event_id);
-
-                // *** DO NOT call createQrForBooking or sendEventConfirmation here ***
-                // Save $booking_code for use after transaction
-            } else {
-                // Pending invite: nothing DB-wise to do here beyond the invite/counts changes.
-                // sendInviteConfirmation will be called AFTER transComplete to avoid crashes.
-            }
-
-            // Complete transaction
+            // COMPLETE TRANSACTION
             $db->transComplete();
 
-            // Check transaction status
             if ($db->transStatus() === false) {
-                // Something failed within transaction
                 return $this->response->setJSON([
                     'status' => false,
                     'message' => 'Database error while processing invite.'
                 ]);
             }
 
-            // ----------------------------
-            // AFTER TRANSACTION - external operations (safe)
-            // ----------------------------
-            try {
-                // Generate QR only after transaction (safer if it uses filesystem or external lib)
-                if ($booking_code) {
-                    // createQrForBooking should ideally be safe/local. If it calls external APIs, keep it in try/catch.
-                    $qr_url = $this->createQrForBooking($booking_code);
-                }
+            // AFTER TRANSACTION – WHATSAPP ONLY
 
-                // Send notifications (WhatsApp) outside transaction so failures don't rollback DB
-                if ($user) {
-                    if ((int) $inviteStatus === 1) {
-                        // auto-approved - send event confirmation
-                        try {
-                            $this->sendEventConfirmation(
-                                $user->phone,
-                                $user->name,
-                                $event->event_name
-                            );
-                        } catch (\Throwable $e) {
-                            // Log but don't fail the request
-                            log_message('error', 'sendEventConfirmation error: ' . $e->getMessage());
-                        }
-                    } else {
-                        // pending invite - send invite confirmation and capture response
-                        try {
-                            $whatsappResponse = $this->sendInviteConfirmation(
-                                $user->phone,
-                                $user->name,
-                                $event->event_name
-                            );
-                        } catch (\Throwable $e) {
-                            log_message('error', 'sendInviteConfirmation error: ' . $e->getMessage());
-                            // keep $whatsappResponse null or set an error object if you prefer
-                            $whatsappResponse = null;
-                        }
-                    }
+            $whatsappResponse = null;
+
+            try {
+                if ($inviteStatus === 1) {
+                    // VIP Approved
+                    $whatsappResponse = $this->notificationLibrary->sendEventConfirmation(
+                        $user->phone,
+                        $user->name,
+                        $event->event_name,
+                    );
+                } else {
+                    // Normal Pending
+                    $whatsappResponse = $this->notificationLibrary->sendInviteConfirmation(
+                        $user->phone,
+                        $user->name,
+                        $event->event_name
+                    );
                 }
             } catch (\Throwable $e) {
-                // Any unexpected error in post-transaction actions should be logged but not returned as 500
-                log_message('error', 'Post-transaction processing error: ' . $e->getMessage());
+                log_message('error', 'Whatsapp error: ' . $e->getMessage());
             }
 
-            // Prepare response data (human readable)
+            // FINAL RESPONSE
             $insertData['entry_type'] = $entryTypeText;
             $insertData['category_name'] = $categoryText;
 
@@ -474,77 +334,23 @@ class EventInvite extends BaseController
                 'status' => true,
                 'message' => 'Invite created successfully.',
                 'invite_code' => $invite_code,
+                'invite_status' => ($inviteStatus === 1 ? 'Approved' : 'Pending'),
                 'data' => $insertData,
-                'qr_code' => $qr_url,
-                'whatsapp_response' => $whatsappResponse,
-                'vip_auto_approved' => ($inviteStatus == 1)
+                'whatsapp_response' => $whatsappResponse
             ]);
+
         } catch (\Throwable $e) {
-            // Catch any top-level error, log and return a safe JSON error
-            log_message('error', 'createInvite fatal: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-            return $this->response->setStatusCode(500)->setJSON([
-                'status' => false,
-                'message' => 'Internal server error.'
-            ]);
+
+            log_message('error', 'CreateInvite Error: ' . $e->getMessage());
+
+            return $this->response
+                ->setStatusCode(500)
+                ->setJSON([
+                    'status' => false,
+                    'message' => 'Internal server error',
+                    'error' => ENVIRONMENT !== 'production' ? $e->getMessage() : null
+                ]);
         }
-    }
-    private function sendInviteConfirmation($phone, $name, $event_name)
-    {
-        $url = [
-            "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute",
-            "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/6932bced35cc1fd9bcef7ebc/webhook/execute"
-        ];
-        if (strpos($phone, '+91') !== 0) {
-            $phone = '+91' . ltrim($phone, '0');
-        }
-        // PAYLOAD  
-        $payload = [
-            "phone" => $phone,
-            "username" => $name,
-            "event_name" => $event_name
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        return json_decode($response, true);
-    }
-    private function sendEventConfirmation($phone, $name, $event_name)
-    {
-        $url = [
-            "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute",
-            "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/6932bd0735cc1fd9bcef7ef4/webhook/execute"
-        ];
-
-        if (strpos($phone, '+91') !== 0) {
-            $phone = '+91' . ltrim($phone, '0');
-        }
-
-        $payload = [
-            "phone" => $phone,
-            "username" => $name,
-            "event_name" => $event_name,
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-
-        $response = curl_exec($ch);
-        curl_close($ch);
-        return json_decode($response, true);
     }
     public function listInvites($event_id = null, $search = null)
     {

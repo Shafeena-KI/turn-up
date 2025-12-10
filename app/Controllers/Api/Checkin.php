@@ -472,6 +472,20 @@ class Checkin extends BaseController
                 ->get()
                 ->getRowArray();
 
+
+        if ($today < $eventDate) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => "Ticket is not valid for today's event"
+            ]);
+        }
+
+        if ($today > $eventDate) {
+            $checkin = $db->table('checkin')
+                ->where('booking_code', $booking['booking_code'])
+                ->get()
+                ->getRowArray();
+
             if (!$checkin) {
                 return $this->response->setJSON([
                     'status' => false,
@@ -647,6 +661,7 @@ class Checkin extends BaseController
         c.booking_code,
         c.checkedin_by,
         c.checkin_time,
+       
         
         u.user_id AS user_id,
         u.name AS user_name,
@@ -654,8 +669,8 @@ class Checkin extends BaseController
         u.email AS user_email,
         u.insta_id AS user_insta_id,
         u.profile_image AS user_profile_image,
-
-        c.event_id AS event_id, 
+ 
+        c.event_id AS event_id,
         e.event_name,
         e.event_city,
         e.event_location,
@@ -664,7 +679,7 @@ class Checkin extends BaseController
         e.event_time_start,
         e.event_date_end,
         e.event_time_end,
-
+ 
         COUNT(c.checkin_id) AS total_checkins,
         SUM(CASE WHEN c.entry_type = 1 THEN 1 ELSE 0 END) AS male_checkins,
         SUM(CASE WHEN c.entry_type = 2 THEN 1 ELSE 0 END) AS female_checkins,
@@ -730,6 +745,20 @@ class Checkin extends BaseController
             $checkin['entry_type_text'] = $entryTypeMap[$entryType] ?? 'N/A';
 
             // 1. Fetch admin name from admin_id
+            $adminRow = $db->table('admin_users')
+                ->select('name')
+                ->where('admin_id', $checkin['checkedin_by'])
+                ->get()
+                ->getRowArray();
+
+            // Replace admin_id with admin name in response
+            $checkin['checkedin_by'] = $adminRow['name'] ?? 'Unknown';
+
+
+            // 2. Format the checkin time
+            $checkin['checkin_time_formatted'] = !empty($checkin['checkin_time'])
+                ? date('d-m-Y H:i:s', strtotime($checkin['checkin_time']))
+                : null;
                 $adminRow = $db->table('admin_users')
                     ->select('name')
                     ->where('admin_id', $checkin['checkedin_by'])
