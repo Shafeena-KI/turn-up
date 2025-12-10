@@ -246,9 +246,7 @@ class Login extends BaseController
         }
     }
 
-    // ============================================================
-    //  CREATE ADMIN
-    // ============================================================
+
     public function createAdmin()
     {
         $auth = $this->validateToken();
@@ -283,50 +281,70 @@ class Login extends BaseController
         ]);
     }
 
-    // ============================================================
-    //  LIST ALL ADMINS
-    // ============================================================
-    // public function listAdmins()
-    // {
-    //     $auth = $this->validateToken();
-    //     if (!$auth['status']) return $this->response->setJSON($auth);
 
-    //     $admins = $this->adminModel->orderBy('admin_id', 'DESC')->findAll();
 
-    //     return $this->response->setJSON([
-    //         'status' => 200,
-    //         'success' => true,
-    //         'data' => $admins
-    //     ]);
-    // }
 
-    public function listAdmins()
-    {
-        // Read token from headers
-        $token = $this->request->getHeaderLine('Authorization');
+public function listAdmins()
+{
+    // Read token from headers
+    $token = $this->request->getHeaderLine('Authorization');
 
-        // If token is provided, validate it
-        if (!empty($token)) {
-            $auth = $this->validateToken();
-            if (!$auth['status']) {
-                return $this->response->setStatusCode(401)->setJSON($auth);
-            }
+    // Validate token only if provided
+    if (!empty($token)) {
+        $auth = $this->validateToken();
+        if (!$auth['status']) {
+            return $this->response->setStatusCode(401)->setJSON($auth);
         }
-
-        // No token or token OK → return data
-        $admins = $this->adminModel->orderBy('admin_id', 'DESC')->findAll();
-
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'data' => $admins
-        ]);
     }
 
+    // Pagination Params
+    $page = (int) $this->request->getGet('current_page') ?: 1;
+    $limit = (int) $this->request->getGet('per_page') ?: 10;
+    $offset = ($page - 1) * $limit;
 
-    // ============================================================
-    //  GET SINGLE ADMIN
-    // ============================================================
+    // Search Param
+    $search = $this->request->getGet('keyword') ?? $this->request->getGet('search');
+
+    // Base query
+    $builder = $this->adminModel;
+
+    // Apply search
+    if (!empty($search)) {
+        $builder->groupStart()
+            ->like('admin_name', $search)
+            ->orLike('email', $search)
+            ->orLike('phone', $search)
+            ->groupEnd();
+    }
+
+    // Count total
+    $total = $builder->countAllResults(false);
+
+    // Fetch paginated data
+    $admins = $builder
+        ->orderBy('admin_id', 'DESC')
+        ->findAll($limit, $offset);
+
+    // Pagination metadata
+    $totalPages = ceil($total / $limit);
+
+    return $this->response->setJSON([
+        'status' => 200,
+        'success' => true,
+        'data' => [
+            'current_page' => $page,
+            'per_page' => $limit,
+            'keyword' => $search,
+            'total_records' => $total,
+            'total_pages' => $totalPages,
+            'admins' => $admins
+        ]
+    ]);
+}
+
+
+
+
     public function getAdmin($id)
     {
         $auth = $this->validateToken();
@@ -350,11 +368,14 @@ class Login extends BaseController
         ]);
     }
 
-    // ============================================================
-    //  UPDATE ADMIN
-    // ============================================================
+
+
+
+
+
     public function updateAdmin()
     {
+        
         // Validate token
         $auth = $this->validateToken();
         if (!$auth['status'])
@@ -366,7 +387,7 @@ class Login extends BaseController
         $json = $isJson ? $this->request->getJSON(true) : [];
 
         // Get admin ID from JSON or POST
-        $id = $isJson ? ($json['id'] ?? null) : $this->request->getPost('id');
+        $id = $isJson ? ($json['admin_id'] ?? null) : $this->request->getPost('admin_id');
         if (empty($id)) {
             return $this->response->setJSON([
                 'status' => 400,
@@ -410,13 +431,11 @@ class Login extends BaseController
             'message' => 'Admin updated successfully',
             'data' => $updatedAdmin
         ]);
+        
     }
 
 
 
-    // ============================================================
-    //  DELETE ADMIN
-    // ============================================================
     public function deleteAdmin()
     {
         // Validate token

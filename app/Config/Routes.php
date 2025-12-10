@@ -19,6 +19,8 @@ $routes->post('api/admin/delete', 'Api\Login::deleteAdmin');
 $routes->post('api/admin/account-status', 'Api\Login::updateAdminUserStatus');
 
 
+
+
 //user login
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
 $routes->post('api/user/verifyotp', 'Api\AppUser::verifyOtp');
