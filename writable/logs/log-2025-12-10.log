@@ -96,3 +96,22 @@ Stack trace:
 #10 C:\wamp64\www\turn-up\system\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
 #11 C:\wamp64\www\turn-up\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
 #12 {main}
+CRITICAL - 2025-12-10 13:01:35 --> ErrorException: Cannot use try without catch or finally
+[Method: POST, Route: api/event/invite/create]
+in APPPATH\Controllers\Api\EventInvite.php on line 62.
+ 1 [internal function]: CodeIgniter\Debug\Exceptions->shutdownHandler()
+CRITICAL - 2025-12-10 13:02:03 --> ErrorException: Cannot use try without catch or finally
+[Method: POST, Route: api/event/invite/create]
+in APPPATH\Controllers\Api\EventInvite.php on line 62.
+ 1 [internal function]: CodeIgniter\Debug\Exceptions->shutdownHandler()
+ERROR - 2025-12-10 13:05:15 --> Whatsapp error: Call to a member function sendEventConfirmation() on null
+ERROR - 2025-12-10 13:06:00 --> Whatsapp error: Call to a member function sendInviteConfirmation() on null
+ERROR - 2025-12-10 13:14:22 --> Whatsapp error: Call to a member function sendInviteConfirmation() on null
+ERROR - 2025-12-10 13:22:13 --> Whatsapp error: Call to a member function sendInviteConfirmation() on null
+ERROR - 2025-12-10 13:22:33 --> Whatsapp error: Call to a member function sendEventConfirmation() on null
+ERROR - 2025-12-10 13:24:13 --> WhatsApp Payload: {"phone":"917034815364","username":"shajitha","event_name":"Not My Shadi"}
+ERROR - 2025-12-10 13:24:13 --> WhatsApp HTTP Code: 200
+ERROR - 2025-12-10 13:24:13 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"6939028cf0b34297f83d736a","name":"Event Confirmation","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"917034815364","recipientName":"shajitha","whatsappMessageId":"wamid.HBgMOTE3MDM0ODE1MzY0FQIAERgSNTRBQTNGNzM1MzUwMUI2NDVEAA==","templateName":"event_confirmation_v1"},"actionResults":[]}]}}'
+ERROR - 2025-12-10 13:26:16 --> WhatsApp Payload: {"phone":"919961629295","name":"Test","username":"shafeena","event_name":"Not My Shadi"}
+ERROR - 2025-12-10 13:26:16 --> WhatsApp HTTP Code: 200
+ERROR - 2025-12-10 13:26:16 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"6932bd6735cc1fd9bcef7ff9","name":"Invite Confirmation","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"919961629295","recipientName":"shafeena","whatsappMessageId":"wamid.HBgMOTE5OTYxNjI5Mjk1FQIAERgSMkE1NzlEQ0Y1QTkwMkU4MzcxAA==","templateName":"invite_confirmation_v1"},"actionResults":[]}]}}'
