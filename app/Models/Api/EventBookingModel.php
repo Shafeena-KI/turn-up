@@ -63,9 +63,98 @@ class EventBookingModel extends Model
     public function getBookingWithDetails($bookingId)
     {
         return $this->select('event_booking.*, events.event_name, app_users.name as user_name, app_users.email, app_users.phone')
-                    ->join('events', 'events.event_id = event_booking.event_id')
-                    ->join('app_users', 'app_users.user_id = event_booking.user_id')
-                    ->where('event_booking.booking_id', $bookingId)
-                    ->first();
+            ->join('events', 'events.event_id = event_booking.event_id')
+            ->join('app_users', 'app_users.user_id = event_booking.user_id')
+            ->where('event_booking.booking_id', $bookingId)
+            ->first();
+    }
+    public function getBookingsByEventDetails($event_id)
+    {
+        $data = $this->db->table('event_booking')
+            ->select("
+                event_booking.booking_id,
+                event_booking.booking_code,
+                event_invites.entry_type,
+                event_booking.status,
+                payments.payment_status,
+                event_booking.created_at,
+
+                event_ticket_category.category_name,
+
+                app_users.name AS guest_name,
+                app_users.email AS guest_email,
+                app_users.phone AS guest_phone,
+                app_users.profile_status
+            ")
+            ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
+            ->join('event_invites','event_invites.invite_id = event_booking.invite_id','left')
+            ->join('payments','payments.payment_id = event_booking.payment_id','left')
+            ->join(
+                'event_ticket_category',
+                'event_ticket_category.category_id = event_booking.category_id',
+                'left'
+            )
+            ->where('event_booking.event_id', $event_id)
+            ->get()
+            ->getResultArray();
+
+        // ENTRY TYPE MAP
+        $entryTypes = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple',
+        ];
+
+        // BOOKING STATUS MAP
+        $statuses = [
+            0 => 'Pending',
+            1 => 'Confirmed',
+            2 => 'Cancelled',
+            3 => 'Expired',
+        ];
+
+        // PROFILE STATUS MAP
+        $profileStatuses = [
+            0 => 'Incomplete',
+            1 => 'Pending',
+            2 => 'Verified',
+            3 => 'Rejected',
+        ];
+
+        // PAYMENT STATUS MAP
+        $paymentStatuses = [
+            0 => 'Unpaid',
+            1 => 'Paid',
+            2 => 'Failed',
+            3 => 'Refunded',
+        ];
+
+        // TICKET TYPE MAP (using category_id or category_name)
+        $ticketTypes = [
+            1 => 'VIP',
+            2 => 'NORMAL',
+        ];
+
+        foreach ($data as &$booking) {
+
+            $booking['entry_type'] =
+                $entryTypes[(int) ($booking['entry_type'] ?? -1)] ?? 'N/A';
+
+            $booking['status'] =
+                $statuses[(int) ($booking['status'] ?? -1)] ?? 'N/A';
+
+            $booking['profile_status'] =
+                $profileStatuses[(int) ($booking['profile_status'] ?? -1)] ?? 'N/A';
+
+            $booking['payment_status'] =
+                $paymentStatuses[(int) ($booking['payment_status'] ?? -1)] ?? 'N/A';
+
+            // ticket_type based on category_id
+            $booking['ticket_type'] =
+                $ticketTypes[(int) ($booking['category_name'] ?? -1)] ?? 'N/A';
+        }
+
+        return $data;
     }
 }

@@ -246,7 +246,7 @@ class AppUser extends BaseController
     }
     private function sendWhatsAppOtp($phone, $otp)
     {
-        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/690e02d83dcbb55508455c59/webhook/execute";
+        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/6932bf7f35cc1fd9bcef86e5/webhook/execute";
         if (strpos($phone, '+91') !== 0) {
             $phone = '+91' . ltrim($phone, '0');
         }

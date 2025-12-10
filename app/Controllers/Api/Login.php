@@ -366,7 +366,7 @@ class Login extends BaseController
         $json = $isJson ? $this->request->getJSON(true) : [];
 
         // Get admin ID from JSON or POST
-        $id = $isJson ? ($json['id'] ?? null) : $this->request->getPost('id');
+        $id = $isJson ? ($json['admin_id'] ?? null) : $this->request->getPost('admin_id');
         if (empty($id)) {
             return $this->response->setJSON([
                 'status' => 400,

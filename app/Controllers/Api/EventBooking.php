@@ -35,7 +35,53 @@ class EventBooking extends BaseController
 
         $offset = ($page - 1) * $limit;
 
-        // MAIN BUILDER
+        /**
+         * ------------------------------------------
+         * STEP 1: GET PAGINATED EVENT IDS
+         * ------------------------------------------
+         */
+        $eventBuilder = $this->db->table('event_booking eb')
+            ->select('eb.event_id')
+            ->join('events e', 'e.event_id = eb.event_id', 'left')
+            ->groupBy('eb.event_id');
+
+        if (!empty($keyword)) {
+            $eventBuilder->groupStart()
+                ->like('e.event_name', $keyword)
+                ->orLike('e.event_city', $keyword)
+                ->orLike('e.event_code', $keyword)
+                ->groupEnd();
+        }
+
+        // Total events count
+        $totalEvents = $eventBuilder->countAllResults(false);
+
+        // Paginated event IDs
+        $eventIds = array_column(
+            $eventBuilder->limit($limit, $offset)->get()->getResultArray(),
+            'event_id'
+        );
+
+        if (empty($eventIds)) {
+            return $this->response->setJSON([
+                'status' => 200,
+                'message' => 'No events found',
+                'data' => [
+                    'current_page' => $page,
+                    'per_page' => $limit,
+                    'keyword' => $keyword,
+                    'total_records' => 0,
+                    'total_pages' => 0,
+                    'events' => []
+                ]
+            ]);
+        }
+
+        /**
+         * ------------------------------------------
+         * STEP 2: FETCH ALL CATEGORY DATA
+         * ------------------------------------------
+         */
         $builder = $this->db->table('event_booking eb')
             ->select("
             eb.event_id,
@@ -47,13 +93,12 @@ class EventBooking extends BaseController
             e.event_time_start,
             e.event_date_end,
             e.event_time_end,
-            e.total_seats AS event_total_seats, 
-            
+            e.total_seats AS event_total_seats,
+
             c.category_id,
             c.category_name,
             c.total_seats,
 
-            -- PEOPLE COUNT
             (
                 SUM(CASE WHEN ei.entry_type = 1 THEN 1 ELSE 0 END) + 
                 SUM(CASE WHEN ei.entry_type = 2 THEN 1 ELSE 0 END) +
@@ -71,34 +116,22 @@ class EventBooking extends BaseController
             ->join('events e', 'e.event_id = eb.event_id', 'left')
             ->join('event_ticket_category c', 'c.category_id = eb.category_id', 'left')
             ->join('event_invites ei', 'ei.invite_id = eb.invite_id', 'left')
+            ->whereIn('eb.event_id', $eventIds)
             ->groupBy('eb.event_id, eb.category_id');
 
-        // SEARCH FILTER
-        if (!empty($keyword)) {
-            $builder->groupStart()
-                ->like('e.event_name', $keyword)
-                ->orLike('e.event_city', $keyword)
-                ->orLike('e.event_code', $keyword)
-                ->groupEnd();
-        }
-
-        // ----- COUNT TOTAL EVENTS (AFTER GROUPING) -----
-        $countBuilder = clone $builder;
-        $totalRows = $countBuilder->get()->getResultArray();
-        $totalEvents = count($totalRows);
-
-        // ----- PAGINATION -----
-        $builder->limit($limit, $offset);
         $rows = $builder->get()->getResultArray();
 
-        // ----- FORMAT -----
+        /**
+         * ------------------------------------------
+         * STEP 3: FORMAT RESPONSE
+         * ------------------------------------------
+         */
         $finalData = [];
 
         foreach ($rows as $row) {
 
             $eventId = $row['event_id'];
-            $categoryText = $row['category_name'];
-            $categoryKey = strtolower($categoryText);
+            $categoryKey = strtolower($row['category_name']);
 
             if (!isset($finalData[$eventId])) {
                 $finalData[$eventId] = [
@@ -111,7 +144,6 @@ class EventBooking extends BaseController
                     'event_time_start' => $row['event_time_start'],
                     'event_date_end' => $row['event_date_end'],
                     'event_time_end' => $row['event_time_end'],
-
                     'categories' => [],
                     'overall_total' => [
                         'total_seats' => (int) $row['event_total_seats'],
@@ -125,7 +157,7 @@ class EventBooking extends BaseController
                 ];
             }
 
-            // CATEGORY WISE
+            // Category-wise data
             $finalData[$eventId]['categories'][$categoryKey] = [
                 'category_id' => (int) $row['category_id'],
                 'seats' => (int) $row['total_seats'],
@@ -137,7 +169,7 @@ class EventBooking extends BaseController
                 'total_couple_booking' => (int) $row['total_couple_booking']
             ];
 
-            // OVERALL TOTAL
+            // ✅ CORRECT OVERALL TOTAL (VIP + NORMAL + ALL)
             $finalData[$eventId]['overall_total']['total_booking'] += (int) $row['total_booking'];
             $finalData[$eventId]['overall_total']['total_quantity'] += (int) $row['total_quantity'];
             $finalData[$eventId]['overall_total']['total_male_booking'] += (int) $row['total_male_booking'];
@@ -146,7 +178,6 @@ class EventBooking extends BaseController
             $finalData[$eventId]['overall_total']['total_couple_booking'] += (int) $row['total_couple_booking'];
         }
 
-        $result = array_values($finalData);
         $totalPages = ceil($totalEvents / $limit);
 
         return $this->response->setJSON([
@@ -158,7 +189,7 @@ class EventBooking extends BaseController
                 'keyword' => $keyword,
                 'total_records' => $totalEvents,
                 'total_pages' => $totalPages,
-                'events' => $result
+                'events' => array_values($finalData)
             ]
         ]);
     }
