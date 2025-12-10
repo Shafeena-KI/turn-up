@@ -241,7 +241,7 @@ class Checkin extends BaseController
                 'booking_id' => $booking['booking_id'],
                 'booking_code' => $booking['booking_code'],
                 'event_name' => $event['event_name'] ?? '',
-                // 'ticket_type' => $category['category_name'] ?? '',
+                //'ticket_type' => $category['category_name'] ?? '',
                 'ticket_type' => $ticketType,
                 'entry_type' => $invite['entry_type'] ?? '',
                 'user_name' => $user['name'] ?? '',
@@ -472,6 +472,20 @@ class Checkin extends BaseController
                 ->get()
                 ->getRowArray();
 
+
+        if ($today < $eventDate) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => "Ticket is not valid for today's event"
+            ]);
+        }
+
+        if ($today > $eventDate) {
+            $checkin = $db->table('checkin')
+                ->where('booking_code', $booking['booking_code'])
+                ->get()
+                ->getRowArray();
+
             if (!$checkin) {
                 return $this->response->setJSON([
                     'status' => false,
@@ -648,6 +662,7 @@ class Checkin extends BaseController
         c.checkedin_by,
         c.checkin_time,
        
+        
         u.user_id AS user_id,
         u.name AS user_name,
         u.phone AS user_phone,
@@ -744,6 +759,20 @@ class Checkin extends BaseController
             $checkin['checkin_time_formatted'] = !empty($checkin['checkin_time'])
                 ? date('d-m-Y H:i:s', strtotime($checkin['checkin_time']))
                 : null;
+                $adminRow = $db->table('admin_users')
+                    ->select('name')
+                    ->where('admin_id', $checkin['checkedin_by'])
+                    ->get()
+                    ->getRowArray();
+
+                // Replace admin_id with admin name in response
+                $checkin['checkedin_by'] = $adminRow['name'] ?? 'Unknown';
+
+
+                // 2. Format the checkin time
+                $checkin['checkin_time_formatted'] = !empty($checkin['checkin_time'])
+                    ? date('d-m-Y H:i:s', strtotime($checkin['checkin_time']))
+                    : null;
 
 
             // Partner details (if any)
