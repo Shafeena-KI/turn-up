@@ -237,7 +237,7 @@ class PaymentController extends ResourceController
             if ($status === 'paid') {
                 // Payment successful
                 $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::SUCCESS]);
-                $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAYED]);
+                $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAID]);
                 $this->createBookingRecord($transaction);
             } else {
                 // Payment failed
@@ -305,7 +305,7 @@ class PaymentController extends ResourceController
                 
                 if ($status === 'paid') {
                     $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::SUCCESS]);
-                    $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAYED]);
+                    $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAID]);
                     $this->createBookingRecord($transaction);
                 } else {
                     $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::FAILED]);
@@ -391,7 +391,7 @@ class PaymentController extends ResourceController
                 ];
                 
                 $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::SUCCESS]);
-                $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAYED]);
+                $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAID]);
                 $this->createBookingRecord($transaction);
             } else {
                 $errorDetails = $data['data']['error_details'] ?? [];
