@@ -233,7 +233,7 @@ class EventInvite extends BaseController
             $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
 
             // VIP = Approved, Normal = Pending
-         
+
             // profile_status: 0 = incomplete, 1 = completed, 2 = verified
 
             if ($user->profile_status == 2) {
@@ -267,7 +267,7 @@ class EventInvite extends BaseController
                 ]);
             }
 
-            // UPDATE event_counts (INVITES ONLY)
+            // UPDATE event_counts (INVITES ONLY + APPROVED INVITES)
             $countsTable = $db->table('event_counts');
 
             $eventCount = $countsTable
@@ -276,29 +276,71 @@ class EventInvite extends BaseController
                 ->get()
                 ->getRow();
 
+            // For approved invites
+            $approved_total = 0;
+            $approved_male = 0;
+            $approved_female = 0;
+            $approved_other = 0;
+            $approved_couple = 0;
+
+            if ($inviteStatus === 1) {
+                if ($entryTypeValue == 1)
+                    $approved_male = 1;
+                if ($entryTypeValue == 2)
+                    $approved_female = 1;
+                if ($entryTypeValue == 3)
+                    $approved_other = 1;
+                if ($entryTypeValue == 4)
+                    $approved_couple = 1;
+            }
+
             if ($eventCount) {
+
                 $countsTable->where('id', $eventCount->id)->update([
+
+                    // INVITE COUNTS
                     'total_invites' => $eventCount->total_invites + $invite_total,
                     'total_male_invites' => $eventCount->total_male_invites + $male_total,
                     'total_female_invites' => $eventCount->total_female_invites + $female_total,
                     'total_other_invites' => $eventCount->total_other_invites + $other_total,
                     'total_couple_invites' => $eventCount->total_couple_invites + $couple_total,
+
+                    // APPROVED COUNTS
+                    'total_approved' => $eventCount->total_approved + $approved_total,
+                    'total_male_approved' => $eventCount->total_male_approved + $approved_male,
+                    'total_female_approved' => $eventCount->total_female_approved + $approved_female,
+                    'total_other_approved' => $eventCount->total_other_approved + $approved_other,
+                    'total_couple_approved' => $eventCount->total_couple_approved + $approved_couple,
+
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
+
             } else {
+
                 $countsTable->insert([
                     'event_id' => $event_id,
                     'category_id' => $category_id,
+
+                    // INVITES
                     'total_invites' => $invite_total,
                     'total_male_invites' => $male_total,
                     'total_female_invites' => $female_total,
                     'total_other_invites' => $other_total,
                     'total_couple_invites' => $couple_total,
+
+                    // APPROVED
+                    'total_approved' => $approved_total,
+                    'total_male_approved' => $approved_male,
+                    'total_female_approved' => $approved_female,
+                    'total_other_approved' => $approved_other,
+                    'total_couple_approved' => $approved_couple,
+
                     'total_booking' => 0,
                     'total_checkin' => 0,
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
             }
+
 
             // COMPLETE TRANSACTION
             $db->transComplete();
@@ -513,28 +555,75 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // Update invite status ONLY
+        // Already approved? Don't double-count
+        if ($invite['status'] == 1 && $status == 1) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Invite already approved.'
+            ]);
+        }
+
+        // Update invite status
         $this->inviteModel->update($invite_id, [
             'status' => $status,
             'approved_at' => ($status == 1) ? date('Y-m-d H:i:s') : null
         ]);
 
-        // === SEND CONFIRMATION ONLY WHEN APPROVED ===
+        //  UPDATE APPROVED COUNTERS IN event_counts WHEN APPROVED
+
         if ($status == 1) {
 
+            $db = $this->db;
+
+            $entry_type = (int) $invite['entry_type']; // 1=M,2=F,3=O,4=C
+            $event_id = $invite['event_id'];
+            $category_id = $invite['category_id'];
+
+            $m = $f = $o = $c = 0;
+            // total approved persons (for total_approved)
+            $t = 0;
+
+            if ($entry_type == 1)
+                $m = 1;
+            if ($entry_type == 2)
+                $f = 1;
+            if ($entry_type == 3)
+                $o = 1;
+            if ($entry_type == 4)
+                $c = 1;
+
+            $countsTable = $db->table('event_counts');
+
+            $row = $countsTable
+                ->where('event_id', $event_id)
+                ->where('category_id', $category_id)
+                ->get()
+                ->getRow();
+
+            if ($row) {
+                // Update approved counters
+                $countsTable->where('id', $row->id)->update([
+                    'total_approved' => $row->total_approved + $t,
+                    'total_male_approved' => $row->total_male_approved + $m,
+                    'total_female_approved' => $row->total_female_approved + $f,
+                    'total_other_approved' => $row->total_other_approved + $o,
+                    'total_couple_approved' => $row->total_couple_approved + $c,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+            }
+        }
+
+        // SEND WHATSAPP CONFIRMATION ONLY IF APPROVED
+
+        if ($status == 1) {
             $user = $this->userModel->find($invite['user_id']);
             $event = $this->eventModel->find($invite['event_id']);
 
             if ($user && $event) {
-                $phone = $user['phone'];
-                $username = $user['name'];
-                $event_name = $event['event_name'];
-
-                // WhatsApp event confirmation (NO BOOKING)
-                $whatsappResponse = $this->notificationLibrary->sendEventConfirmation(
-                    $phone,
-                    $username,
-                    $event_name
+                $this->notificationLibrary->sendEventConfirmation(
+                    $user['phone'],
+                    $user['name'],
+                    $event['event_name']
                 );
             }
         }
@@ -544,6 +633,7 @@ class EventInvite extends BaseController
             'message' => 'Invite status updated successfully.'
         ]);
     }
+
     public function updateCategorySeatsFromEventCounts($event_id)
     {
         // Get all categories for this event
@@ -639,19 +729,19 @@ class EventInvite extends BaseController
     }
     public function getInvitesByUser()
     {
-        // $auth = $this->getAuthenticatedUser();
+        $auth = $this->getAuthenticatedUser();
 
-        // if (isset($auth['error'])) {
-        //     return $this->response
-        //         ->setStatusCode(401)
-        //         ->setJSON([
-        //             'status' => 401,
-        //             'success' => false,
-        //             'message' => 'Invalid or expired token.'
-        //         ]);
-        // }
+        if (isset($auth['error'])) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Invalid or expired token.'
+                ]);
+        }
 
-        // $user_id = $auth['user_id']; // ← TOKEN USER
+        $user_id = $auth['user_id']; // ← TOKEN USER
         $json = $this->request->getJSON(true);
         $user_id = $json['user_id'] ?? null;
         if (!$user_id) {
