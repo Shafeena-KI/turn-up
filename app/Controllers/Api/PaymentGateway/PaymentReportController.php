@@ -44,6 +44,7 @@ class PaymentReportController extends ResourceController
             payments.event_id,  
             event_booking.booking_id,
             event_booking.booking_code, 
+            app_users.user_id,
             app_users.name as user_name, 
             app_users.profile_image, 
             app_users.profile_status, 
@@ -59,6 +60,13 @@ class PaymentReportController extends ResourceController
         }
         
         $transactions = $query->paginate($limit, 'default', $page);
+        
+        // Transform profile_image to full URL
+        foreach ($transactions as &$transaction) {
+            if (!empty($transaction['profile_image'])) {
+                $transaction['profile_image'] = base_url('uploads/profile_images/' . $transaction['profile_image']);
+            }
+        }
         
         return $this->respond([
             'success' => true,
@@ -232,6 +240,7 @@ class PaymentReportController extends ResourceController
             event_invites.invite_code,
             event_booking.booking_code, 
             event_booking.booking_id,
+            app_users.user_id,
             app_users.name as user_name, 
             app_users.profile_image, 
             app_users.profile_status, 
@@ -245,6 +254,13 @@ class PaymentReportController extends ResourceController
             ->where('payments.user_id', $userId)
             ->orderBy('transactions.initiated_at', $order)
             ->paginate($limit, 'default', $page);
+            
+        // Transform profile_image to full URL
+        foreach ($transactions as &$transaction) {
+            if (!empty($transaction['profile_image'])) {
+                $transaction['profile_image'] = base_url('uploads/profile_images/' . $transaction['profile_image']);
+            }
+        }
             
         return $this->respond([
             'success' => true,
@@ -284,6 +300,7 @@ class PaymentReportController extends ResourceController
             event_invites.invite_code,
             event_booking.booking_id,
             event_booking.booking_code, 
+            app_users.user_id,
             app_users.name as user_name, 
             app_users.profile_image, 
             app_users.profile_status, 
@@ -304,6 +321,13 @@ class PaymentReportController extends ResourceController
         }
         
         $transactions = $query->paginate($limit, 'default', $page);
+        
+        // Transform profile_image to full URL
+        foreach ($transactions as &$transaction) {
+            if (!empty($transaction['profile_image'])) {
+                $transaction['profile_image'] = base_url('uploads/profile_images/' . $transaction['profile_image']);
+            }
+        }
         
         return $this->respond([
             'success' => true,
