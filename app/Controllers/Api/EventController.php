@@ -112,7 +112,7 @@ class EventController extends BaseController
             $event['tag_id'] = json_decode($event['tag_id'], true) ?? [];
 
             $event['ticket_categories'] = $this->db->table('event_ticket_category')
-                ->select('category_id, category_name, price, dummy_invites, dummy_booked_seats')
+                ->select('category_id, category_name, price, couple_price, dummy_invites, dummy_booked_seats')
                 ->where('event_id', $event['event_id'])
                 ->where('status', 1)
                 ->get()
@@ -210,7 +210,7 @@ class EventController extends BaseController
         }
 
         $event['ticket_categories'] = $this->db->table('event_ticket_category')
-            ->select('category_id, category_name, price, dummy_invites, dummy_booked_seats')
+            ->select('category_id, category_name, price, couple_price, dummy_invites, dummy_booked_seats')
             ->where('event_id', $event['event_id'])
             ->where('status', 1)
             ->get()
