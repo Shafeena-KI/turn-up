@@ -45,6 +45,8 @@ class EventInviteModel extends Model
             ->select("
             event_invites.*,
             event_ticket_category.category_name,
+            event_ticket_category.price,
+            event_ticket_category.couple_price,
 
             event_booking.booking_id,
             event_booking.booking_code,
@@ -58,33 +60,38 @@ class EventInviteModel extends Model
             ->get()
             ->getResultArray();
 
-        // Convert entry_type number → NAME (overwrite original field)
         foreach ($data as &$inv) {
-
+            // Convert entry_type number → text
             switch ($inv['entry_type']) {
                 case '1':
-                    $inv['entry_type'] = 'Male';
+                    $inv['entry_type_name'] = 'Male';
                     break;
-
                 case '2':
-                    $inv['entry_type'] = 'Female';
+                    $inv['entry_type_name'] = 'Female';
                     break;
-
                 case '3':
-                    $inv['entry_type'] = 'Other';
+                    $inv['entry_type_name'] = 'Other';
                     break;
-
                 case '4':
-                    $inv['entry_type'] = 'Couple';
+                    $inv['entry_type_name'] = 'Couple';
                     break;
-
                 default:
-                    $inv['entry_type'] = 'Unknown';
+                    $inv['entry_type_name'] = 'Unknown';
+            }
+
+            // Assign paid_amount based on entry type
+            if ($inv['entry_type'] == '4') {
+                // Couple
+                $inv['paid_amount'] = $inv['couple_price'];
+            } else {
+                // Male / Female / Other
+                $inv['paid_amount'] = $inv['price'];
             }
         }
 
         return $data;
     }
+
 
     public function findUserInvite($inviteId, $userId)
     {
