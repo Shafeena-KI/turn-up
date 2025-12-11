@@ -30,7 +30,7 @@ class EventInvite extends BaseController
         $this->bookingModel = new EventBookingModel();
         $this->categoryModel = new EventCategoryModel();
         $this->db = \Config\Database::connect();
-         $this->notificationLibrary = new \App\Libraries\NotificationLibrary();
+        $this->notificationLibrary = new \App\Libraries\NotificationLibrary();
     }
     private function getAuthenticatedUser()
     {
@@ -232,9 +232,17 @@ class EventInvite extends BaseController
             // FINAL INVITE CODE
             $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
 
-            // SIMPLE STATUS RULE
             // VIP = Approved, Normal = Pending
-            $inviteStatus = ($categoryType === 1) ? 1 : 0;
+         
+            // profile_status: 0 = incomplete, 1 = completed, 2 = verified
+
+            if ($user->profile_status == 2) {
+                // VERIFIED USERS ALWAYS GET AUTO APPROVAL
+                $inviteStatus = 1;
+            } else {
+                // OLD RULE: VIP auto-approved, normal pending
+                $inviteStatus = ($categoryType === 1) ? 1 : 0;
+            }
 
             // SAVE INVITE
             $insertData = [
@@ -505,133 +513,35 @@ class EventInvite extends BaseController
             ]);
         }
 
-        // Update status
+        // Update invite status ONLY
         $this->inviteModel->update($invite_id, [
             'status' => $status,
             'approved_at' => ($status == 1) ? date('Y-m-d H:i:s') : null
         ]);
 
-        $booking_code = null;
-
-        // === ONLY WHEN APPROVED === //
+        // === SEND CONFIRMATION ONLY WHEN APPROVED ===
         if ($status == 1) {
 
-            // Fetch user data for WhatsApp
             $user = $this->userModel->find($invite['user_id']);
-            $phone = $user['phone'];
-            $username = $user['name'];
-
             $event = $this->eventModel->find($invite['event_id']);
-            $event_name = $event['event_name'];
 
-            // ALREADY BOOKED?
-            $existing = $this->bookingModel
-                ->where('invite_id', $invite_id)
-                ->first();
+            if ($user && $event) {
+                $phone = $user['phone'];
+                $username = $user['name'];
+                $event_name = $event['event_name'];
 
-            if ($existing) {
-                $booking_code = $existing['booking_code'];
-
-            } else {
-                // Create booking (same logic as before)
-                $category_id = $invite['category_id'];
-                $category = $this->categoryModel->find($category_id);
-                $price = $category['price'] ?? 0;
-
-                $male_total = $female_total = $other_total = $couple_total = 0;
-
-                switch ((int) $invite['entry_type']) {
-                    case 1: // Male
-                        $male_total = 1;
-                        break;
-
-                    case 2: // Female 
-                        $female_total = 1;
-                        break;
-                    case 3:  // other
-                        $other_total = 1;
-                        break;
-                    case 4: // Couple
-                        $couple_total = 1;
-                        break;
-
-                    default:
-                        return $this->response->setJSON([
-                            'status' => false,
-                            'message' => 'Invalid entry type.'
-                        ]);
-                }
-
-                $invite_total = $male_total + $female_total + $other_total + ($couple_total * 2);
-
-
-                // COUNTER GENERATION
-                $counterTable = $this->db->table('event_counters');
-                $counter = $counterTable->get()->getRow();
-
-                if (!$counter) {
-                    $counterTable->insert([
-                        'last_booking_no' => 0,
-                        'created_at' => date('Y-m-d H:i:s')
-                    ]);
-                    $counter = $counterTable->get()->getRow();
-                }
-
-                $new_booking_no = $counter->last_booking_no + 1;
-
-                $counterTable->where('id', $counter->id)->update([
-                    'last_booking_no' => $new_booking_no,
-                    'updated_at' => date('Y-m-d H:i:s')
-                ]);
-
-                $event_code = $event['event_code'] ?? 'EVT';
-                $booking_code = 'BK' . $event_code . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
-
-                // INSERT BOOKING
-                $this->bookingModel->insert([
-                    'invite_id' => $invite_id,
-                    'event_id' => $invite['event_id'],
-                    'user_id' => $invite['user_id'],
-                    'category_id' => $category_id,
-                    'booking_code' => $booking_code,
-                    'total_price' => $price,
-                    'quantity' => $invite_total,
-                    'status' => 1,
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s')
-                ]);
-                $countsTable = $this->db->table('event_counts');
-
-                $eventCount = $countsTable
-                    ->where('event_id', $invite['event_id'])
-                    ->where('category_id', $invite['category_id'])
-                    ->get()
-                    ->getRow();
-
-                if ($eventCount) {
-                    $countsTable->where('id', $eventCount->id)->update([
-                        'total_booking' => $eventCount->total_booking + $invite_total,
-                        'total_male_booking' => $eventCount->total_male_booking + $male_total,
-                        'total_female_booking' => $eventCount->total_female_booking + $female_total,
-                        'total_other_booking' => $eventCount->total_other_booking + $other_total,
-                        'total_couple_booking' => $eventCount->total_couple_booking + $couple_total,
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]);
-                }
-                $this->updateCategorySeatsFromEventCounts($invite['event_id']);
+                // WhatsApp event confirmation (NO BOOKING)
+                $whatsappResponse = $this->notificationLibrary->sendEventConfirmation(
+                    $phone,
+                    $username,
+                    $event_name
+                );
             }
-            // AUTO GENERATE QR CODE 
-            $qr_url = $this->createQrForBooking($booking_code);
-
-            // SEND WHATSAPP
-            $this->sendEventConfirmation($phone, $username, $event_name);
         }
 
         return $this->response->setJSON([
             'status' => true,
-            'message' => 'Invite updated successfully.',
-            'booking_code' => $booking_code,
-            'qr_code' => $qr_url
+            'message' => 'Invite status updated successfully.'
         ]);
     }
     public function updateCategorySeatsFromEventCounts($event_id)
@@ -729,19 +639,19 @@ class EventInvite extends BaseController
     }
     public function getInvitesByUser()
     {
-        $auth = $this->getAuthenticatedUser();
+        // $auth = $this->getAuthenticatedUser();
 
-        if (isset($auth['error'])) {
-            return $this->response
-                ->setStatusCode(401)
-                ->setJSON([
-                    'status' => 401,
-                    'success' => false,
-                    'message' => 'Invalid or expired token.'
-                ]);
-        }
+        // if (isset($auth['error'])) {
+        //     return $this->response
+        //         ->setStatusCode(401)
+        //         ->setJSON([
+        //             'status' => 401,
+        //             'success' => false,
+        //             'message' => 'Invalid or expired token.'
+        //         ]);
+        // }
 
-        $user_id = $auth['user_id']; // ← TOKEN USER
+        // $user_id = $auth['user_id']; // ← TOKEN USER
         $json = $this->request->getJSON(true);
         $user_id = $json['user_id'] ?? null;
         if (!$user_id) {
@@ -871,5 +781,4 @@ class EventInvite extends BaseController
             ]
         ]);
     }
-
 }

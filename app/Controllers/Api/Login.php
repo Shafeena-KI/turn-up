@@ -124,121 +124,118 @@ class Login extends BaseController
 
 
 
-public function adminLogin()
-{
-    try {
-        $data = $this->request->getJSON(true);
+    public function adminLogin()
+    {
+        try {
+            $data = $this->request->getJSON(true);
 
-        $email = $data['email'] ?? $this->request->getPost('email');
-        $password = $data['password'] ?? $this->request->getPost('password');
+            $email = $data['email'] ?? $this->request->getPost('email');
+            $password = $data['password'] ?? $this->request->getPost('password');
 
-        if (empty($email) || empty($password)) {
-            return $this->response->setJSON([
-                'status' => 400,
-                'success' => false,
-                'message' => 'Email and Password are required.'
-            ]);
-        }
-
-        // Verify credentials
-        $result = $this->adminModel->verifyAdmin($email, $password);
-
-        if (isset($result['error']) && $result['error'] === true) {
-            return $this->response->setJSON([
-                'status' => 401,
-                'success' => false,
-                'message' => $result['message']
-            ]);
-        }
-
-        $admin = $result['data'];
-
-        // STATUS CHECK
-        if ($admin['status'] == 2) {
-            return $this->response->setJSON([
-                'status' => 403,
-                'success' => false,
-                'message' => 'Your account is suspended. Please contact Super Admin.'
-            ]);
-        }
-
-        if ($admin['status'] == 3) {
-            return $this->response->setJSON([
-                'status' => 410,
-                'success' => false,
-                'message' => 'This admin account has been deleted.'
-            ]);
-        }
-
-        if ($admin['status'] != 1) {
-            return $this->response->setJSON([
-                'status' => 403,
-                'success' => false,
-                'message' => 'Admin account is not active.'
-            ]);
-        }
-
-        // Get role details
-        $roleModel = new \App\Models\Api\RoleModel();
-        $roleData = null;
-        if (!empty($admin['role_id'])) {
-            $roleData = $roleModel->find($admin['role_id']);
-            if ($roleData) {
-                $roleData['role_permissions'] = json_decode($roleData['role_permissions'], true) ?? [];
+            if (empty($email) || empty($password)) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'Email and Password are required.'
+                ]);
             }
-        }
 
-        // Generate JWT token
-        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+            // Verify credentials
+            $result = $this->adminModel->verifyAdmin($email, $password);
 
-        $payload = [
-            'iss' => 'turn-up',
-            'iat' => time(),
-            'exp' => time() + 3600, // 1 hour
-            'data' => [
-                'admin_id' => $admin['admin_id'],
-                'email' => $admin['email']
-            ]
-        ];
+            if (isset($result['error']) && $result['error'] === true) {
+                return $this->response->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => $result['message']
+                ]);
+            }
 
-        $token = JWT::encode($payload, $key, 'HS256');
+            $admin = $result['data'];
 
-        // Save token
-        if (!empty($admin['admin_id'])) {
-            $this->adminModel->update($admin['admin_id'], [
+            // STATUS CHECK
+            if ($admin['status'] == 2) {
+                return $this->response->setJSON([
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Your account is suspended. Please contact Super Admin.'
+                ]);
+            }
+
+            if ($admin['status'] == 3) {
+                return $this->response->setJSON([
+                    'status' => 410,
+                    'success' => false,
+                    'message' => 'This admin account has been deleted.'
+                ]);
+            }
+
+            if ($admin['status'] != 1) {
+                return $this->response->setJSON([
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Admin account is not active.'
+                ]);
+            }
+
+            // Get role details
+            $roleModel = new \App\Models\Api\RoleModel();
+            $roleData = null;
+            if (!empty($admin['role_id'])) {
+                $roleData = $roleModel->find($admin['role_id']);
+                if ($roleData) {
+                    $roleData['role_permissions'] = json_decode($roleData['role_permissions'], true) ?? [];
+                }
+            }
+
+            // Generate JWT token
+            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+
+            $payload = [
+                'iss' => 'turn-up',
+                'iat' => time(),
+                'exp' => time() + 3600, // 1 hour
+                'data' => [
+                    'admin_id' => $admin['admin_id'],
+                    'email' => $admin['email']
+                ]
+            ];
+
+            $token = JWT::encode($payload, $key, 'HS256');
+
+            // Save token
+            if (!empty($admin['admin_id'])) {
+                $this->adminModel->update($admin['admin_id'], [
+                    'token' => $token
+                ]);
+            }
+
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Login successful',
+                'data' => [
+                    'admin_id' => $admin['admin_id'],
+                    'name' => $admin['name'],                // added name
+                    'email' => $admin['email'],
+                    'role_id' => $admin['role_id'] ?? null,
+                    'role_name' => $roleData['role_name'] ?? null,              // role name
+                    'role_permissions' => $roleData['role_permissions'] ?? []   // role permissions
+                ],
                 'token' => $token
             ]);
+
+        } catch (\Throwable $e) {
+
+            log_message('error', $e->getMessage());
+
+            return $this->response->setJSON([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Internal Server Error'
+            ]);
         }
-
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Login successful',
-            'data' => [
-                'admin_id' => $admin['admin_id'],
-                'name' => $admin['name'],                // added name
-                'email' => $admin['email'],
-                'role_id' => $admin['role_id'] ?? null,
-                'role_name' => $roleData['role_name'] ?? null,              // role name
-                'role_permissions' => $roleData['role_permissions'] ?? []   // role permissions
-            ],
-            'token' => $token
-        ]);
-
-    } catch (\Throwable $e) {
-
-        log_message('error', $e->getMessage());
-
-        return $this->response->setJSON([
-            'status' => 500,
-            'success' => false,
-            'message' => 'Internal Server Error'
-        ]);
     }
-}
-
-
-
 
     public function updateAdminUserStatus()
     {
@@ -295,13 +292,16 @@ public function adminLogin()
             // Get token from Authorization header
             $authHeader = $this->request->getHeaderLine('Authorization');
 
-            if (!$authHeader) {
-                return $this->response->setJSON([
-                    'status' => 400,
-                    'success' => false,
-                    'message' => 'Authorization token is required.'
-                ]);
+            if (empty($authHeader)) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Authorization token is required.'
+                    ]);
             }
+
 
             // Format: Bearer tokenvalue
             $token = str_replace('Bearer ', '', $authHeader);
@@ -404,12 +404,12 @@ public function adminLogin()
     }
 
 
-// public function listAdmins()
+    // public function listAdmins()
 // {
 //     // Read token from headers
 //     $token = $this->request->getHeaderLine('Authorization');
 
-//     // Validate token only if provided
+    //     // Validate token only if provided
 //     if (!empty($token)) {
 //         $auth = $this->validateToken();
 //         if (!$auth['status']) {
@@ -417,20 +417,20 @@ public function adminLogin()
 //         }
 //     }
 
-//     // Pagination Params
+    //     // Pagination Params
 //     $page = (int) $this->request->getGet('current_page') ?: 1;
 //     $limit = (int) $this->request->getGet('per_page') ?: 10;
 //     $offset = ($page - 1) * $limit;
 
-//     // Search Param
+    //     // Search Param
 //     $search = $this->request->getGet('keyword') ?? $this->request->getGet('search');
 
-//     // Base query with JOIN
+    //     // Base query with JOIN
 //     $builder = $this->adminModel
 //         ->select('admin_users.*, role_access.role_name')
 //         ->join('role_access', 'role_access.role_id = admin_users.role_id', 'left');
 
-//     // Apply search
+    //     // Apply search
 //     if (!empty($search)) {
 //         $builder->groupStart()
 //             ->like('admin_users.name', $search)
@@ -439,18 +439,18 @@ public function adminLogin()
 //             ->groupEnd();
 //     }
 
-//     // Count total
+    //     // Count total
 //     $total = $builder->countAllResults(false);
 
-//     // Fetch paginated data
+    //     // Fetch paginated data
 //     $admins = $builder
 //         ->orderBy('admin_users.admin_id', 'DESC')
 //         ->findAll($limit, $offset);
 
-//     // Pagination metadata
+    //     // Pagination metadata
 //     $totalPages = ceil($total / $limit);
 
-//     return $this->response->setJSON([
+    //     return $this->response->setJSON([
 //         'status' => 200,
 //         'success' => true,
 //         'data' => [
@@ -465,70 +465,70 @@ public function adminLogin()
 // }
 
 
-public function listAdmins()
-{
-    // Read token from headers
-    $token = $this->request->getHeaderLine('Authorization');
+    public function listAdmins()
+    {
+        // Read token from headers
+        $token = $this->request->getHeaderLine('Authorization');
 
-    // Validate token only if provided
-    if (!empty($token)) {
-        $auth = $this->validateToken();
-        if (!$auth['status']) {
-            return $this->response->setStatusCode(401)->setJSON($auth);
+        // Validate token only if provided
+        if (!empty($token)) {
+            $auth = $this->validateToken();
+            if (!$auth['status']) {
+                return $this->response->setStatusCode(401)->setJSON($auth);
+            }
         }
+
+        // Pagination Params
+        $page = (int) $this->request->getGet('current_page') ?: 1;
+        $limit = (int) $this->request->getGet('per_page') ?: 10;
+        $offset = ($page - 1) * $limit;
+
+        // Search Param
+        $search = $this->request->getGet('keyword') ?? $this->request->getGet('search');
+
+        // Base query with JOIN
+        $builder = $this->adminModel
+            ->select('admin_users.*, role_access.role_name, role_access.role_permissions')
+            ->join('role_access', 'role_access.role_id = admin_users.role_id', 'left');
+
+        // Apply search
+        if (!empty($search)) {
+            $builder->groupStart()
+                ->like('admin_users.name', $search)
+                ->orLike('admin_users.email', $search)
+                ->orLike('admin_users.phone', $search)
+                ->groupEnd();
+        }
+
+        // Count total
+        $total = $builder->countAllResults(false);
+
+        // Fetch paginated data
+        $admins = $builder
+            ->orderBy('admin_users.admin_id', 'DESC')
+            ->findAll($limit, $offset);
+
+        // Decode role permissions for each admin
+        foreach ($admins as &$admin) {
+            $admin['role_permissions'] = json_decode($admin['role_permissions'], true) ?? [];
+        }
+
+        // Pagination metadata
+        $totalPages = ceil($total / $limit);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'data' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'keyword' => $search,
+                'total_records' => $total,
+                'total_pages' => $totalPages,
+                'admins' => $admins
+            ]
+        ]);
     }
-
-    // Pagination Params
-    $page = (int) $this->request->getGet('current_page') ?: 1;
-    $limit = (int) $this->request->getGet('per_page') ?: 10;
-    $offset = ($page - 1) * $limit;
-
-    // Search Param
-    $search = $this->request->getGet('keyword') ?? $this->request->getGet('search');
-
-    // Base query with JOIN
-    $builder = $this->adminModel
-        ->select('admin_users.*, role_access.role_name, role_access.role_permissions')
-        ->join('role_access', 'role_access.role_id = admin_users.role_id', 'left');
-
-    // Apply search
-    if (!empty($search)) {
-        $builder->groupStart()
-            ->like('admin_users.name', $search)
-            ->orLike('admin_users.email', $search)
-            ->orLike('admin_users.phone', $search)
-            ->groupEnd();
-    }
-
-    // Count total
-    $total = $builder->countAllResults(false);
-
-    // Fetch paginated data
-    $admins = $builder
-        ->orderBy('admin_users.admin_id', 'DESC')
-        ->findAll($limit, $offset);
-
-    // Decode role permissions for each admin
-    foreach ($admins as &$admin) {
-        $admin['role_permissions'] = json_decode($admin['role_permissions'], true) ?? [];
-    }
-
-    // Pagination metadata
-    $totalPages = ceil($total / $limit);
-
-    return $this->response->setJSON([
-        'status' => 200,
-        'success' => true,
-        'data' => [
-            'current_page' => $page,
-            'per_page' => $limit,
-            'keyword' => $search,
-            'total_records' => $total,
-            'total_pages' => $totalPages,
-            'admins' => $admins
-        ]
-    ]);
-}
 
 
 
@@ -562,7 +562,7 @@ public function listAdmins()
 
     public function updateAdmin()
     {
-        
+
         // Validate token
         $auth = $this->validateToken();
         if (!$auth['status'])
@@ -618,7 +618,7 @@ public function listAdmins()
             'message' => 'Admin updated successfully',
             'data' => $updatedAdmin
         ]);
-        
+
     }
 
 
