@@ -535,7 +535,7 @@ class PaymentController extends ResourceController
         $existingPayment = $this->paymentModel
             ->where('invite_id', $inviteId)
             ->where('user_id', $userId)
-            ->where('payment_status !=', PaymentModel::FAILED)
+            ->where('payment_status', PaymentModel::SUCCESS)
             ->first();
             
         if ($existingPayment) {

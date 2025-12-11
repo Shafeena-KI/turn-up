@@ -31,14 +31,14 @@ class PaymentFilter implements FilterInterface
         }
 
         // Check if the user is verified
-        $verifiyUser = $this->isUserVerified($userId);
-        if (!$verifiyUser) {
-            return service('response')->setJSON([
-                'status' => 401,
-                'success' => false,
-                'message' => 'Please verifiy your account.'
-            ])->setStatusCode(401);
-        }
+        // $verifiyUser = $this->isUserVerified($userId);
+        // if (!$verifiyUser) {
+        //     return service('response')->setJSON([
+        //         'status' => 401,
+        //         'success' => false,
+        //         'message' => 'Please verifiy your account.'
+        //     ])->setStatusCode(401);
+        // }
         
         // Add user_id to request for use in controller
         $request->setGlobal('post', ['user_id' => $userId]);
