@@ -2,15 +2,18 @@
 
 namespace App\Libraries;
 
-use App\Models\Api\EventBookingModel;
 use Config\Database;
-use App\Models\Api\EventCategoryModel;
+use App\Models\Api\EventModel;
 use App\Models\Api\EventInviteModel;
+use App\Models\Api\EventBookingModel;
+use App\Models\Api\EventCategoryModel;
+
 
 class BookingLibrary
 {   
     protected $db;
     protected $inviteModel;
+    protected $eventModel;
     protected $categoryModel;
 
     protected $categoryLibrary;
@@ -23,12 +26,14 @@ class BookingLibrary
         $this->db                   = Database::connect();
         $this->inviteModel          = new EventInviteModel();
         $this->categoryModel        = new EventCategoryModel();
+        $this->eventModel           = new EventModel();
 
         $this->categoryLibrary      = new CategoryLibrary();
         $this->eventLibrary         = new EventLibrary();
         $this->qrLibrary            = new QrLibrary();
         $this->notificationLibrary  = new NotificationLibrary();
     }
+
 
     // Function to generate Booking Reference Code
     public function generateBookingCode($event_code = null, $new_booking_no = null)
@@ -69,7 +74,8 @@ class BookingLibrary
         ]);
 
         // BOOKING CODE
-        $booking_code = $this->generateBookingCode($invite->invite_code, $new_booking_no);
+        $event_code = $this->eventModel->getEventCodeById($invite->event_id);
+        $booking_code = $this->generateBookingCode($event_code, $new_booking_no);
 
         // SAVE BOOKING
         $bookingData = [
