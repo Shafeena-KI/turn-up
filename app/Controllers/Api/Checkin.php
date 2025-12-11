@@ -703,6 +703,21 @@ class Checkin extends BaseController
             ->get()
             ->getResultArray();
 
+        //     if (empty($checkins)) {
+        //     return $this->response->setJSON([
+        //         'status' => 200,
+        //         'success' => true,
+        //         'data' => [
+        //             'current_page' => $page,
+        //             'per_page' => $limit,
+        //             'keyword' => $search,
+        //             'total_records' => 0,
+        //             'total_pages' => 0,
+        //             'checkins' => []
+        //         ]
+        //     ]);
+        // }
+
 
         foreach ($checkins as &$checkin) {
 

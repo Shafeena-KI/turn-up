@@ -7,83 +7,50 @@ class RoleModel extends Model
 {
     protected $table = 'role_access';
     protected $primaryKey = 'role_id';
-    protected $allowedFields = ['role_name', 'role_status', 'created_at', 'updated_at', 'role_permissions' ];
+
+    protected $allowedFields = [
+        'role_name',
+        'role_status',
+        'role_permissions',
+        'created_at',
+        'updated_at'
+    ];
 
     protected $menuTable = 'role_menus';
 
-    // Get all roles
-    public function getAllRoles()
+    // List all roles + menu names
+    public function getAllRolesWithMenus()
     {
-        return $this->findAll();
-    }
+        $roles = $this->findAll();
 
-    // Get role by ID with menus
-    public function getRoleWithMenus($roleId)
-    {
-        $role = $this->find($roleId);
-        if (!$role) {
-            return null;
-        }
-
+        // Get all menu items once
         $menus = $this->db->table($this->menuTable)
-                          ->where('role_id', $roleId)
                           ->get()
                           ->getResultArray();
 
-        $role['menus'] = $menus;
-        return $role;
-    }
-
-    // Create new role with menus
-    public function createRole($data)
-    {
-        $roleId = $this->insert([
-            'role_name' => $data['role_name'],
-            'role_status' => $data['role_status'] ?? 1
-        ]);
-
-        if (!empty($data['menus'])) {
-            $this->saveMenus($roleId, $data['menus']);
+        // Map menus by ID for fast lookup
+        $menuMap = [];
+        foreach ($menus as $m) {
+            $menuMap[$m['rolemenu_id']] = $m['menu_name'];
         }
 
-        return $roleId;
-    }
+        // Attach menu names to each role
+        foreach ($roles as &$role) {
 
-    // Update role and menus
-    public function updateRole($roleId, $data)
-    {
-        $this->update($roleId, [
-            'role_name' => $data['role_name'] ?? null,
-            'role_status' => $data['role_status'] ?? null
-        ]);
+            $ids = json_decode($role['role_permissions'], true);
 
-        if (!empty($data['menus'])) {
-            // Delete old menus
-            $this->db->table($this->menuTable)->where('role_id', $roleId)->delete();
-            $this->saveMenus($roleId, $data['menus']);
+            $role['permissions'] = [];
+
+            foreach ($ids as $id) {
+                if (isset($menuMap[$id])) {
+                    $role['permissions'][] = [
+                        'id' => $id,
+                        'name' => $menuMap[$id]
+                    ];
+                }
+            }
         }
 
-        return true;
-    }
-
-    // Delete role and menus
-    public function deleteRole($roleId)
-    {
-        $this->delete($roleId);
-        $this->db->table($this->menuTable)->where('role_id', $roleId)->delete();
-        return true;
-    }
-
-    // Helper: Save menu permissions
-    private function saveMenus($roleId, $menus)
-    {
-        $builder = $this->db->table($this->menuTable);
-        foreach ($menus as $menuName => $access) {
-            $builder->insert([
-                'role_id' => $roleId,
-                'menu_name' => $menuName,
-                'access' => $access ? '1' : '0'
-            ]);
-        }
+        return $roles;
     }
 }
