@@ -629,12 +629,13 @@ public function updateAdmin()
     if (!$auth['status'])
         return $this->response->setJSON($auth);
 
-    $contentType = strtolower($this->request->getHeaderLine('Content-Type'));
-    $isJson = strpos($contentType, 'json') !== false;
+    // Always try to parse JSON (even if content-type is wrong)
+    $json = $this->request->getJSON(true);
+    if (!is_array($json)) {
+        $json = [];
+    }
 
-    $json = $isJson ? $this->request->getJSON(true) : [];
-
-    // Admin ID from JSON, POST or var
+    // Admin ID from any source
     $id = $json['admin_id']
         ?? $this->request->getPost('admin_id')
         ?? $this->request->getVar('admin_id');
@@ -680,6 +681,7 @@ public function updateAdmin()
         'data' => $this->adminModel->find($id)
     ]);
 }
+
 
 
 
