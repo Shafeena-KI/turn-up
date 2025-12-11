@@ -32,7 +32,7 @@ class EventInviteModel extends Model
     const REJECETD = 2;
     const EXPIRED = 3;
     const PAYMENT_PENDING = 4;
-    const PAYED = 5;
+    const PAID = 5;
 
     public function getInvitesByEvent($event_id)
     {
