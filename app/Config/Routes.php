@@ -17,6 +17,7 @@ $routes->get('api/admin/view/(:num)', 'Api\Login::getAdmin/$1');
 $routes->post('api/admin/update', 'Api\Login::updateAdmin');
 $routes->post('api/admin/delete', 'Api\Login::deleteAdmin');
 $routes->post('api/admin/account-status', 'Api\Login::updateAdminUserStatus');
+$routes->post('api/admin/change-password', 'Api\Login::changePassword');
 
 
 
@@ -56,6 +57,7 @@ $routes->get('api/roles', 'Api\RoleController::index');
 $routes->get('api/roles/(:num)', 'Api\RoleController::show/$1');
 $routes->post('api/roles/create', 'Api\RoleController::create');
 $routes->post('api/roles/update', 'Api\RoleController::update');
+$routes->get('api/roles/list', 'Api\RoleController::listRoles');
 $routes->delete('api/roles/delete', 'Api\RoleController::delete');
 
 

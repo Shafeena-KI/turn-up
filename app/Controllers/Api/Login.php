@@ -666,4 +666,58 @@ class Login extends BaseController
     }
 
 
+    public function changePassword()
+{
+    // Validate token
+    $auth = $this->validateToken();
+    if (!$auth['status'])
+        return $this->response->setJSON($auth);
+
+    $data = $this->request->getJSON(true);
+
+    $adminId = $auth['admin_id']; // logged-in admin
+    $oldPassword = $data['old_password'] ?? null;
+    $newPassword = $data['new_password'] ?? null;
+
+    if (!$oldPassword || !$newPassword) {
+        return $this->response->setJSON([
+            'status' => 400,
+            'success' => false,
+            'message' => 'Old password and new password are required.'
+        ]);
+    }
+
+    // Fetch admin details
+    $admin = $this->adminModel->find($adminId);
+
+    if (!$admin) {
+        return $this->response->setJSON([
+            'status' => 404,
+            'success' => false,
+            'message' => 'Admin not found.'
+        ]);
+    }
+
+    // Verify old password
+    if (!password_verify($oldPassword, $admin['password'])) {
+        return $this->response->setJSON([
+            'status' => 401,
+            'success' => false,
+            'message' => 'Old password is incorrect.'
+        ]);
+    }
+
+    // Update password
+    $this->adminModel->update($adminId, [
+        'password' => password_hash($newPassword, PASSWORD_DEFAULT)
+    ]);
+
+    return $this->response->setJSON([
+        'status' => 200,
+        'success' => true,
+        'message' => 'Password updated successfully.'
+    ]);
+}
+
+
 }
