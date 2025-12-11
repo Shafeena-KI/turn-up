@@ -560,66 +560,126 @@ class Login extends BaseController
 
 
 
-    public function updateAdmin()
-    {
+    // public function updateAdmin()
+    // {
 
-        // Validate token
-        $auth = $this->validateToken();
-        if (!$auth['status'])
-            return $this->response->setJSON($auth);
+    //     // Validate token
+    //     $auth = $this->validateToken();
+    //     if (!$auth['status'])
+    //         return $this->response->setJSON($auth);
 
-        // Detect JSON
-        $contentType = $this->request->getHeaderLine('Content-Type');
-        $isJson = strpos($contentType, 'application/json') !== false;
-        $json = $isJson ? $this->request->getJSON(true) : [];
+    //     // Detect JSON
+    //     $contentType = $this->request->getHeaderLine('Content-Type');
+    //     $isJson = strpos($contentType, 'application/json') !== false;
+    //     $json = $isJson ? $this->request->getJSON(true) : [];
 
-        // Get admin ID from JSON or POST
-        $id = $isJson ? ($json['admin_id'] ?? null) : $this->request->getPost('admin_id');
-        if (empty($id)) {
-            return $this->response->setJSON([
-                'status' => 400,
-                'success' => false,
-                'message' => 'Admin ID is required'
-            ]);
-        }
+    //     // Get admin ID from JSON or POST
+    //     $id = $isJson ? ($json['admin_id'] ?? null) : $this->request->getPost('admin_id');
+    //     if (empty($id)) {
+    //         return $this->response->setJSON([
+    //             'status' => 400,
+    //             'success' => false,
+    //             'message' => 'Admin ID is required'
+    //         ]);
+    //     }
 
-        // Find admin
-        $admin = $this->adminModel->find($id);
-        if (!$admin) {
-            return $this->response->setJSON([
-                'status' => 404,
-                'success' => false,
-                'message' => 'Admin not found'
-            ]);
-        }
+    //     // Find admin
+    //     $admin = $this->adminModel->find($id);
+    //     if (!$admin) {
+    //         return $this->response->setJSON([
+    //             'status' => 404,
+    //             'success' => false,
+    //             'message' => 'Admin not found'
+    //         ]);
+    //     }
 
-        // Fields to update
-        $fields = ['name', 'email', 'phone', 'role_id', 'status', 'password'];
-        $update = [];
+    //     // Fields to update
+    //     $fields = ['name', 'email', 'phone', 'role_id', 'status', 'password'];
+    //     $update = [];
 
-        foreach ($fields as $field) {
-            $value = $isJson ? ($json[$field] ?? null) : $this->request->getPost($field);
-            if ($value !== null && $value !== '') {
-                if ($field == 'password') {
-                    $value = password_hash($value, PASSWORD_DEFAULT);
-                }
-                $update[$field] = $value;
-            }
-        }
+    //     foreach ($fields as $field) {
+    //         $value = $isJson ? ($json[$field] ?? null) : $this->request->getPost($field);
+    //         if ($value !== null && $value !== '') {
+    //             if ($field == 'password') {
+    //                 $value = password_hash($value, PASSWORD_DEFAULT);
+    //             }
+    //             $update[$field] = $value;
+    //         }
+    //     }
 
-        $this->adminModel->update($id, $update);
+    //     $this->adminModel->update($id, $update);
 
-        // Fetch updated admin
-        $updatedAdmin = $this->adminModel->find($id);
+    //     // Fetch updated admin
+    //     $updatedAdmin = $this->adminModel->find($id);
 
+    //     return $this->response->setJSON([
+    //         'status' => 200,
+    //         'success' => true,
+    //         'message' => 'Admin updated successfully',
+    //         'data' => $updatedAdmin
+    //     ]);
+
+    // }
+
+
+public function updateAdmin()
+{
+    // Validate token
+    $auth = $this->validateToken();
+    if (!$auth['status'])
+        return $this->response->setJSON($auth);
+
+    $contentType = strtolower($this->request->getHeaderLine('Content-Type'));
+    $isJson = strpos($contentType, 'json') !== false;
+
+    $json = $isJson ? $this->request->getJSON(true) : [];
+
+    // Admin ID from JSON, POST or var
+    $id = $json['admin_id']
+        ?? $this->request->getPost('admin_id')
+        ?? $this->request->getVar('admin_id');
+
+    if (empty($id)) {
         return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Admin updated successfully',
-            'data' => $updatedAdmin
+            'status' => 400,
+            'success' => false,
+            'message' => 'Admin ID is required'
         ]);
-
     }
+
+    // Find admin
+    $admin = $this->adminModel->find($id);
+    if (!$admin) {
+        return $this->response->setJSON([
+            'status' => 404,
+            'success' => false,
+            'message' => 'Admin not found'
+        ]);
+    }
+
+    // Allowed fields
+    $fields = ['name', 'email', 'phone', 'role_id', 'status', 'password'];
+    $update = [];
+
+    foreach ($fields as $field) {
+        $value = $json[$field] ?? $this->request->getPost($field);
+        if ($value !== null && $value !== '') {
+            if ($field === 'password') {
+                $value = password_hash($value, PASSWORD_DEFAULT);
+            }
+            $update[$field] = $value;
+        }
+    }
+
+    $this->adminModel->update($id, $update);
+
+    return $this->response->setJSON([
+        'status' => 200,
+        'success' => true,
+        'message' => 'Admin updated successfully',
+        'data' => $this->adminModel->find($id)
+    ]);
+}
 
 
 
