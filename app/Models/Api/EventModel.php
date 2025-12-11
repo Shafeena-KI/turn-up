@@ -37,4 +37,14 @@ class EventModel extends Model
     const COMPLETED = 2;
     const CANCELLED = 3;
     const DELETED   = 4;
+
+    public function getEventCodeById($eventId)
+    {
+        $event = $this->select('event_code')
+                    ->where('event_id', $eventId)
+                    ->first();
+
+        return $event['event_code'] ?? null;
+    }
+
 }
