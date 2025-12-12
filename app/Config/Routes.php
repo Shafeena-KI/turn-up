@@ -122,8 +122,13 @@ $routes->get('api/tags/(:num)', 'Api\EventTag::getTagById/$1');
 $routes->get('api/dashboard/total-users', 'Api\Dashboard::getTotalUsers');
 // Dashboard: Total Events Count
 $routes->get('api/dashboard/total-events', 'Api\Dashboard::getTotalEvents');
+// Dashboard: Total Approved Invites
+$routes->get('api/dashboard/total-approved-invites', 'Api\Dashboard::getTotalApprovedInvites');
+// Dashboard: Total Bookings
+$routes->get('api/dashboard/total-bookings', 'Api\Dashboard::getTotalBookings');
 // Dashboard - Upcoming Events Details
 $routes->get('api/dashboard/upcoming-events', 'Api\Dashboard::getUpcomingEventsDetails');
+
 
 
 // Payment Gateway Routes

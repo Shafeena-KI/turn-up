@@ -277,7 +277,6 @@ class EventInvite extends BaseController
                 ->getRow();
 
             // For approved invites
-            $approved_total = 0;
             $approved_male = 0;
             $approved_female = 0;
             $approved_other = 0;
@@ -293,6 +292,10 @@ class EventInvite extends BaseController
                 if ($entryTypeValue == 4)
                     $approved_couple = 1;
             }
+
+            // TOTAL APPROVED = SUM OF ALL APPROVED TYPES
+            $approved_total = $approved_male + $approved_female + $approved_other + $approved_couple;
+
 
             if ($eventCount) {
 
@@ -415,6 +418,7 @@ class EventInvite extends BaseController
                 event_invites.*,
                 events.event_name,
                 events.event_city,
+                events.total_seats AS event_total_seats,
                 event_ticket_category.category_name,
                 event_ticket_category.total_seats,
                 event_ticket_category.actual_booked_seats,
@@ -432,7 +436,13 @@ class EventInvite extends BaseController
                 ec.total_female_invites,
                 ec.total_other_invites,
                 ec.total_other_invites,
-                ec.total_couple_invites
+                ec.total_couple_invites,
+
+                ec.total_approved,
+                ec.total_male_approved,
+                ec.total_female_approved,
+                ec.total_other_approved,
+                ec.total_couple_approved
             ")
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
@@ -507,6 +517,11 @@ class EventInvite extends BaseController
                 'total_female_invites' => (int) $invite['total_female_invites'],
                 'total_other_invites' => (int) $invite['total_other_invites'],
                 'total_couple_invites' => (int) $invite['total_couple_invites'],
+                'total_approved' => (int) $invite['total_approved'],
+                'total_male_approved' => (int) $invite['total_male_approved'],
+                'total_female_approved' => (int) $invite['total_female_approved'],
+                'total_other_approved' => (int) $invite['total_other_approved'],
+                'total_couple_approved' => (int) $invite['total_couple_approved'],
             ];
             $invite['event_ticket_category'] = [
                 'total_seats' => (int) $invite['total_seats'],
@@ -580,8 +595,6 @@ class EventInvite extends BaseController
             $category_id = $invite['category_id'];
 
             $m = $f = $o = $c = 0;
-            // total approved persons (for total_approved)
-            $t = 0;
 
             if ($entry_type == 1)
                 $m = 1;
@@ -592,6 +605,9 @@ class EventInvite extends BaseController
             if ($entry_type == 4)
                 $c = 1;
 
+            // TOTAL APPROVED PERSONS
+            $t = $m + $f + $o + ($c * 2); // Couple = 2 persons
+
             $countsTable = $db->table('event_counts');
 
             $row = $countsTable
@@ -601,7 +617,6 @@ class EventInvite extends BaseController
                 ->getRow();
 
             if ($row) {
-                // Update approved counters
                 $countsTable->where('id', $row->id)->update([
                     'total_approved' => $row->total_approved + $t,
                     'total_male_approved' => $row->total_male_approved + $m,
@@ -784,7 +799,13 @@ class EventInvite extends BaseController
             SUM(ec.total_male_invites) AS total_male,
             SUM(ec.total_female_invites) AS total_female,
             SUM(ec.total_other_invites) AS total_other,
-            SUM(ec.total_couple_invites) AS total_couple
+            SUM(ec.total_couple_invites) AS total_couple,
+
+            SUM(ec.total_approved) AS total_approved,
+            SUM(ec.total_male_approved) AS total_male_approved,
+            SUM(ec.total_female_approved) AS total_female_approved,
+            SUM(ec.total_other_approved) AS total_other_approved,
+            SUM(ec.total_couple_approved) AS total_couple_approved
         ")
             ->join('events e', 'e.event_id = ec.event_id', 'left')
             ->join('event_ticket_category c', 'c.category_id = ec.category_id', 'left')
@@ -806,7 +827,8 @@ class EventInvite extends BaseController
         $finalData = [];
         foreach ($rows as $row) {
             $eventId = $row['event_id'];
-            $categoryKey = strtolower($row['category_name']);
+            $categoryName = $row['category_name'] ?? 'Unknown';
+            $categoryKey = strtolower($categoryName);
             $categoryId = (int) $row['category_id'];
 
             if (!isset($finalData[$eventId])) {
@@ -820,6 +842,7 @@ class EventInvite extends BaseController
                     'event_time_start' => $row['event_time_start'],
                     'event_date_end' => $row['event_date_end'],
                     'event_time_end' => $row['event_time_end'],
+                    'event_total_seats' => $row['event_total_seats'],
                     'categories' => [],
                     'overall_total' => [
                         'total_seats' => (int) $row['event_total_seats'],
@@ -828,6 +851,11 @@ class EventInvite extends BaseController
                         'total_female' => 0,
                         'total_other' => 0,
                         'total_couple' => 0,
+                        'total_approved' => 0,
+                        'total_male_approved' => 0,
+                        'total_female_approved' => 0,
+                        'total_other_approved' => 0,
+                        'total_couple_approved' => 0,
                     ]
                 ];
             }
@@ -841,6 +869,12 @@ class EventInvite extends BaseController
                 'total_female' => (int) $row['total_female'],
                 'total_other' => (int) $row['total_other'],
                 'total_couple' => (int) $row['total_couple'],
+                'total_approved' => (int) $row['total_approved'],
+                'total_male_approved' => (int) $row['total_male_approved'],
+                'total_female_approved' => (int) $row['total_female_approved'],
+                'total_other_approved' => (int) $row['total_other_approved'],
+                'total_couple_approved' => (int) $row['total_couple_approved'],
+
             ];
 
             // OVERALL TOTALS
@@ -849,6 +883,13 @@ class EventInvite extends BaseController
             $finalData[$eventId]['overall_total']['total_female'] += (int) $row['total_female'];
             $finalData[$eventId]['overall_total']['total_other'] += (int) $row['total_other'];
             $finalData[$eventId]['overall_total']['total_couple'] += (int) $row['total_couple'];
+
+            $finalData[$eventId]['overall_total']['total_approved'] += (int) $row['total_approved'];
+            $finalData[$eventId]['overall_total']['total_male_approved'] += (int) $row['total_male_approved'];
+            $finalData[$eventId]['overall_total']['total_female_approved'] += (int) $row['total_female_approved'];
+            $finalData[$eventId]['overall_total']['total_other_approved'] += (int) $row['total_other_approved'];
+            $finalData[$eventId]['overall_total']['total_couple_approved'] += (int) $row['total_couple_approved'];
+
         }
 
         // ----- PAGINATION (AFTER GROUPING BY EVENT) -----

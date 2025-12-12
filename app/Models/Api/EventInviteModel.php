@@ -41,6 +41,13 @@ class EventInviteModel extends Model
 
     public function getInvitesByUser($user_id)
     {
+        // Subquery to get total bookings per event
+        $bookingCountSubquery = "
+        (SELECT event_id, COUNT(booking_id) AS total_bookings
+         FROM event_booking
+         GROUP BY event_id) AS bc
+    ";
+
         $data = $this->db->table('event_invites')
             ->select("
             event_invites.*,
@@ -52,15 +59,21 @@ class EventInviteModel extends Model
             event_booking.booking_code,
             event_booking.qr_code,
             event_booking.total_price,
-            event_booking.payment_id
+            event_booking.payment_id,
+
+            events.total_seats,
+            bc.total_bookings
         ")
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('event_booking', 'event_booking.invite_id = event_invites.invite_id', 'left')
+            ->join('events', 'events.event_id = event_invites.event_id', 'left')
+            ->join($bookingCountSubquery, 'bc.event_id = event_invites.event_id', 'left')
             ->where('event_invites.user_id', $user_id)
             ->get()
             ->getResultArray();
 
         foreach ($data as &$inv) {
+
             // Convert entry_type number → text
             switch ($inv['entry_type']) {
                 case '1':
@@ -79,19 +92,20 @@ class EventInviteModel extends Model
                     $inv['entry_type_name'] = 'Unknown';
             }
 
-            // Assign paid_amount based on entry type
-            if ($inv['entry_type'] == '4') {
-                // Couple
-                $inv['paid_amount'] = $inv['couple_price'];
-            } else {
-                // Male / Female / Other
-                $inv['paid_amount'] = $inv['price'];
-            }
+            // Paid amount
+            $inv['paid_amount'] = ($inv['entry_type'] == '4')
+                ? $inv['couple_price']
+                : $inv['price'];
+
+            // Balance seats
+            $total_seats = (int) ($inv['total_seats'] ?? 0);
+            $total_bookings = (int) ($inv['total_bookings'] ?? 0);
+
+            $inv['balance_seats'] = max($total_seats - $total_bookings, 0);
         }
 
         return $data;
     }
-
 
     public function findUserInvite($inviteId, $userId)
     {
