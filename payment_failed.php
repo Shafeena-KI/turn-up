@@ -57,7 +57,7 @@
         </div>
         
         <div class="buttons">
-            <a href="/" class="btn btn-primary">Continue</a>
+            <button onclick="backToApp()" class="btn btn-primary">Continue</button>
         </div>
     </div>
 
@@ -87,10 +87,13 @@
                 });
         }
         
-        function retryPayment() {
-            // Redirect back to payment page or show retry options
-            alert('Redirecting to retry payment...');
-            window.location.href = '/test_payment.html';
+        function backToApp() {
+            if (window.opener) {
+                window.opener.postMessage({type: 'payment_complete', order_id: orderId}, '*');
+                window.close();
+            } else {
+                window.location.href = '/'; // fallback
+            }
         }
     </script>
 </body>

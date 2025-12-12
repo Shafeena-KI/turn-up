@@ -34,7 +34,7 @@ class Cashfree extends BaseConfig
     }
     
     // API Version
-    public $apiVersion = '2023-08-01';
+    public $apiVersion = '2025-01-01';
     
     /**
      * Get API URL based on environment

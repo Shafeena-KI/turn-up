@@ -25,7 +25,7 @@ class CashfreePayment
         
         $payload = [
             'order_id' => $orderData['order_id'],
-            'order_amount' => $orderData['amount'],
+            'order_amount' => (float)$orderData['amount'],
             'order_currency' => 'INR',
             'customer_details' => [
                 'customer_id' => $orderData['customer_id'],
@@ -36,7 +36,9 @@ class CashfreePayment
             'order_meta' => [
                 'return_url' => $orderData['return_url'] ?? base_url('api/payment/callback'),
                 'notify_url' => $orderData['notify_url'] ?? base_url('api/payment/webhook')
-            ]
+            ],
+            'order_expiry_time' => date('c', strtotime('+1 hour')),
+            'order_note' => 'Event booking payment for invite ID: ' . ($orderData['invite_id'] ?? '')
         ];
 
         try {
@@ -77,27 +79,54 @@ class CashfreePayment
     }
 
     /**
-     * Get payment link
+     * Create payment link for existing order
      */
-    public function getPaymentLink($orderId)
+    public function createPaymentLink($orderId)
     {
-        $url = $this->config->getApiUrl() . '/orders/' . $orderId . '/payments';
+        $url = $this->config->getApiUrl() . '/links';
         
         try {
-            $response = $this->client->request('GET', $url, [
-                'headers' => $this->config->getHeaders()
+            $payload = [
+                'link_id' => 'link_' . $orderId,
+                'link_amount' => null, // Will use order amount
+                'link_currency' => 'INR',
+                'link_purpose' => 'Payment for Order: ' . $orderId,
+                'order_id' => $orderId
+            ];
+            
+            $response = $this->client->request('POST', $url, [
+                'headers' => $this->config->getHeaders(),
+                'json' => $payload
             ]);
 
-            return [
-                'success' => true,
-                'data' => json_decode($response->getBody(), true)
-            ];
+            $statusCode = $response->getStatusCode();
+            $responseBody = $response->getBody();
+            
+            if ($statusCode >= 200 && $statusCode < 300) {
+                return [
+                    'success' => true,
+                    'data' => json_decode($responseBody, true)
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'error' => 'HTTP ' . $statusCode . ': ' . $responseBody
+                ];
+            }
         } catch (\Exception $e) {
             return [
                 'success' => false,
                 'error' => $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * Get payment link (alias for createPaymentLink)
+     */
+    public function getPaymentLink($orderId)
+    {
+        return $this->createPaymentLink($orderId);
     }
 
     /**
