@@ -76,6 +76,65 @@ class PaymentReportController extends ResourceController
     }
 
     /**
+     * Get transaction details by ID
+     */
+    public function getTransactionDetails($transactionId = null)
+    {
+        if (!$transactionId) {
+            return $this->fail('Transaction ID is required', 400);
+        }
+        
+        $transaction = $this->transactionModel
+            ->select('
+            transactions.id,
+            transactions.payment_id,
+            transactions.transaction_id,
+            transactions.payment_method,
+            transactions.gateway_transaction_id,
+            transactions.amount,
+            transactions.commission,
+            transactions.net_credited,
+            transactions.status, 
+            transactions.initiated_at,
+            transactions.completed_at,
+            payments.invite_id, 
+            payments.event_id,  
+            payments.booking_id,
+            event_booking.booking_code, 
+            event_invites.invite_code,
+            app_users.user_id,
+            app_users.name as user_name, 
+            app_users.profile_image, 
+            app_users.profile_status, 
+            app_users.email,
+            events.event_name,
+            events.event_location,
+            events.event_date_start,
+            events.event_date_end')
+            ->join('payments', 'payments.payment_id = transactions.payment_id')
+            ->join('app_users', 'app_users.user_id = payments.user_id')
+            ->join('events', 'events.event_id = payments.event_id')
+            ->join('event_invites', 'event_invites.invite_id = payments.invite_id')
+            ->join('event_booking', 'event_booking.booking_id = payments.booking_id', 'left')
+            ->where('transactions.transaction_id', $transactionId)
+            ->first();
+            
+        if (!$transaction) {
+            return $this->failNotFound('Transaction not found');
+        }
+        
+        // Transform profile_image to full URL
+        if (!empty($transaction['profile_image'])) {
+            $transaction['profile_image'] = base_url('uploads/profile_images/' . $transaction['profile_image']);
+        }
+        
+        return $this->respond([
+            'success' => true,
+            'data' => $transaction
+        ]);
+    }
+
+    /**
      * Get event details with transaction status counts
      */
     public function getAllEventTransaction() 
