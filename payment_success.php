@@ -50,7 +50,7 @@
         </div>
         
         <div class="buttons">
-            <a href="/" class="btn btn-primary">Continue</a>
+            <button onclick="backToApp()" class="btn btn-primary">Continue</button>
         </div>
     </div>
 
@@ -79,6 +79,15 @@
                 .catch(error => {
                     console.error('Error fetching payment details:', error);
                 });
+        }
+
+        function backToApp() {
+            if (window.opener) {
+                window.opener.postMessage({type: 'payment_complete', order_id: orderId}, '*');
+                window.close();
+            } else {
+                window.location.href = '/'; // fallback
+            }
         }
     </script>
 </body>

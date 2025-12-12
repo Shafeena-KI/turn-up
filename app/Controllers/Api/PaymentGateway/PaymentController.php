@@ -47,7 +47,7 @@ class PaymentController extends ResourceController
         
         try {
             $input = $this->request->getJSON(true);
-            $userId = $this->request->getPost('user_id');
+            $userId = $input['user_id'] ?? null;
             $clientIP = $this->request->getIPAddress();
             
             // Validate authentication
@@ -112,12 +112,13 @@ class PaymentController extends ResourceController
             $orderData = [
                 'order_id' => $orderId,
                 'amount' => $inviteDetails->price,
-                'customer_id' => $userId,
+                'customer_id' => (string)$userId,
                 'customer_name' => $inviteDetails->customer_name ?? '',
                 'customer_email' => $inviteDetails->customer_email ?? '',
                 'customer_phone' => $inviteDetails->customer_phone ?? '',
                 'return_url' => base_url('api/payment/callback'),
-                'notify_url' => base_url('api/payment/webhook')
+                'notify_url' => base_url('api/payment/webhook'),
+                'invite_id' => $inviteId
             ];
 
             // Create payment record
@@ -156,6 +157,21 @@ class PaymentController extends ResourceController
                 throw new \RuntimeException('Payment gateway error: ' . ($result['error'] ?? 'Unknown'));
             }
             
+            // Generate payment link using latest Cashfree method
+            $paymentLink = null;
+            if (isset($result['data']['payment_session_id'])) {
+
+                $environment = env('CASHFREE_ENV', 'sandbox');
+
+                // Pick the base URL from .env
+                $baseUrl = $environment === 'production'
+                    ? rtrim(env('CASHFREE_PROD_URL'), '/')
+                    : rtrim(env('CASHFREE_SANDBOX_URL'), '/');
+
+                // Construct checkout URL
+                $paymentLink = $baseUrl . '/web/checkout?order_token=' . $result['data']['payment_session_id'];
+            }
+            
             $this->paymentModel->transCommit();
             
             log_message('info', 'Payment order created: ' . $orderId);
@@ -163,10 +179,12 @@ class PaymentController extends ResourceController
             return $this->respond([
                 'success' => true,
                 'order_id' => $orderId,
+                'order_amount' => (float)$inviteDetails->price,
+                'order_currency' => 'INR',
                 'payment_session_id' => $result['data']['payment_session_id'] ?? null,
-                'order_token' => $result['data']['order_token'] ?? null,
-                'amount' => $inviteDetails->price,
-                'currency' => 'INR'
+                'payment_link' => $paymentLink,
+                'order_status' => 'ACTIVE',
+                'order_expiry_time' => $result['data']['order_expiry_time'] ?? null
             ]);
             
         } catch (\Exception $e) {
