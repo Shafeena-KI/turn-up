@@ -34,20 +34,28 @@ class CashfreePayment
                 'customer_phone' => $orderData['customer_phone']
             ],
             'order_meta' => [
-                'return_url' => $orderData['return_url'] ?? base_url('api/payment/callback'),
-                'notify_url' => $orderData['notify_url'] ?? base_url('api/payment/webhook')
+                'return_url' => $orderData['return_url'] ?? base_url('api/payment/link-callback?order_id=' . urlencode($orderData['order_id'])),
+                'notify_url' => $orderData['notify_url'] ?? base_url('api/payment/webhook'),
+                'payment_methods' => 'cc,dc,nb,upi,paylater,emi'
             ],
-            'order_expiry_time' => date('c', strtotime('+1 hour')),
-            'order_note' => 'Event booking payment for invite ID: ' . ($orderData['invite_id'] ?? '')
+            'order_expiry_time' => date('c', strtotime('+24 hours')),
+            'order_note' => 'Event booking payment',
+            'order_tags' => [
+                'invite_id' => (string)($orderData['invite_id'] ?? ''),
+                'source' => 'web_app'
+            ]
         ];
 
         try {
-            log_message('debug', 'Cashfree API URL: ' . $url);
-            log_message('debug', 'Cashfree Headers: ' . json_encode($this->config->getHeaders()));
-            log_message('debug', 'Cashfree Payload: ' . json_encode($payload));
+            $headers = array_merge($this->config->getHeaders(), [
+                'x-api-version' => '2025-01-01',
+                'x-request-id' => uniqid('order_')
+            ]);
+            
+            log_message('info', 'Creating Cashfree order: ' . $orderData['order_id']);
             
             $response = $this->client->request('POST', $url, [
-                'headers' => $this->config->getHeaders(),
+                'headers' => $headers,
                 'json' => $payload,
                 'http_errors' => false
             ]);
@@ -79,24 +87,43 @@ class CashfreePayment
     }
 
     /**
-     * Create payment link for existing order
+     * Create payment link using Cashfree Payment Links API
      */
-    public function createPaymentLink($orderId)
+    public function createPaymentLink($orderId, $amount, $customerName, $customerEmail, $customerPhone, $returnUrl = null)
     {
         $url = $this->config->getApiUrl() . '/links';
         
         try {
             $payload = [
                 'link_id' => 'link_' . $orderId,
-                'link_amount' => null, // Will use order amount
+                'link_amount' => (float)$amount,
                 'link_currency' => 'INR',
-                'link_purpose' => 'Payment for Order: ' . $orderId,
-                'order_id' => $orderId
+                'link_purpose' => 'Event booking payment',
+                'customer_details' => [
+                    'customer_name' => $customerName,
+                    'customer_email' => $customerEmail,
+                    'customer_phone' => $customerPhone
+                ],
+                'link_meta' => [
+                    'return_url' => $returnUrl ?: base_url('api/payment/link-callback?order_id=' . urlencode($orderId)),
+                    'notify_url' => base_url('api/payment/webhook'),
+                    'upi_intent' => false,
+                    'payment_completion_page' => true
+                ],
+                'link_expiry_time' => date('c', strtotime('+24 hours')),
+                'link_notes' => [
+                    'order_id' => $orderId,
+                    'purpose' => 'event_booking'
+                ]
             ];
             
             $response = $this->client->request('POST', $url, [
-                'headers' => $this->config->getHeaders(),
-                'json' => $payload
+                'headers' => array_merge($this->config->getHeaders(), [
+                    'x-api-version' => '2025-01-01',
+                    'x-request-id' => uniqid('link_')
+                ]),
+                'json' => $payload,
+                'http_errors' => false
             ]);
 
             $statusCode = $response->getStatusCode();
@@ -130,7 +157,7 @@ class CashfreePayment
     }
 
     /**
-     * Verify payment
+     * Verify payment using latest API (2025-01-01)
      */
     public function verifyPayment($orderId)
     {
@@ -138,13 +165,63 @@ class CashfreePayment
         
         try {
             $response = $this->client->request('GET', $url, [
-                'headers' => $this->config->getHeaders()
+                'headers' => array_merge($this->config->getHeaders(), [
+                    'x-api-version' => '2025-01-01'
+                ]),
+                'http_errors' => false
             ]);
 
+            $statusCode = $response->getStatusCode();
+            $responseBody = $response->getBody();
+
+            if ($statusCode >= 200 && $statusCode < 300) {
+                return [
+                    'success' => true,
+                    'data' => json_decode($responseBody, true)
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'error' => 'HTTP ' . $statusCode . ': ' . $responseBody
+                ];
+            }
+        } catch (\Exception $e) {
             return [
-                'success' => true,
-                'data' => json_decode($response->getBody(), true)
+                'success' => false,
+                'error' => $e->getMessage()
             ];
+        }
+    }
+    
+    /**
+     * Get order details using latest API (2025-01-01)
+     */
+    public function getOrderDetails($orderId)
+    {
+        $url = $this->config->getApiUrl() . '/orders/' . $orderId;
+        
+        try {
+            $response = $this->client->request('GET', $url, [
+                'headers' => array_merge($this->config->getHeaders(), [
+                    'x-api-version' => '2025-01-01'
+                ]),
+                'http_errors' => false
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $responseBody = $response->getBody();
+
+            if ($statusCode >= 200 && $statusCode < 300) {
+                return [
+                    'success' => true,
+                    'data' => json_decode($responseBody, true)
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'error' => 'HTTP ' . $statusCode . ': ' . $responseBody
+                ];
+            }
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -154,7 +231,7 @@ class CashfreePayment
     }
 
     /**
-     * Get payment details by order ID
+     * Get payment details using latest API (2025-01-01)
      */
     public function getPaymentDetails($orderId)
     {
@@ -162,7 +239,10 @@ class CashfreePayment
         
         try {
             $response = $this->client->request('GET', $url, [
-                'headers' => $this->config->getHeaders()
+                'headers' => array_merge($this->config->getHeaders(), [
+                    'x-api-version' => '2025-01-01'
+                ]),
+                'http_errors' => false
             ]);
 
             $statusCode = $response->getStatusCode();
@@ -170,18 +250,22 @@ class CashfreePayment
             
             if ($statusCode >= 200 && $statusCode < 300) {
                 $data = json_decode($responseBody, true);
-                // Return the first payment if multiple payments exist
                 if (isset($data[0])) {
                     return [
                         'success' => true,
                         'data' => $data[0]
+                    ];
+                } else {
+                    return [
+                        'success' => false,
+                        'error' => 'No payment details found'
                     ];
                 }
             }
             
             return [
                 'success' => false,
-                'error' => 'No payment details found'
+                'error' => 'HTTP ' . $statusCode . ': ' . $responseBody
             ];
         } catch (\Exception $e) {
             return [
@@ -192,22 +276,105 @@ class CashfreePayment
     }
 
     /**
-     * Verify webhook signature
+     * Verify webhook signature using latest method
      */
     public function verifyWebhookSignature($rawBody, $signature, $timestamp)
     {
+        $secretKey = $this->config->getSecretKey();
         $signedPayload = $timestamp . $rawBody;
-        $expectedSignature = base64_encode(hash_hmac('sha256', $signedPayload, $this->config->secretKey, true));
+        $expectedSignature = base64_encode(hash_hmac('sha256', $signedPayload, $secretKey, true));
         
         return hash_equals($expectedSignature, $signature);
     }
 
+    /**
+     * Get link details by link ID
+     */
+    public function getLinkDetails($linkId)
+    {
+        $url = $this->config->getApiUrl() . '/links/' . $linkId;
+        
+        try {
+            $response = $this->client->request('GET', $url, [
+                'headers' => array_merge($this->config->getHeaders(), [
+                    'x-api-version' => '2025-01-01'
+                ]),
+                'http_errors' => false
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $responseBody = $response->getBody();
+            
+            if ($statusCode >= 200 && $statusCode < 300) {
+                return [
+                    'success' => true,
+                    'data' => json_decode($responseBody, true)
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'error' => 'HTTP ' . $statusCode . ': ' . $responseBody
+                ];
+            }
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    
+    /**
+     * Verify payment link status
+     */
+    public function verifyPaymentLink($linkId)
+    {
+        return $this->getLinkDetails($linkId);
+    }
+    
+    /**
+     * Get orders for a payment link using latest API (2025-01-01)
+     */
+    public function getLinkOrders($linkId)
+    {
+        $url = $this->config->getApiUrl() . '/links/' . $linkId . '/orders';
+        
+        try {
+            $response = $this->client->request('GET', $url, [
+                'headers' => array_merge($this->config->getHeaders(), [
+                    'x-api-version' => '2025-01-01'
+                ]),
+                'http_errors' => false
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $responseBody = $response->getBody();
+            
+            if ($statusCode >= 200 && $statusCode < 300) {
+                return [
+                    'success' => true,
+                    'data' => json_decode($responseBody, true)
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'error' => 'HTTP ' . $statusCode . ': ' . $responseBody
+                ];
+            }
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    
     /**
      * Generate order ID
      */
     public function generateOrderId()
     {
         $prefix = env('RECEIPT_PREFIX') ?? 'ORDER';
-        return $prefix . '_' . time() . '_' . rand(1000, 9999);
+        return $prefix . '_' . time() . '_' . random_int(1000, 9999);
     }
 }

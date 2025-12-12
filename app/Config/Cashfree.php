@@ -57,4 +57,12 @@ class Cashfree extends BaseConfig
             'Accept' => 'application/json'
         ];
     }
+    
+    /**
+     * Get secret key for webhook signature verification
+     */
+    public function getSecretKey(): string
+    {
+        return trim($this->secretKey);
+    }
 }
