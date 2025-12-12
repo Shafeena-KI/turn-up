@@ -37,6 +37,36 @@ class Dashboard extends BaseController
             'total_events' => $count
         ]);
     }
+    public function getTotalApprovedInvites()
+    {
+        // Sum total approved invites from event_counts table
+        $result = $this->db->table('event_counts')
+            ->selectSum('total_approved', 'total_approved')
+            ->get()
+            ->getRow();
+
+        $totalApproved = $result->total_approved ?? 0;
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'message' => 'Total approved invites count fetched successfully',
+            'total_approved_invites' => (int) $totalApproved
+        ]);
+    }
+    public function getTotalBookings()
+    {
+        $result = $this->db->table('event_counts')
+            ->selectSum('total_booking', 'total_bookings')
+            ->get()
+            ->getRow();
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'message' => 'Total bookings fetched successfully',
+            'total_bookings' => (int) ($result->total_bookings ?? 0)
+        ]);
+    }
+
     public function getUpcomingEventsDetails()
     {
         $events = $this->db->table('events')
