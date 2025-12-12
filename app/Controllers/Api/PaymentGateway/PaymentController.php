@@ -220,6 +220,8 @@ class PaymentController extends ResourceController
                 if ($paymentDetails['success'] && isset($paymentDetails['data'])) {
                     $paymentMethodData = $paymentDetails['data']['payment_method'] ?? null;
                     $paymentGroup = $paymentDetails['data']['payment_group'] ?? null;
+                    $orderData['payment_method'] = $paymentGroup;
+                    $orderData['payment_group']  = $paymentMethodData;
                 }
             }
             
@@ -247,7 +249,7 @@ class PaymentController extends ResourceController
             
             $this->transactionModel->update($transaction['id'], $updateData);
             $this->transactionModel->transCommit();
-            
+
             return $this->respond([
                 'success' => true,
                 'status' => $status,
@@ -441,7 +443,7 @@ class PaymentController extends ResourceController
     {
         $orderId = $this->request->getGet('order_id');
         $paymentData = null;
-        
+
         if ($orderId) {
             $transaction = $this->transactionModel->where('transaction_id', $orderId)->first();
             if ($transaction) {
@@ -457,16 +459,15 @@ class PaymentController extends ResourceController
                     $paymentData = $paymentDetails['data'];
                 }
 
-
                 $extractedMethod = $this->extractPaymentMethod($paymentMethodData);
                 
-                    $failureData = [
-                        'error_code' => (isset($paymentData['error_details']) ? $paymentData['error_details']['error_code'] : 'USER_CANCELLED') ?? 'USER_CANCELLED',
-                        'error_reason' => (isset($paymentData['error_details']) ? $paymentData['error_details']['error_reason'] : 'Payment is cancelled') ?? 'Payment is cancelled',
-                        'error_description' =>  (isset($paymentData['error_details']) ? $paymentData['error_details']['error_description'] : 'Payment cancelled by user') ?? 'Payment cancelled by user',
-                        'failed_at' => date('Y-m-d H:i:s'),
-                        'payment_method' => $paymentMethodData
-                    ];
+                $failureData = [
+                    'error_code' => (isset($paymentData['error_details']) ? $paymentData['error_details']['error_code'] : 'USER_CANCELLED') ?? 'USER_CANCELLED',
+                    'error_reason' => (isset($paymentData['error_details']) ? $paymentData['error_details']['error_reason'] : 'Payment is cancelled') ?? 'Payment is cancelled',
+                    'error_description' =>  (isset($paymentData['error_details']) ? $paymentData['error_details']['error_description'] : 'Payment cancelled by user') ?? 'Payment cancelled by user',
+                    'failed_at' => date('Y-m-d H:i:s'),
+                    'payment_method' => $paymentMethodData
+                ];
 
                 $this->transactionModel->update($transaction['id'], [
                     'status' => TransactionModel::FAILED,
@@ -480,6 +481,14 @@ class PaymentController extends ResourceController
             }
         }
         
+        // Check if request is from browser (has Accept header with text/html)
+        $acceptHeader = $this->request->getHeaderLine('Accept');
+        if (strpos($acceptHeader, 'text/html') !== false) {
+            // Redirect to PHP page for browser requests
+            return redirect()->to(base_url('payment_failed.php?order_id=' . $orderId));
+        }
+        
+        // Return JSON for API calls (Flutter)
         return $this->respond([
             'status' => 'failed',
             'message' => 'Payment failed or cancelled',
@@ -491,6 +500,14 @@ class PaymentController extends ResourceController
     {
         $orderId = $this->request->getGet('order_id');
         
+        // Check if request is from browser (has Accept header with text/html)
+        $acceptHeader = $this->request->getHeaderLine('Accept');
+        if (strpos($acceptHeader, 'text/html') !== false) {
+            // Redirect to PHP page for browser requests
+            return redirect()->to(base_url('payment_success.php?order_id=' . $orderId));
+        }
+        
+        // Return JSON for API calls (Flutter)
         if ($orderId) {
             $transaction = $this->transactionModel->where('transaction_id', $orderId)->first();
             
@@ -602,6 +619,46 @@ class PaymentController extends ResourceController
             log_message('error', 'Booking creation failed: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Get failure details for an order
+     */
+    public function getFailureDetails($orderId = null)
+    {
+
+        if (!$orderId || !preg_match('/^[A-Za-z0-9_-]+$/', $orderId)) {
+            return $this->fail('Invalid order ID', 400);
+        }
+
+        $transaction = $this->transactionModel->where('transaction_id', $orderId)->first();
+        if (!$transaction) {
+            return $this->fail('Transaction not found', 404);
+        }
+
+        $payment = $this->paymentModel->find($transaction['payment_id']);
+        if (!$payment) {
+            return $this->fail('Payment not found', 404);
+        }
+
+        $failureDetails = [];
+        if ($transaction['payment_details']) {
+            $paymentDetails = json_decode($transaction['payment_details'], true);
+            $failureDetails = [
+                'amount' => $payment['amount'],
+                'error_code' => $paymentDetails['error_code'] ?? 'UNKNOWN',
+                'error_description' => $paymentDetails['error_description'] ?? 'Payment failed',
+                'payment_method' => $transaction['payment_method']
+            ];
+        }
+
+        return $this->respond([
+            'success' => true,
+            'order_id' => $orderId,
+            'failure_details' => $failureDetails,
+            'transaction' => $transaction,
+            'failed_at' => $transaction['completed_at']
+        ]);
     }
 
     /**

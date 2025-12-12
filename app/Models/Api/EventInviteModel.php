@@ -105,20 +105,26 @@ class EventInviteModel extends Model
     public function getInviteDetails($inviteId, $userId)
     {
         return $this->db->table('event_invites')
-            ->select('
+            ->select("
                 event_invites.invite_id,
                 event_invites.event_id,
                 event_invites.user_id,
                 event_invites.category_id,
                 event_invites.invite_code,
                 event_invites.entry_type,
-                event_ticket_category.price,
                 event_invites.status,
                 events.event_name,
                 app_users.name AS customer_name,
                 app_users.email AS customer_email,
                 app_users.phone AS customer_phone
-            ')
+            ")
+            ->select("
+                CASE 
+                    WHEN event_invites.entry_type = 4 
+                        THEN event_ticket_category.couple_price
+                    ELSE event_ticket_category.price
+                END AS price
+            ", false)
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
@@ -126,8 +132,10 @@ class EventInviteModel extends Model
             ->where('event_invites.invite_id', $inviteId)
             ->where('events.status', EventModel::UPCOMING)
             ->get()
-            ->getRow();   // <-- important
+            ->getRow();
     }
+
+
     public function getInvitesByEventDetails($event_id)
     {
         $data = $this->db->table('event_invites')
