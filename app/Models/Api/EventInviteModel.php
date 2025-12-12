@@ -220,5 +220,4 @@ class EventInviteModel extends Model
 
         return $data;
     }
-
 }
