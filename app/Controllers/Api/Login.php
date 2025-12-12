@@ -404,66 +404,6 @@ class Login extends BaseController
     }
 
 
-    // public function listAdmins()
-// {
-//     // Read token from headers
-//     $token = $this->request->getHeaderLine('Authorization');
-
-    //     // Validate token only if provided
-//     if (!empty($token)) {
-//         $auth = $this->validateToken();
-//         if (!$auth['status']) {
-//             return $this->response->setStatusCode(401)->setJSON($auth);
-//         }
-//     }
-
-    //     // Pagination Params
-//     $page = (int) $this->request->getGet('current_page') ?: 1;
-//     $limit = (int) $this->request->getGet('per_page') ?: 10;
-//     $offset = ($page - 1) * $limit;
-
-    //     // Search Param
-//     $search = $this->request->getGet('keyword') ?? $this->request->getGet('search');
-
-    //     // Base query with JOIN
-//     $builder = $this->adminModel
-//         ->select('admin_users.*, role_access.role_name')
-//         ->join('role_access', 'role_access.role_id = admin_users.role_id', 'left');
-
-    //     // Apply search
-//     if (!empty($search)) {
-//         $builder->groupStart()
-//             ->like('admin_users.name', $search)
-//             ->orLike('admin_users.email', $search)
-//             ->orLike('admin_users.phone', $search)
-//             ->groupEnd();
-//     }
-
-    //     // Count total
-//     $total = $builder->countAllResults(false);
-
-    //     // Fetch paginated data
-//     $admins = $builder
-//         ->orderBy('admin_users.admin_id', 'DESC')
-//         ->findAll($limit, $offset);
-
-    //     // Pagination metadata
-//     $totalPages = ceil($total / $limit);
-
-    //     return $this->response->setJSON([
-//         'status' => 200,
-//         'success' => true,
-//         'data' => [
-//             'current_page' => $page,
-//             'per_page' => $limit,
-//             'keyword' => $search,
-//             'total_records' => $total,
-//             'total_pages' => $totalPages,
-//             'admins' => $admins
-//         ]
-//     ]);
-// }
-
 
     public function listAdmins()
     {
@@ -555,71 +495,6 @@ class Login extends BaseController
         ]);
     }
 
-
-
-
-
-
-    // public function updateAdmin()
-    // {
-
-    //     // Validate token
-    //     $auth = $this->validateToken();
-    //     if (!$auth['status'])
-    //         return $this->response->setJSON($auth);
-
-    //     // Detect JSON
-    //     $contentType = $this->request->getHeaderLine('Content-Type');
-    //     $isJson = strpos($contentType, 'application/json') !== false;
-    //     $json = $isJson ? $this->request->getJSON(true) : [];
-
-    //     // Get admin ID from JSON or POST
-    //     $id = $isJson ? ($json['admin_id'] ?? null) : $this->request->getPost('admin_id');
-    //     if (empty($id)) {
-    //         return $this->response->setJSON([
-    //             'status' => 400,
-    //             'success' => false,
-    //             'message' => 'Admin ID is required'
-    //         ]);
-    //     }
-
-    //     // Find admin
-    //     $admin = $this->adminModel->find($id);
-    //     if (!$admin) {
-    //         return $this->response->setJSON([
-    //             'status' => 404,
-    //             'success' => false,
-    //             'message' => 'Admin not found'
-    //         ]);
-    //     }
-
-    //     // Fields to update
-    //     $fields = ['name', 'email', 'phone', 'role_id', 'status', 'password'];
-    //     $update = [];
-
-    //     foreach ($fields as $field) {
-    //         $value = $isJson ? ($json[$field] ?? null) : $this->request->getPost($field);
-    //         if ($value !== null && $value !== '') {
-    //             if ($field == 'password') {
-    //                 $value = password_hash($value, PASSWORD_DEFAULT);
-    //             }
-    //             $update[$field] = $value;
-    //         }
-    //     }
-
-    //     $this->adminModel->update($id, $update);
-
-    //     // Fetch updated admin
-    //     $updatedAdmin = $this->adminModel->find($id);
-
-    //     return $this->response->setJSON([
-    //         'status' => 200,
-    //         'success' => true,
-    //         'message' => 'Admin updated successfully',
-    //         'data' => $updatedAdmin
-    //     ]);
-
-    // }
 
 
 public function updateAdmin()
