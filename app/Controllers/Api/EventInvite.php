@@ -283,15 +283,20 @@ class EventInvite extends BaseController
             $approved_couple = 0;
 
             if ($inviteStatus === 1) {
+
                 if ($entryTypeValue == 1)
                     $approved_male = 1;
+
                 if ($entryTypeValue == 2)
                     $approved_female = 1;
+
                 if ($entryTypeValue == 3)
                     $approved_other = 1;
+
                 if ($entryTypeValue == 4)
-                    $approved_couple = 1;
+                    $approved_couple = 2;   // COUPLE = 2 PERSONS
             }
+
 
             // TOTAL APPROVED = SUM OF ALL APPROVED TYPES
             $approved_total = $approved_male + $approved_female + $approved_other + $approved_couple;
@@ -604,7 +609,7 @@ class EventInvite extends BaseController
             if ($entry_type == 3)
                 $o = 1;
             if ($entry_type == 4)
-                $c = 1;
+                $c = 2;
 
             // TOTAL APPROVED PERSONS
             $t = $m + $f + $o + ($c * 2); // Couple = 2 persons
@@ -662,7 +667,6 @@ class EventInvite extends BaseController
             'message' => 'Invite status updated successfully.'
         ]);
     }
-
     public function updateCategorySeatsFromEventCounts($event_id)
     {
         // Get all categories for this event
