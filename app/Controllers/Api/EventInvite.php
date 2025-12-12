@@ -642,7 +642,20 @@ class EventInvite extends BaseController
                 );
             }
         }
+        // SEND WHATSAPP REJECTION ONLY IF REJECTED (status=2)
+        if ($status == 2) {
+            $user = $this->userModel->find($invite['user_id']);
+            $event = $this->eventModel->find($invite['event_id']);
 
+            if ($user && $event) {
+                // Call your rejection message function
+                $this->notificationLibrary->sendEventRejection(
+                    $user['phone'],
+                    $user['name'],
+                    $event['event_name']
+                );
+            }
+        }
         return $this->response->setJSON([
             'status' => true,
             'message' => 'Invite status updated successfully.'

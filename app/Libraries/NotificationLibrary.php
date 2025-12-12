@@ -95,6 +95,20 @@ class NotificationLibrary
 
         return $this->sendWebhook($url, $payload);
     }
+    public function sendEventRejection($phone, $name, $event_name)
+    {
+        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/693a3cdba21b8b5619fe2e0a/webhook/execute";
+
+        $phone = $this->formatPhone($phone);
+
+        $payload = [
+            "phone" => $phone,
+            "username" => $name,
+            "event_name" => $event_name,
+        ];
+
+        return $this->sendWebhook($url, $payload);
+    }
 
     public function sendEventQrWhatsapp($phone, $name, $eventName, $qrUrl, $bookingcode)
     {

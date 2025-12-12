@@ -94,6 +94,7 @@ class PaymentReportController extends ResourceController
                 events.event_date_start, 
                 events.event_date_end, 
                 events.total_seats, 
+                events.event_code,
                 events.status as event_status
             ')
             ->join('payments', 'payments.payment_id = transactions.payment_id')
@@ -119,6 +120,7 @@ class PaymentReportController extends ResourceController
                 'event_date_start' => $event['event_date_start'],
                 'event_date_end' => $event['event_date_end'],
                 'total_seats' => $event['total_seats'],
+                'event_code' => $event['event_code'],
                 'event_status' => $event['event_status'],
                 'transaction_counts' => [
                     'Initiated' => 0,
