@@ -87,8 +87,8 @@ class EventBookingModel extends Model
                 app_users.profile_status
             ")
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
-            ->join('event_invites','event_invites.invite_id = event_booking.invite_id','left')
-            ->join('payments','payments.payment_id = event_booking.payment_id','left')
+            ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
+            ->join('payments', 'payments.payment_id = event_booking.payment_id', 'left')
             ->join(
                 'event_ticket_category',
                 'event_ticket_category.category_id = event_booking.category_id',
@@ -157,4 +157,70 @@ class EventBookingModel extends Model
 
         return $data;
     }
+    public function getCheckinsByEventDetails($event_id)
+    {
+        $data = $this->db->table('checkin')
+            ->select("
+            checkin.checkin_id,
+            checkin.checkin_time,
+            checkin.checkedin_by,
+            checkin.partner,
+            checkin.category_id,
+
+            event_booking.booking_code,
+            event_booking.invite_id,
+
+            event_invites.entry_type,
+
+            app_users.name AS guest_name,
+            app_users.email AS guest_email,
+            app_users.phone AS guest_phone,
+
+            event_ticket_category.category_name AS ticket_type
+        ")
+            ->join('event_booking', 'event_booking.booking_id = checkin.booking_id', 'left')
+            ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
+            ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
+
+            // IMPORTANT: join using CHECKIN.category_id
+            ->join('event_ticket_category', 'event_ticket_category.category_id = checkin.category_id', 'left')
+
+            ->where('checkin.event_id', $event_id)
+            ->get()
+            ->getResultArray();
+
+        // ENTRY TYPE MAP
+        $entryTypes = [
+            1 => 'Male',
+            2 => 'Female',
+            3 => 'Other',
+            4 => 'Couple',
+        ];
+        $ticketTypes = [
+            1 => 'VIP',
+            2 => 'NORMAL',
+            // add more if needed
+        ];
+        foreach ($data as &$row) {
+
+            // entry type
+            $row['entry_type'] =
+                $entryTypes[(int) ($row['entry_type'] ?? -1)] ?? 'N/A';
+
+            $row['ticket_type'] = $ticketTypes[(int) ($row['ticket_type'] ?? -1)] ?? 'N/A';
+
+            // partner name
+            $row['partner'] = $row['partner'] ?? '';
+
+            // formatted time
+            if (!empty($row['checkin_time'])) {
+                $row['checkin_time'] = date('d-m-Y h:i A', strtotime($row['checkin_time']));
+            }
+        }
+
+        return $data;
+    }
+
+
+
 }

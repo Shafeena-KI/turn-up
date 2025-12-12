@@ -51,7 +51,20 @@ class NotificationLibrary
             'response' => $response
         ];
     }
+    public function sendWhatsAppOtp($phone, $otp)
+    {
+        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/6932bf7f35cc1fd9bcef86e5/webhook/execute";
 
+        $phone = $this->formatPhone($phone);
+
+        $payload = [
+            "phone" => $phone,
+            "name" => "Test",
+            "otp" => (string) $otp
+        ];
+
+        return $this->sendWebhook($url, $payload);
+    }
     public function sendInviteConfirmation($phone, $name, $event_name)
     {
         $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/6932bced35cc1fd9bcef7ebc/webhook/execute";
@@ -83,7 +96,7 @@ class NotificationLibrary
         return $this->sendWebhook($url, $payload);
     }
 
-    private function sendEventQrWhatsapp($phone, $name, $eventName, $qrUrl)
+    public function sendEventQrWhatsapp($phone, $name, $eventName, $qrUrl, $bookingcode)
     {
         $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/69294365131681aba96784cd/webhook/execute";
 
@@ -97,33 +110,9 @@ class NotificationLibrary
             "phone" => $phone,
             "username" => $name,
             "event_name" => $eventName,
-            "qr_url" => $qrUrl
+            "qr_url" => $qrUrl,
+            "booking_code" => $bookingcode
         ];
-
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_HTTPHEADER => ["Content-Type: application/json"],
-            CURLOPT_POSTFIELDS => json_encode($payload),
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_TIMEOUT => 30
-        ]);
-
-        $response = curl_exec($ch);
-
-        if (curl_errno($ch)) {
-            $error = curl_error($ch);
-            curl_close($ch);
-            return [
-                'status' => false,
-                'error' => $error
-            ];
-        }
-
-        curl_close($ch);
-
-        return json_decode($response, true);
+        return $this->sendWebhook($url, $payload);
     }
 }

@@ -346,6 +346,164 @@ class ExcelDownload extends BaseController
         $writer->save('php://output');
         exit;
     }
+    // Download Checkins
+    public function downloadCheckins()
+    {
+        try {
+            $eventId = $this->request->getGet('event_id');
+            if (!$eventId) {
+                throw new \Exception('Event ID missing');
+            }
 
+            $event = $this->eventModel->find($eventId);
+            if (!$event) {
+                throw new \Exception('Event not found');
+            }
+
+            // MODEL FUNCTION → getCheckinsByEvent($eventId)
+            $checkins = $this->bookingModel->getCheckinsByEventDetails($eventId);
+
+
+            if (!is_array($checkins)) {
+                throw new \Exception('Invalid checkin data');
+            }
+
+            $this->generateCheckinExcel($event, $checkins);
+
+        } catch (\Throwable $e) {
+            return $this->response
+                ->setStatusCode(500)
+                ->setBody('Error: ' . $e->getMessage());
+        }
+    }
+    private function generateCheckinExcel(array $event, array $checkins): void
+    {
+        if (ob_get_length()) {
+            ob_end_clean();
+        }
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // EVENT HEADER
+
+        $sheet->setCellValue('A1', 'Event Name: ' . $event['event_name']);
+        $sheet->mergeCells('A1:J1');
+
+        $sheet->setCellValue('A2', 'Event Code: ' . $event['event_code']);
+        $sheet->mergeCells('A2:J2');
+
+        $sheet->setCellValue('A3', 'Venue: ' . ($event['event_location'] ?? ''));
+        $sheet->mergeCells('A3:J3');
+        $sheet->setCellValue(
+            'A4',
+            'Event Date & Time: ' . (!empty($event['event_date_start'])
+                ? date('d M Y, h:i A', strtotime($event['event_time_start']))
+                : '')
+        );
+        $sheet->mergeCells('A4:J4');
+
+        // COUNTS
+
+        $counts = [
+            'male' => 0,
+            'female' => 0,
+            'other' => 0,
+            'couple' => 0,
+            'total' => count($checkins),
+        ];
+
+        foreach ($checkins as $c) {
+            switch ($c['entry_type'] ?? '') {
+                case 'Male':
+                    $counts['male']++;
+                    break;
+                case 'Female':
+                    $counts['female']++;
+                    break;
+                case 'Other':
+                    $counts['other']++;
+                    break;
+                case 'Couple':
+                    $counts['couple']++;
+                    break;
+            }
+        }
+
+        $sheet->setCellValue('A6', 'Counts');
+        $sheet->setCellValue('B6', 'Male');
+        $sheet->setCellValue('C6', 'Female');
+        $sheet->setCellValue('D6', 'Other');
+        $sheet->setCellValue('E6', 'Couple');
+        $sheet->setCellValue('F6', 'Total');
+
+        $sheet->setCellValue('A7', 'Total');
+        $sheet->setCellValue('B7', $counts['male']);
+        $sheet->setCellValue('C7', $counts['female']);
+        $sheet->setCellValue('D7', $counts['other']);
+        $sheet->setCellValue('E7', $counts['couple']);
+        $sheet->setCellValue('F7', $counts['total']);
+
+        /* ======================
+         * TABLE HEADER
+         * ====================== */
+        $headers = [
+            'Sl.No',
+            'Name',
+            'Phone',
+            'Email',
+            'Booking ID',
+            'Ticket Type',
+            'Entry Type',
+            'Partner',
+            'Checkin Time',
+            'Checked By'
+        ];
+
+        $col = 'A';
+        foreach ($headers as $h) {
+            $sheet->setCellValue($col . '10', $h);
+            $col++;
+        }
+
+        $sheet->getStyle('A10:J10')->getFont()->setBold(true);
+
+        /* ======================
+         * DATA ROWS
+         * ====================== */
+        $row = 11;
+        $sl = 1;
+
+        foreach ($checkins as $c) {
+            $sheet->setCellValue('A' . $row, $sl++);
+            $sheet->setCellValue('B' . $row, $c['guest_name'] ?? '');
+            $sheet->setCellValue('C' . $row, $c['guest_phone'] ?? '');
+            $sheet->setCellValue('D' . $row, $c['guest_email'] ?? '');
+            $sheet->setCellValue('E' . $row, $c['booking_code'] ?? '');
+            $sheet->setCellValue('F' . $row, $c['ticket_type'] ?? 'N/A');
+            $sheet->setCellValue('G' . $row, $c['entry_type'] ?? '');
+            $sheet->setCellValue('H' . $row, $c['partner_name'] ?? '');
+            $sheet->setCellValue('I' . $row, $c['checkin_time'] ?? '');
+            $sheet->setCellValue('J' . $row, $c['checked_by'] ?? '');
+            $row++;
+        }
+
+        foreach (range('A', 'J') as $columnID) {
+            $sheet->getColumnDimension($columnID)->setAutoSize(true);
+        }
+
+        /* ======================
+         * DOWNLOAD
+         * ====================== */
+        $fileName = 'Checkins_' . date('Ymd_His') . '.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
 
 }

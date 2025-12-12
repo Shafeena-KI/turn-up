@@ -10,7 +10,7 @@ use App\Models\Api\EventCategoryModel;
 
 
 class BookingLibrary
-{   
+{
     protected $db;
     protected $inviteModel;
     protected $eventModel;
@@ -21,30 +21,32 @@ class BookingLibrary
     protected $qrLibrary;
     protected $notificationLibrary;
 
-    public function __construct() {
+    public function __construct()
+    {
 
-        $this->db                   = Database::connect();
-        $this->inviteModel          = new EventInviteModel();
-        $this->categoryModel        = new EventCategoryModel();
-        $this->eventModel           = new EventModel();
+        $this->db = Database::connect();
+        $this->inviteModel = new EventInviteModel();
+        $this->categoryModel = new EventCategoryModel();
+        $this->eventModel = new EventModel();
 
-        $this->categoryLibrary      = new CategoryLibrary();
-        $this->eventLibrary         = new EventLibrary();
-        $this->qrLibrary            = new QrLibrary();
-        $this->notificationLibrary  = new NotificationLibrary();
+        $this->categoryLibrary = new CategoryLibrary();
+        $this->eventLibrary = new EventLibrary();
+        $this->qrLibrary = new QrLibrary();
+        $this->notificationLibrary = new NotificationLibrary();
     }
 
 
     // Function to generate Booking Reference Code
     public function generateBookingCode($event_code = null, $new_booking_no = null)
     {
-       $prefix = env('BOOKING_CODE_PREFIX') ?? 'BK';
+        $prefix = env('BOOKING_CODE_PREFIX') ?? 'BK';
 
         return $prefix . $event_code . str_pad($new_booking_no, 3, '0', STR_PAD_LEFT);
     }
 
     // Function to create Event Booked
-    public function BookEvent($inviteId, $userId) {
+    public function BookEvent($inviteId, $userId)
+    {
 
         $invite = $this->inviteModel->getInviteDetails($inviteId, $userId);
         if (empty($invite)) {
@@ -89,7 +91,7 @@ class BookingLibrary
             'status' => EventBookingModel::BOOKED,
             'created_at' => date('Y-m-d H:i:s')
         ];
-        
+
         $this->db->table('event_booking')->insert($bookingData);
         $bookingId = $this->db->insertID();
 
@@ -114,31 +116,31 @@ class BookingLibrary
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
         } else {
-                // If counts row was missing (unlikely here) insert with booking counts
-                $countsTable->insert([
-                    'event_id' => $invite->event_id,
-                    'category_id' => $invite->category_id,
-                    'total_invites' => 0,
-                    'total_male_invites' => 0,
-                    'total_female_invites' => 0,
-                    'total_other_invites' => 0,
-                    'total_couple_invites' => 0,
-                    'total_booking' => $category_counts['invite_total'],
-                    'total_male_booking' => $category_counts['male_total'],
-                    'total_female_booking' => $category_counts['female_total'],
-                    'total_other_booking' => $category_counts['other_total'],
-                    'total_couple_booking' => $category_counts['couple_total'],
-                    'total_checkin' => 0,
-                    'updated_at' => date('Y-m-d H:i:s')
-                ]);
-            }
+            // If counts row was missing (unlikely here) insert with booking counts
+            $countsTable->insert([
+                'event_id' => $invite->event_id,
+                'category_id' => $invite->category_id,
+                'total_invites' => 0,
+                'total_male_invites' => 0,
+                'total_female_invites' => 0,
+                'total_other_invites' => 0,
+                'total_couple_invites' => 0,
+                'total_booking' => $category_counts['invite_total'],
+                'total_male_booking' => $category_counts['male_total'],
+                'total_female_booking' => $category_counts['female_total'],
+                'total_other_booking' => $category_counts['other_total'],
+                'total_couple_booking' => $category_counts['couple_total'],
+                'total_checkin' => 0,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+        }
 
         // UPDATE SEATS
         $this->updateCategorySeatsFromEventCounts($invite->event_id);
 
         // QR CODE
         $qr_url = $this->qrLibrary->createQrForBooking($booking_code);
-        
+
         // Update QR code in booking
         $this->db->table('event_booking')->where('booking_id', $bookingId)->update(['qr_code' => $qr_url]);
 
@@ -149,10 +151,12 @@ class BookingLibrary
 
         if ($user) {
             // SEND EVENT BOOKING CONFIRMATION
-            $this->notificationLibrary->sendEventConfirmation(
+            $whatsappResponse = $this->notificationLibrary->sendEventQrWhatsapp(
                 $user->phone,
                 $user->name,
-                $invite->event_name
+                $invite->event_name,
+                $qr_url,          // ← QR URL you generated earlier
+                $booking_code     // ← Your booking code variable
             );
         }
 

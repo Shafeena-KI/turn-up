@@ -9,7 +9,7 @@ use Firebase\JWT\Key;
 class AppUser extends BaseController
 {
     protected $appUserModel;
-
+    protected $notificationLibrary;
     public function __construct()
     {
         header('Access-Control-Allow-Origin: *');
@@ -17,6 +17,7 @@ class AppUser extends BaseController
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->appUserModel = new AppUserModel();
         $this->db = \Config\Database::connect();
+        $this->notificationLibrary = new \App\Libraries\NotificationLibrary();
     }
     public function UserLogin()
     {
@@ -107,7 +108,7 @@ class AppUser extends BaseController
         }
 
         // Send WhatsApp OTP
-        $whatsappResponse = $this->sendWhatsAppOtp($phone, $otp);
+        $whatsappResponse = $this->notificationLibrary->sendWhatsAppOtp($phone, $otp);
 
         return $this->response->setJSON([
             'status' => 200,
@@ -244,41 +245,7 @@ class AppUser extends BaseController
             ]);
         }
     }
-    private function sendWhatsAppOtp($phone, $otp)
-    {
-        $url = "https://api.turbodev.ai/api/organizations/690dff1d279dea55dc371e0b/integrations/genericWebhook/6932bf7f35cc1fd9bcef86e5/webhook/execute";
-        if (strpos($phone, '+91') !== 0) {
-            $phone = '+91' . ltrim($phone, '0');
-        }
 
-        $payload = [
-            "phone" => $phone,
-            "name" => "Test",
-            "otp" => (string) $otp
-        ];
-
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-
-        // TEMPORARY FIX — disable SSL certificate verification
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-
-        $response = curl_exec($ch);
-
-        if (curl_errno($ch)) {
-            $error = curl_error($ch);
-            curl_close($ch);
-            return ["success" => false, "error" => $error];
-        }
-
-        curl_close($ch);
-        return json_decode($response, true);
-    }
     public function getUserById()
     {
         $auth = $this->getAuthenticatedUser();

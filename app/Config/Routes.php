@@ -94,6 +94,7 @@ $routes->post('api/booking/cancel', 'Api\EventBooking::cancelBooking');
 
 
 //checkin 
+$routes->get('api/event-checkins/download','Api\ExcelDownload::downloadCheckins');
 $routes->post('api/checkin/details', 'Api\Checkin::getCheckinDetails');
 $routes->post('api/checkin/mark-in', 'Api\Checkin::markAsIn');
 $routes->get('api/checkin/markin-list', 'Api\Checkin::listCheckins');
