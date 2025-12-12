@@ -294,12 +294,12 @@ class EventInvite extends BaseController
                     $approved_other = 1;
 
                 if ($entryTypeValue == 4)
-                    $approved_couple = 2;   // COUPLE = 2 PERSONS
+                    $approved_couple = 1;   // COUPLE = 2 PERSONS
             }
 
 
             // TOTAL APPROVED = SUM OF ALL APPROVED TYPES
-            $approved_total = $approved_male + $approved_female + $approved_other + $approved_couple;
+            $approved_total = $approved_male + $approved_female + $approved_other + ($approved_couple * 2);
 
 
             if ($eventCount) {
@@ -609,7 +609,7 @@ class EventInvite extends BaseController
             if ($entry_type == 3)
                 $o = 1;
             if ($entry_type == 4)
-                $c = 2;
+                $c = 1;
 
             // TOTAL APPROVED PERSONS
             $t = $m + $f + $o + ($c * 2); // Couple = 2 persons
