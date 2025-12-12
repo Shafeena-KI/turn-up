@@ -164,6 +164,7 @@ class EventBookingModel extends Model
             checkin.checkin_id,
             checkin.checkin_time,
             checkin.checkedin_by,
+            staff.name AS checkedin_by_name,
             checkin.partner,
             checkin.category_id,
 
@@ -180,11 +181,12 @@ class EventBookingModel extends Model
         ")
             ->join('event_booking', 'event_booking.booking_id = checkin.booking_id', 'left')
             ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
+            // guest user
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
-
-            // IMPORTANT: join using CHECKIN.category_id
+            // staff who checked in (use alias 'staff')
+            ->join('app_users AS staff', 'staff.user_id = checkin.checkedin_by', 'left')
+            // ticket/category (join using checkin.category_id)
             ->join('event_ticket_category', 'event_ticket_category.category_id = checkin.category_id', 'left')
-
             ->where('checkin.event_id', $event_id)
             ->get()
             ->getResultArray();
@@ -196,31 +198,35 @@ class EventBookingModel extends Model
             3 => 'Other',
             4 => 'Couple',
         ];
+
         $ticketTypes = [
             1 => 'VIP',
             2 => 'NORMAL',
-            // add more if needed
         ];
+
         foreach ($data as &$row) {
 
-            // entry type
-            $row['entry_type'] =
-                $entryTypes[(int) ($row['entry_type'] ?? -1)] ?? 'N/A';
+            // entry type text
+            $row['entry_type'] = $entryTypes[(int) ($row['entry_type'] ?? 0)] ?? 'N/A';
 
-            $row['ticket_type'] = $ticketTypes[(int) ($row['ticket_type'] ?? -1)] ?? 'N/A';
+            // ticket type text
+            $row['ticket_type'] = $ticketTypes[(int) ($row['ticket_type'] ?? 0)] ?? 'N/A';
+
+            // checked-in by username
+            $row['checkedin_by'] = $row['checkedin_by_name'] ?? ($row['checkedin_by'] ?? 'Unknown');
+            unset($row['checkedin_by_name']);
 
             // partner name
             $row['partner'] = $row['partner'] ?? '';
 
-            // formatted time
             if (!empty($row['checkin_time'])) {
                 $row['checkin_time'] = date('d-m-Y h:i A', strtotime($row['checkin_time']));
             }
         }
 
+
         return $data;
     }
-
 
 
 }
