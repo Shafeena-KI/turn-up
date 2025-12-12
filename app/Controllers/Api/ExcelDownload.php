@@ -484,7 +484,7 @@ class ExcelDownload extends BaseController
             $sheet->setCellValue('G' . $row, $c['entry_type'] ?? '');
             $sheet->setCellValue('H' . $row, $c['partner_name'] ?? '');
             $sheet->setCellValue('I' . $row, $c['checkin_time'] ?? '');
-            $sheet->setCellValue('J' . $row, $c['checked_by'] ?? '');
+            $sheet->setCellValue('J' . $row, $c['checkedin_by'] ?? '');
             $row++;
         }
 

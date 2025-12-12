@@ -415,45 +415,43 @@ class EventInvite extends BaseController
         // Join with events, categories, users and event_counts
         $builder = $this->inviteModel
             ->select("
-                event_invites.*,
-                events.event_name,
-                events.event_city,
-                events.total_seats AS event_total_seats,
-                event_ticket_category.category_name,
-                event_ticket_category.total_seats,
-                event_ticket_category.actual_booked_seats,
-                event_ticket_category.dummy_booked_seats,
-                event_ticket_category.dummy_invites,
-                event_ticket_category.balance_seats,
-                app_users.name,
-                app_users.phone,
-                app_users.email,
-                app_users.insta_id,
-                app_users.profile_image,
-                app_users.profile_status,
-                ec.total_invites,
-                ec.total_male_invites,
-                ec.total_female_invites,
-                ec.total_other_invites,
-                ec.total_other_invites,
-                ec.total_couple_invites,
-
-                ec.total_approved,
-                ec.total_male_approved,
-                ec.total_female_approved,
-                ec.total_other_approved,
-                ec.total_couple_approved
-            ")
+        event_invites.*,
+        events.event_name,
+        events.event_city,
+        events.total_seats AS event_total_seats,
+        event_ticket_category.category_name,
+        event_ticket_category.total_seats,
+        event_ticket_category.actual_booked_seats,
+        event_ticket_category.dummy_booked_seats,
+        event_ticket_category.dummy_invites,
+        event_ticket_category.balance_seats,
+        app_users.name,
+        app_users.phone,
+        app_users.email,
+        app_users.insta_id,
+        app_users.profile_image,
+        app_users.profile_status,
+        ec.total_invites,
+        ec.total_male_invites,
+        ec.total_female_invites,
+        ec.total_other_invites,
+        ec.total_couple_invites,
+        ec.total_approved,
+        ec.total_male_approved,
+        ec.total_female_approved,
+        ec.total_other_approved,
+        ec.total_couple_approved
+    ")
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
             ->join(
                 'event_counts ec',
                 'ec.event_id = event_invites.event_id 
-         AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
+                    AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
                 'left'
-            )
-            ->where('event_invites.status !=', 4);
+            );
+
         if (!empty($event_id)) {
             $builder->where('event_invites.event_id', $event_id);
         }
@@ -487,8 +485,11 @@ class EventInvite extends BaseController
                 0 => 'Pending',
                 1 => 'Approved',
                 2 => 'Rejected',
-                3 => 'Expired'
+                3 => 'Expired',
+                4 => 'Payment Pending',
+                5 => 'Paid'
             ];
+
             $invite['status_text'] = $statusMap[$invite['status']] ?? 'Unknown';
 
             // Entry type mapping
