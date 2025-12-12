@@ -106,7 +106,6 @@ class EventInviteModel extends Model
 
         return $data;
     }
-
     public function findUserInvite($inviteId, $userId)
     {
         return (bool) $this->db->table('event_invites')
@@ -114,8 +113,6 @@ class EventInviteModel extends Model
             ->where('invite_id', $inviteId)
             ->countAllResults();
     }
-
-
     public function getInviteDetails($inviteId, $userId)
     {
         return $this->db->table('event_invites')
@@ -148,8 +145,6 @@ class EventInviteModel extends Model
             ->get()
             ->getRow();
     }
-
-
     public function getInvitesByEventDetails($event_id)
     {
         $data = $this->db->table('event_invites')
