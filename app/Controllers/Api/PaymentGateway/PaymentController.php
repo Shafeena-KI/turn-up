@@ -209,7 +209,7 @@ class PaymentController extends ResourceController
                 throw new \InvalidArgumentException('Valid invite ID is required');
             }
             // Rate limiting
-            // $this->enforceRateLimit($userId, $clientIP);
+            $this->enforceRateLimit($userId, $clientIP);
 
             // Check for duplicate payments
             $this->validateNoDuplicatePayment($inviteId, $userId);
