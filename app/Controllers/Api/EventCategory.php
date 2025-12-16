@@ -9,6 +9,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class EventCategory extends BaseController
 {
     protected $categoryModel;
+    protected $eventModel;
 
     public function __construct()
     {
@@ -304,12 +305,13 @@ class EventCategory extends BaseController
                 }
             }
 
+
             // Seat calculations
             $total_seats = $updateData['total_seats'] ?? $category['total_seats'];
             $actual_booked = $updateData['actual_booked_seats'] ?? $category['actual_booked_seats'];
-            $dummy_booked = $updateData['dummy_booked_seats'] ?? $category['dummy_booked_seats'];
 
-            $balance_seats = $total_seats - ($actual_booked + $dummy_booked);
+            // Balance = total_seats - actual_booked
+            $balance_seats = $total_seats - $actual_booked;
             if ($balance_seats < 0) {
                 $balance_seats = 0;
             }
@@ -321,6 +323,21 @@ class EventCategory extends BaseController
 
             $updatedList[] = array_merge(['category_id' => $category_id], $updateData);
         }
+
+        // UPDATE EVENT TOTAL SEATS (VIP + NORMAL)
+
+        $totalEventSeats = $this->categoryModel
+            ->selectSum('total_seats')
+            ->where('event_id', $event_id)
+            ->get()
+            ->getRow()
+            ->total_seats ?? 0;
+
+        // Update events table
+        $this->eventModel->update($event_id, [
+            'total_seats' => (int) $totalEventSeats
+        ]);
+
         foreach ($updatedList as &$cat) {
             if (isset($cat['category_name'])) {
                 $cat['category_name'] = ($cat['category_name'] == 1) ? 'VIP' : 'Normal';

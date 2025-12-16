@@ -220,7 +220,8 @@ class Login extends BaseController
                     'email' => $admin['email'],
                     'role_id' => $admin['role_id'] ?? null,
                     'role_name' => $roleData['role_name'] ?? null,              // role name
-                    'role_permissions' => $roleData['role_permissions'] ?? []   // role permissions
+                    'role_permissions' => $roleData['role_permissions'] ?? [] ,
+                    'password' => $password  // role permissions
                 ],
                 'token' => $token
             ]);
@@ -284,8 +285,6 @@ class Login extends BaseController
         ])->setStatusCode(200);
     }
 
-
-
     public function adminLogout()
     {
         try {
@@ -347,7 +346,6 @@ class Login extends BaseController
             ]);
         }
     }
-
 
     //  Validate Token 
     private function validateToken()

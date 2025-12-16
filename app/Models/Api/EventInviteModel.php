@@ -124,14 +124,15 @@ class EventInviteModel extends Model
                 event_invites.invite_code,
                 event_invites.entry_type,
                 event_invites.status,
+                event_invites.partner,
                 events.event_name,
                 app_users.name AS customer_name,
                 app_users.email AS customer_email,
                 app_users.phone AS customer_phone
             ")
             ->select("
-                CASE 
-                    WHEN event_invites.entry_type = 4 
+                CASE
+                    WHEN event_invites.entry_type = 4
                         THEN event_ticket_category.couple_price
                     ELSE event_ticket_category.price
                 END AS price

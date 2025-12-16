@@ -56,7 +56,7 @@ class BookingLibrary
         $counterTable = $this->db->table('event_counters');
 
         // Fetching Category counts from event category library
-        $category_counts = $this->categoryLibrary->categoryCount($invite->entry_type);
+        $category_counts = $this->categoryLibrary->categoryCount($invite->entry_type,$invite->partner ?? null);
         if (!$category_counts) {
             return ['success' => false, 'message' => 'Failed to calculate category counts'];
         }
