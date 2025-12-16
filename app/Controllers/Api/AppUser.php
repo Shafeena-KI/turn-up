@@ -677,203 +677,232 @@ class AppUser extends BaseController
     }
     public function completeProfile()
     {
-        $auth = $this->getAuthenticatedUser();
-        if (isset($auth['error'])) {
-            return $this->response->setJSON([
-                'status' => 401,
-                'success' => false,
-                'message' => $auth['error']
-            ]);
-        }
-
-        $user_id = $auth['user_id'];
-        $data = $this->request->getPost();
-
-        $user = $this->appUserModel->find($user_id);
-        if (!$user) {
-            return $this->response->setJSON([
-                'status' => 404,
-                'success' => false,
-                'message' => 'User not found.'
-            ]);
-        }
-
-        // Mandatory fields check
-        $mandatoryFields = ['name', 'dob', 'gender', 'insta_id'];
-        foreach ($mandatoryFields as $field) {
-            if (empty($data[$field])) {
+        try {
+            $auth = $this->getAuthenticatedUser();
+            if (isset($auth['error'])) {
                 return $this->response->setJSON([
-                    'status' => 400,
+                    'status' => 401,
                     'success' => false,
-                    'message' => "$field is required."
+                    'message' => $auth['error']
                 ]);
             }
-        }
 
-        // PROFILE IMAGE UPLOAD
-        $profileImage = $user['profile_image'];
-        $file = $this->request->getFile('profile_image');
-        if ($file && $file->isValid() && !$file->hasMoved()) {
-            $newName = 'user_' . time() . '.' . $file->getExtension();
-            $uploadPath = FCPATH . 'uploads/profile_images/';
-            if (!is_dir($uploadPath))
-                mkdir($uploadPath, 0777, true);
-            $file->move($uploadPath, $newName);
-            $profileImage = $newName;
-        }
+            $user_id = $auth['user_id'];
 
-        // GET VERIFICATION ROW
-        $verify = $this->db->table('user_verifications')->where('user_id', $user_id)->get()->getRowArray();
-        if (!$verify) {
-            $this->db->table('user_verifications')->insert([
-                'user_id' => $user_id,
-                'phone_verified' => 0,
-                'email_verified' => 0,
-                'instagram_verified' => 0,
-                'linkedin_verified' => 0,
-                'location_verified' => 0,
-                'dob_added' => 0,
-                'gender_verified' => 0,
-                'profile_image_added' => 0,
-                'interest_added' => 0,
-                'instagram_score_added' => 0,
-                'linkedin_score_added' => 0,
-                'email_score_added' => 0,
-                'score' => 0,
+            // ✅ IMPORTANT: works for form-data + file upload
+            $data = $this->request->getVar();
+
+            $user = $this->appUserModel->find($user_id);
+            if (!$user) {
+                return $this->response->setJSON([
+                    'status' => 404,
+                    'success' => false,
+                    'message' => 'User not found.'
+                ]);
+            }
+
+            /* ---------------- Mandatory fields ---------------- */
+            $mandatoryFields = ['name', 'dob', 'gender', 'insta_id'];
+            foreach ($mandatoryFields as $field) {
+                if (!isset($data[$field]) || trim($data[$field]) === '') {
+                    return $this->response->setJSON([
+                        'status' => 400,
+                        'success' => false,
+                        'message' => ucfirst($field) . ' is required.'
+                    ]);
+                }
+            }
+
+            /* ---------------- Profile Image Upload ---------------- */
+            $profileImage = $user['profile_image'];
+            $file = $this->request->getFile('profile_image');
+
+            if ($file && $file->isValid() && !$file->hasMoved()) {
+                $uploadPath = FCPATH . 'uploads/profile_images/';
+
+                if (!is_dir($uploadPath)) {
+                    mkdir($uploadPath, 0777, true);
+                }
+
+                if (!is_writable($uploadPath)) {
+                    return $this->response->setJSON([
+                        'status' => 500,
+                        'success' => false,
+                        'message' => 'Profile image directory not writable'
+                    ]);
+                }
+
+                $newName = 'user_' . time() . '.' . $file->getExtension();
+                $file->move($uploadPath, $newName);
+                $profileImage = $newName;
+            }
+
+            /* ---------------- Verification Row ---------------- */
+            $verify = $this->db->table('user_verifications')
+                ->where('user_id', $user_id)
+                ->get()
+                ->getRowArray();
+
+            if (!$verify) {
+                $this->db->table('user_verifications')->insert([
+                    'user_id' => $user_id,
+                    'phone_verified' => 0,
+                    'email_verified' => 0,
+                    'instagram_verified' => 0,
+                    'linkedin_verified' => 0,
+                    'location_verified' => 0,
+                    'dob_added' => 0,
+                    'gender_verified' => 0,
+                    'profile_image_added' => 0,
+                    'interest_added' => 0,
+                    'instagram_score_added' => 0,
+                    'linkedin_score_added' => 0,
+                    'email_score_added' => 0,
+                    'score' => 0,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+
+                $verify = $this->db->table('user_verifications')
+                    ->where('user_id', $user_id)
+                    ->get()
+                    ->getRowArray();
+            }
+
+            /* ---------------- Scoring Logic ---------------- */
+            $profile_score = (int) ($user['profile_score'] ?? 0);
+            $addedScore = 0;
+            $updateVerify = [];
+
+            // Gender
+            if ((int) $verify['gender_verified'] === 0) {
+                $profile_score += 5;
+                $addedScore += 5;
+                $updateVerify['gender_verified'] = 1;
+            }
+
+            // DOB
+            if ((int) $verify['dob_added'] === 0) {
+                $profile_score += 5;
+                $addedScore += 5;
+                $updateVerify['dob_added'] = 1;
+            }
+
+            // Profile image
+            if ((int) $verify['profile_image_added'] === 0 && !empty($profileImage)) {
+                $profile_score += 10;
+                $addedScore += 10;
+                $updateVerify['profile_image_added'] = 1;
+            }
+
+            // Location
+            $location = trim($data['location'] ?? '');
+            if ((int) $verify['location_verified'] === 0 && $location !== '') {
+                $profile_score += 10;
+                $addedScore += 10;
+                $updateVerify['location_verified'] = 1;
+            }
+
+            // Interests
+            $interestIds = [];
+            $updateInterest = $user['interest_id'];
+
+            if (!empty($data['interest_id']) && (int) $verify['interest_added'] === 0) {
+                if (is_array($data['interest_id'])) {
+                    $interestIds = $data['interest_id'];
+                } else {
+                    $decoded = json_decode($data['interest_id'], true);
+                    $interestIds = is_array($decoded) ? $decoded : [$data['interest_id']];
+                }
+
+                $updateInterest = implode(',', $interestIds);
+                $profile_score += 10;
+                $addedScore += 10;
+                $updateVerify['interest_added'] = 1;
+            }
+
+            // Admin verified scores
+            if ((int) $verify['instagram_verified'] === 1 && (int) $verify['instagram_score_added'] === 0) {
+                $profile_score += 20;
+                $addedScore += 20;
+                $updateVerify['instagram_score_added'] = 1;
+            }
+
+            if ((int) $verify['linkedin_verified'] === 1 && (int) $verify['linkedin_score_added'] === 0) {
+                $profile_score += 5;
+                $addedScore += 5;
+                $updateVerify['linkedin_score_added'] = 1;
+            }
+
+            if ((int) $verify['email_verified'] === 1 && (int) $verify['email_score_added'] === 0) {
+                $profile_score += 15;
+                $addedScore += 15;
+                $updateVerify['email_score_added'] = 1;
+            }
+
+            $profile_score = min(100, $profile_score);
+
+            if (!empty($updateVerify)) {
+                $updateVerify['score'] = $profile_score;
+                $updateVerify['updated_at'] = date('Y-m-d H:i:s');
+                $this->db->table('user_verifications')
+                    ->where('user_id', $user_id)
+                    ->update($updateVerify);
+            }
+
+            /* ---------------- Gender Validation ---------------- */
+            $gender = (int) ($data['gender'] ?? $user['gender']);
+            if (!in_array($gender, [1, 2, 3, 4])) {
+                $gender = $user['gender'];
+            }
+
+            /* ---------------- Update User ---------------- */
+            $updateData = [
+                'name' => $data['name'],
+                'gender' => $gender,
+                'dob' => $data['dob'],
+                'email' => $data['email'] ?? $user['email'],
+                'insta_id' => $data['insta_id'],
+                'linkedin_id' => $data['linkedin_id'] ?? $user['linkedin_id'],
+                'location' => $location ?: $user['location'],
+                'interest_id' => $updateInterest,
+                'profile_image' => $profileImage,
+                'profile_status' => 1,
+                'profile_score' => $profile_score,
                 'updated_at' => date('Y-m-d H:i:s')
+            ];
+
+            $this->appUserModel->update($user_id, $updateData);
+
+            /* ---------------- Response ---------------- */
+            $genderMap = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
+
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Profile completed successfully.',
+                'new_score_added' => $addedScore,
+                'data' => [
+                    'user_id' => $user_id,
+                    'name' => $updateData['name'],
+                    'gender' => $genderMap[$gender] ?? 'Not set',
+                    'dob' => $updateData['dob'],
+                    'location' => $updateData['location'],
+                    'profile_image' => $profileImage,
+                    'profile_score' => $profile_score
+                ]
             ]);
-            $verify = $this->db->table('user_verifications')->where('user_id', $user_id)->get()->getRowArray();
+        } catch (\Throwable $e) {
+            return $this->response->setJSON([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Server Error',
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
         }
-
-        $addedScore = 0;
-        $profile_score = (int) $user['profile_score'];
-
-        $updateVerify = [];
-
-        // SCORING LOGIC
-
-        // Name + gender (mandatory)
-        if ((int) $verify['gender_verified'] === 0) {
-            $profile_score += 5;
-            $addedScore += 5;
-            $updateVerify['gender_verified'] = 1;
-        }
-
-        // DOB
-        if ((int) $verify['dob_added'] === 0 && !empty($data['dob'])) {
-            $profile_score += 5;
-            $addedScore += 5;
-            $updateVerify['dob_added'] = 1;
-        }
-
-        // Profile image
-        if ((int) $verify['profile_image_added'] === 0 && !empty($profileImage)) {
-            $profile_score += 10;
-            $addedScore += 10;
-            $updateVerify['profile_image_added'] = 1;
-        }
-
-        // Location (any non-empty)
-        $userLocation = strtolower(trim($data['location'] ?? ''));
-        if ((int) $verify['location_verified'] === 0 && !empty($userLocation)) {
-            $profile_score += 10;
-            $addedScore += 10;
-            $updateVerify['location_verified'] = 1;
-        }
-
-        // Interests
-        $interestIds = [];
-        $updateInterest = $user['interest_id'];
-        if (!empty($data['interest_id']) && (int) $verify['interest_added'] === 0) {
-            if (!is_array($data['interest_id'])) {
-                $decoded = json_decode($data['interest_id'], true);
-                $interestIds = json_last_error() === JSON_ERROR_NONE ? $decoded : [$data['interest_id']];
-            } else {
-                $interestIds = $data['interest_id'];
-            }
-            $updateInterest = implode(',', $interestIds);
-            $profile_score += 10;
-            $addedScore += 10;
-            $updateVerify['interest_added'] = 1;
-        }
-
-        // --- ADMIN VERIFIED FIELDS ---
-        if (!empty($data['insta_id']) && (int) $verify['instagram_verified'] === 1 && (int) $verify['instagram_score_added'] === 0) {
-            $profile_score += 20;
-            $addedScore += 20;
-            $updateVerify['instagram_score_added'] = 1;
-        }
-
-        if (!empty($data['linkedin_id']) && (int) $verify['linkedin_verified'] === 1 && (int) $verify['linkedin_score_added'] === 0) {
-            $profile_score += 5;
-            $addedScore += 5;
-            $updateVerify['linkedin_score_added'] = 1;
-        }
-
-        if (!empty($data['email']) && (int) $verify['email_verified'] === 1 && (int) $verify['email_score_added'] === 0) {
-            $profile_score += 15;
-            $addedScore += 15;
-            $updateVerify['email_score_added'] = 1;
-        }
-
-        // --- UPDATE PROFILE SCORE AND VERIFICATION ---
-        $profile_score = min(100, $profile_score);
-        if (!empty($updateVerify)) {
-            $updateVerify['score'] = $profile_score;
-            $updateVerify['updated_at'] = date('Y-m-d H:i:s');
-            $this->db->table('user_verifications')->where('user_id', $user_id)->update($updateVerify);
-        }
-
-        // GENDER VALIDATION
-        $gender = $data['gender'] ?? $user['gender'];
-        $allowedGender = [1, 2, 3, 4];
-        if (!in_array((int) $gender, $allowedGender))
-            $gender = $user['gender'];
-
-        // UPDATE USER TABLE
-        $updateData = [
-            'name' => $data['name'],
-            'gender' => $gender,
-            'dob' => $data['dob'],
-            'email' => $data['email'] ?? $user['email'],
-            'insta_id' => $data['insta_id'],
-            'linkedin_id' => $data['linkedin_id'] ?? $user['linkedin_id'],
-            'location' => $data['location'] ?? $user['location'],
-            'interest_id' => $updateInterest,
-            'profile_image' => $profileImage ?: $user['profile_image'],
-            'profile_status' => 1,
-            'profile_score' => $profile_score,
-            'updated_at' => date('Y-m-d H:i:s')
-        ];
-        $this->appUserModel->update($user_id, $updateData);
-
-        // Prepare response
-        $genderMap = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
-        $genderText = $genderMap[(int) $updateData['gender']] ?? 'Not set';
-
-        $interestList = [];
-        if (!empty($interestIds)) {
-            $db = \Config\Database::connect();
-            $builder = $db->table('interests');
-            $interests = $builder->whereIn('interest_id', $interestIds)->get()->getResultArray();
-            foreach ($interests as $i) {
-                $interestList[] = ['interest_id' => $i['interest_id'], 'interest_name' => $i['interest_name']];
-            }
-        }
-
-        $responseData = $updateData;
-        unset($responseData['interest_id']);
-        $responseData['interests'] = $interestList;
-        $responseData['gender'] = $genderText;
-
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Profile completed successfully. Pending admin verification for some fields.',
-            'new_score_added' => $addedScore,
-            'data' => array_merge(['user_id' => $user_id], $responseData)
-        ]);
     }
+
     public function verifySocial()
     {
         try {

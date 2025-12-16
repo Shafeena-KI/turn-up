@@ -11,6 +11,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\API\ResponseTrait;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
+use CodeIgniter\I18n\Time;
 class EventInvite extends BaseController
 {
     protected $inviteModel;
@@ -206,9 +207,68 @@ class EventInvite extends BaseController
             $entryLabels = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
             $entryTypeText = $entryLabels[$entryTypeValue] ?? '';
 
-            // START TRANSACTION - only DB operations
+            // REQUIRED SEATS
+            $requiredSeats = ($entryTypeValue == 4) ? 2 : 1;
 
+            // TOTAL SEATS FROM CATEGORY TABLE
+            $totalSeatsAllowed = (int) $category->total_seats;
+            // START TRANSACTION
             $db->transStart();
+            // FETCH USED SEATS
+            $eventCounts = $db->query("
+                SELECT *
+                FROM event_counts
+                WHERE event_id = ? AND category_id = ?
+                FOR UPDATE
+            ", [$event_id, $category_id])->getRow();
+
+
+            $usedSeats = 0;
+
+            if ($eventCounts) {
+
+                // Approved seats
+                $usedSeats += (int) $eventCounts->total_approved;
+
+                // Pending couples → 2 seats each
+                $pendingCouples =
+                    (int) $eventCounts->total_couple_invites -
+                    (int) $eventCounts->total_couple_approved;
+
+                // Pending stags → 1 seat each
+                $pendingStags =
+                    ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
+                    ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
+                    ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
+
+                $usedSeats += ($pendingCouples * 2) + $pendingStags;
+            }
+
+            $availableSeats = $totalSeatsAllowed - $usedSeats;
+
+            // DEFAULT
+            $inviteStatus = 0;
+
+            // SEAT CHECK FIRST (MOST IMPORTANT)
+            if ($availableSeats >= $requiredSeats) {
+
+                // VERIFIED USERS → AUTO APPROVE
+                if ($user->profile_status == 2) {
+                    $inviteStatus = 1;
+                }
+                // VIP CATEGORY → AUTO APPROVE
+                elseif ($categoryType === 1) {
+                    $inviteStatus = 1;
+                }
+                // NORMAL + UNVERIFIED → PENDING
+                else {
+                    $inviteStatus = 0;
+                }
+
+            } else {
+                // NOT ENOUGH SEATS
+                $inviteStatus = 0;
+            }
 
             // --- event_counters (INVITE COUNTER ONLY) ---
             $counterTable = $db->table('event_counters');
@@ -233,16 +293,13 @@ class EventInvite extends BaseController
             $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
 
             // VIP = Approved, Normal = Pending
-
-            // profile_status: 0 = incomplete, 1 = completed, 2 = verified
-
-            if ($user->profile_status == 2) {
-                // VERIFIED USERS ALWAYS GET AUTO APPROVAL
-                $inviteStatus = 1;
-            } else {
-                // OLD RULE: VIP auto-approved, normal pending
-                $inviteStatus = ($categoryType === 1) ? 1 : 0;
-            }
+            // if ($user->profile_status == 2) {
+            //     // VERIFIED USERS ALWAYS GET AUTO APPROVAL
+            //     $inviteStatus = 1;
+            // } else {
+            //     // OLD RULE: VIP auto-approved, normal pending
+            //     $inviteStatus = ($categoryType === 1) ? 1 : 0;
+            // }
 
             // SAVE INVITE
             $insertData = [
@@ -254,6 +311,7 @@ class EventInvite extends BaseController
                 'invite_code' => $invite_code,
                 'status' => $inviteStatus,
                 'requested_at' => date('Y-m-d H:i:s'),
+                'approved_at' => ($inviteStatus === 1) ? date('Y-m-d H:i:s') : null
             ];
 
             $this->inviteModel->insert($insertData);
@@ -583,16 +641,19 @@ class EventInvite extends BaseController
                 'message' => 'Invite already approved.'
             ]);
         }
+        $oldStatus = (int) $invite['status'];
+        $newStatus = (int) $status;
+
 
         // Update invite status
         $this->inviteModel->update($invite_id, [
-            'status' => $status,
-            'approved_at' => ($status == 1) ? date('Y-m-d H:i:s') : null
+            'status' => $newStatus,
+            'approved_at' => ($newStatus == 1)
+                ? Time::now('Asia/Kolkata')->toDateTimeString()
+                : null
         ]);
-
-        //  UPDATE APPROVED COUNTERS IN event_counts WHEN APPROVED
-
-        if ($status == 1) {
+        // INCREASE COUNT ONLY FOR PENDING → APPROVED
+        if ($oldStatus === 0 && $newStatus === 1) {
 
             $db = $this->db;
 
@@ -611,8 +672,8 @@ class EventInvite extends BaseController
             if ($entry_type == 4)
                 $c = 1;
 
-            // TOTAL APPROVED PERSONS
-            $t = $m + $f + $o + ($c * 2); // Couple = 2 persons
+            // Couple counts as 2 persons
+            $t = $m + $f + $o + ($c * 2);
 
             $countsTable = $db->table('event_counts');
 
@@ -633,6 +694,7 @@ class EventInvite extends BaseController
                 ]);
             }
         }
+
 
         // SEND WHATSAPP CONFIRMATION ONLY IF APPROVED
 

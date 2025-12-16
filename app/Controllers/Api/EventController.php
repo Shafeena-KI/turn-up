@@ -364,45 +364,66 @@ class EventController extends BaseController
             respond(false, "Invalid request. Use multipart/form-data.");
         }
 
+        $eventDateStart = !empty($_POST['event_date_start'])
+            ? date('Y-m-d', strtotime($_POST['event_date_start']))
+            : null;
+
+        $eventDateEnd = !empty($_POST['event_date_end'])
+            ? date('Y-m-d', strtotime($_POST['event_date_end']))
+            : null;
+
         $event = [
             'event_name' => $_POST['event_name'] ?? null,
             'event_description' => $_POST['event_description'] ?? null,
             'event_location' => $_POST['event_location'] ?? null,
             'event_map' => $_POST['event_map'] ?? null,
-            'event_date_start' => $_POST['event_date_start'] ?? null,
-            'event_date_end' => $_POST['event_date_end'] ?? null,
+            'event_date_start' => $eventDateStart,
+            'event_date_end' => $eventDateEnd,
             'dress_code' => $_POST['dress_code'] ?? null,
-            'event_code' => $_POST['event_code'] ?? null,
+            'event_code' => !empty($_POST['event_code']) ? strtoupper(trim($_POST['event_code'])) : null,
             'whatsappmessage_code' => $_POST['whatsappmessage_code'] ?? null,
             'age_limit' => $_POST['age_limit'] ?? null,
             'event_type' => $_POST['event_type'] ?? null,
             'created_by' => $_POST['created_by'] ?? null,
-            'event_time_start' => !empty($_POST['event_time_start']) ? $_POST['event_time_start'] : null,
-            'event_time_end' => !empty($_POST['event_time_end']) ? $_POST['event_time_end'] : null,
+            'event_time_start' => !empty($_POST['event_time_start'])
+                ? date('H:i:s', strtotime($_POST['event_time_start']))
+                : null,
+            'event_time_end' => !empty($_POST['event_time_end'])
+                ? date('H:i:s', strtotime($_POST['event_time_end']))
+                : null,
             'event_city' => $_POST['event_city'] ?? null,
             'total_seats' => $_POST['total_seats'] ?? null,
         ];
 
+
         // STATUS BASED ON DATE + TIME 
 
-        $startDateTime = strtotime(
-            ($_POST['event_date_start'] ?? '') . ' ' .
-            ($_POST['event_time_start'] ?? '00:00')
-        );
+        // START DATETIME
+        $startDateTime = null;
+        if (!empty($_POST['event_date_start'])) {
+            $startDateTime = strtotime(
+                $_POST['event_date_start'] . ' ' .
+                (!empty($_POST['event_time_start']) ? $_POST['event_time_start'] : '00:00')
+            );
+        }
 
-        $endDateTime = strtotime(
-            ($_POST['event_date_end'] ?? '') . ' ' .
-            ($_POST['event_time_end'] ?? '23:59')
-        );
+        // END DATETIME (ONLY IF PROVIDED)
+        $endDateTime = null;
+        if (!empty($_POST['event_date_end'])) {
+            $endDateTime = strtotime(
+                $_POST['event_date_end'] . ' ' .
+                (!empty($_POST['event_time_end']) ? $_POST['event_time_end'] : '23:59')
+            );
+        }
 
         $currentTime = time(); // NOW
 
-        if ($endDateTime < $currentTime) {
+        // DEFAULT STATUS
+        $event['status'] = 1; // Upcoming
+
+        // COMPLETED ONLY IF END DATE EXISTS AND PASSED
+        if ($endDateTime !== null && $endDateTime < $currentTime) {
             $event['status'] = 2; // Completed
-        } elseif ($startDateTime <= $currentTime && $endDateTime >= $currentTime) {
-            $event['status'] = 1; // Live (Upcoming)
-        } else {
-            $event['status'] = 1; // Upcoming
         }
 
 
@@ -541,41 +562,49 @@ class EventController extends BaseController
         $limit = (int) $this->request->getGet('per_page') ?: 10;
         $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
         $offset = ($page - 1) * $limit;
-        // Base query
-        $builder = $this->eventModel->where('status !=', 4);
-        // Search filter
+
+        // COUNT QUERY 
+        $countBuilder = $this->eventModel->where('status !=', 4);
+
         if (!empty($search)) {
-            $builder->groupStart()
+            $countBuilder->groupStart()
                 ->like('event_name', $search)
                 ->orLike('event_city', $search)
                 ->orLike('event_location', $search)
                 ->groupEnd();
         }
-        $total = $builder->countAllResults(false);
-        $events = $builder
+
+        $total = $countBuilder->countAllResults();
+
+        // ---------- DATA QUERY ----------
+        $dataBuilder = $this->eventModel->where('status !=', 4);
+
+        if (!empty($search)) {
+            $dataBuilder->groupStart()
+                ->like('event_name', $search)
+                ->orLike('event_city', $search)
+                ->orLike('event_location', $search)
+                ->groupEnd();
+        }
+
+        $events = $dataBuilder
             ->orderBy('event_id', 'DESC')
             ->findAll($limit, $offset);
 
-        // Base URL
+        // ---------- FORMAT DATA ----------
         $baseUrl = base_url('public/uploads/events/');
-        // Add Full Image URLs
+
         foreach ($events as &$event) {
-            // Poster image full URL
-            if (!empty($event['poster_image'])) {
-                $event['poster_image'] = $baseUrl . 'poster_images/' . $event['poster_image'];
-            } else {
-                $event['poster_image'] = null;
-            }
-            // Gallery images full URLs
+
+            $event['poster_image'] = !empty($event['poster_image'])
+                ? $baseUrl . 'poster_images/' . $event['poster_image']
+                : null;
+
             $gallery = json_decode($event['gallery_images'], true);
-            if (is_array($gallery)) {
-                $event['gallery_images'] = array_map(function ($img) use ($baseUrl) {
-                    return $baseUrl . 'gallery_images/' . $img;
-                }, $gallery);
-            } else {
-                $event['gallery_images'] = [];
-            }
-            // --- TICKET CATEGORIES ---
+            $event['gallery_images'] = is_array($gallery)
+                ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
+                : [];
+
             $event['ticket_categories'] = $this->db->table('event_ticket_category')
                 ->select('category_name, price')
                 ->where('event_id', $event['event_id'])
@@ -583,7 +612,6 @@ class EventController extends BaseController
                 ->get()
                 ->getResultArray();
 
-            // --- TOTAL BOOKINGS FROM event_counts ---
             $eventCounts = $this->db->table('event_counts')
                 ->selectSum('total_booking')
                 ->where('event_id', $event['event_id'])
@@ -591,10 +619,8 @@ class EventController extends BaseController
                 ->getRowArray();
 
             $event['total_booking'] = (int) ($eventCounts['total_booking'] ?? 0);
-
         }
 
-        $totalPages = ceil($total / $limit);
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
@@ -603,11 +629,12 @@ class EventController extends BaseController
                 'per_page' => $limit,
                 'keyword' => $search,
                 'total_records' => $total,
-                'total_pages' => $totalPages,
+                'total_pages' => ceil($total / $limit),
                 'events' => $events
             ]
         ], JSON_UNESCAPED_SLASHES);
     }
+
     // Update Event
     public function update()
     {
@@ -658,16 +685,32 @@ class EventController extends BaseController
         ];
 
         $data = [];
+
         foreach ($fields as $field) {
             $value = $isJson ? ($json[$field] ?? null) : $this->request->getPost($field);
-            if ($value !== null && $value !== '') {
-                if (in_array($field, ['event_date_start', 'event_date_end'])) {
-                    $value = date('Y-m-d', strtotime($value));
-                } elseif (in_array($field, ['event_time_start', 'event_time_end'])) {
-                    $value = date('H:i:s', strtotime($value));
-                }
-                $data[$field] = $value;
+
+            // Skip null or empty string
+            if ($value === null || $value === '') {
+                continue;
             }
+
+            if (in_array($field, ['event_date_start', 'event_date_end'])) {
+                $timestamp = strtotime($value);
+                if ($timestamp === false) {
+                    continue; // invalid date → skip
+                }
+                $value = date('Y-m-d', $timestamp);
+            }
+
+            if (in_array($field, ['event_time_start', 'event_time_end'])) {
+                $timestamp = strtotime($value);
+                if ($timestamp === false) {
+                    continue; // invalid time → skip
+                }
+                $value = date('H:i:s', $timestamp);
+            }
+
+            $data[$field] = $value;
         }
 
         $data['updated_at'] = date('Y-m-d H:i:s');

@@ -15,7 +15,7 @@ class UpdateEventStatus extends BaseCommand
     /*
     # Events Status :
     */
-    const UPCOMING  = 1;
+    const UPCOMING = 1;
     const COMPLETED = 2;
 
     public function run(array $params = [])
@@ -40,7 +40,17 @@ class UpdateEventStatus extends BaseCommand
             ->where('status !=', self::COMPLETED)
             ->set(['status' => self::COMPLETED])
             ->update();
-
+        // CASE 3: Completed when start_date + start_time + 1 day <= NOW
+        $builder->where('event_date_start IS NOT NULL', null, false)
+            ->where('event_time_start IS NOT NULL', null, false)
+            ->where(
+                "DATE_ADD(CONCAT(event_date_start,' ',event_time_start), INTERVAL 1 DAY) <= '{$date} {$time}'",
+                null,
+                false
+            )
+            ->where('status !=', self::COMPLETED)
+            ->set(['status' => self::COMPLETED])
+            ->update();
 
         // UPCOMING EVENTS
         $builder->where('event_date_start >', $date)
