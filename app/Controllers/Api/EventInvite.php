@@ -300,30 +300,47 @@ class EventInvite extends BaseController
             //     // OLD RULE: VIP auto-approved, normal pending
             //     $inviteStatus = ($categoryType === 1) ? 1 : 0;
             // }
-
+            // APPROVAL TYPE
+            $approvalType = ($inviteStatus === 1) ? 1 : 0;
             // SAVE INVITE
             $insertData = [
                 'event_id' => $event_id,
                 'user_id' => $data['user_id'],
                 'category_id' => $category_id,
                 'entry_type' => $entryTypeValue,
-                'partner' => $data['partner'] ?? null,
                 'invite_code' => $invite_code,
                 'status' => $inviteStatus,
+                'approval_type' => (int) $approvalType,
                 'requested_at' => date('Y-m-d H:i:s'),
-                'approved_at' => ($inviteStatus === 1) ? date('Y-m-d H:i:s') : null
             ];
 
-            $this->inviteModel->insert($insertData);
-            $invite_id = $db->insertID();
+            // ONLY for couple
+            if ($entryTypeValue === 4) {
+                $insertData['partner'] = $data['partner'];
+            }
 
-            if (!$invite_id) {
+            // ONLY if approved
+            if ($inviteStatus === 1) {
+                $insertData['approved_at'] = date('Y-m-d H:i:s');
+            }
+
+            $invite_id = $this->inviteModel->insert($insertData);
+
+            if ($invite_id === false) {
+
+                log_message('error', 'Invite Insert Error');
+                log_message('error', json_encode($this->inviteModel->errors()));
+                log_message('error', json_encode($insertData));
+
                 $db->transRollback();
+
                 return $this->response->setJSON([
                     'status' => false,
-                    'message' => 'Failed to create invite.'
+                    'message' => 'Failed to create invite.',
+                    'errors' => $this->inviteModel->errors() // TEMP: show in API
                 ]);
             }
+
 
             // UPDATE event_counts (INVITES ONLY + APPROVED INVITES)
             $countsTable = $db->table('event_counts');
