@@ -188,6 +188,8 @@ class EventInviteModel extends Model
             1 => 'Approved',
             2 => 'Rejected',
             3 => 'Expired',
+            4 => 'payment pending',
+            5 => 'Paid'
         ];
 
         $profileStatuses = [
