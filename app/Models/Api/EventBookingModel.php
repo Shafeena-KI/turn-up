@@ -76,7 +76,7 @@ class EventBookingModel extends Model
                 event_booking.booking_code,
                 event_invites.entry_type,
                 event_booking.status,
-                payments.payment_status,
+                payments.payment_status AS payment_status,
                 event_booking.created_at,
 
                 event_ticket_category.category_name,
@@ -88,7 +88,7 @@ class EventBookingModel extends Model
             ")
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
             ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
-            ->join('payments', 'payments.payment_id = event_booking.payment_id', 'left')
+            ->join('payments', 'payments.booking_id = event_booking.booking_id', 'left')
             ->join(
                 'event_ticket_category',
                 'event_ticket_category.category_id = event_booking.category_id',
@@ -123,12 +123,12 @@ class EventBookingModel extends Model
         ];
 
         // PAYMENT STATUS MAP
-        $paymentStatuses = [
-            0 => 'Unpaid',
-            1 => 'Paid',
-            2 => 'Failed',
-            3 => 'Refunded',
+       $paymentStatuses = [
+            1 => 'Pending',
+            2 => 'Paid',
+            3 => 'Failed',
         ];
+
 
         // TICKET TYPE MAP (using category_id or category_name)
         $ticketTypes = [
@@ -147,8 +147,10 @@ class EventBookingModel extends Model
             $booking['profile_status'] =
                 $profileStatuses[(int) ($booking['profile_status'] ?? -1)] ?? 'N/A';
 
-            $booking['payment_status'] =
-                $paymentStatuses[(int) ($booking['payment_status'] ?? -1)] ?? 'N/A';
+           $booking['payment_status'] = isset($booking['payment_status'])
+    ? ($paymentStatuses[(int)$booking['payment_status']] ?? 'Unknown')
+    : 'Not Paid';
+
 
             // ticket_type based on category_id
             $booking['ticket_type'] =
@@ -171,7 +173,9 @@ class EventBookingModel extends Model
             event_booking.booking_code,
             event_booking.invite_id,
 
-            event_invites.entry_type,
+            checkin.entry_type AS entry_type,
+
+
 
             app_users.name AS guest_name,
             app_users.email AS guest_email,
