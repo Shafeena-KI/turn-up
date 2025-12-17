@@ -20,46 +20,64 @@ class UpdateEventStatus extends BaseCommand
 
     public function run(array $params = [])
     {
-        $date = date('Y-m-d');
-        $time = date('H:i:s');
+        $dateTime = date('Y-m-d H:i:s');
+        $date     = date('Y-m-d');
+        $time     = date('H:i:s');
 
         $model = new EventModel();
-        $builder = $model->builder();
 
-        // // CASE 1: Completed when end_date < today (end time optional)
-        // $builder->where('event_date_end <', $date)
-        //     ->where('status !=', self::COMPLETED)
-        //     ->set(['status' => self::COMPLETED])
-        //     ->update();
+        /*
+        --------------------------------------------------
+        CASE 1: Events with end_date < today → COMPLETED
+        --------------------------------------------------
+        */
+        $model->builder()
+            ->where('event_date_end <', $date)
+            ->where('status !=', self::COMPLETED)
+            ->update(['status' => self::COMPLETED]);
 
+        /*
+        --------------------------------------------------
+        CASE 2: end_date = today AND end_time <= now
+        --------------------------------------------------
+        */
+        $model->builder()
+            ->where('event_date_end', $date)
+            ->where('event_time_end IS NOT NULL', null, false)
+            ->where('event_time_end <=', $time)
+            ->where('status !=', self::COMPLETED)
+            ->update(['status' => self::COMPLETED]);
 
-        // // CASE 2: Completed when end_date = today AND end_time <= now (only if end_time present)
-        // $builder->where('event_date_end', $date)
-        //     ->where('event_time_end IS NOT NULL', null, false)
-        //     ->where('event_time_end <=', $time)
-        //     ->where('status !=', self::COMPLETED)
-        //     ->set(['status' => self::COMPLETED])
-        //     ->update();
-        // // CASE 3: Completed when start_date + start_time + 1 day <= NOW
-        // $builder->where('event_date_start IS NOT NULL', null, false)
-        //     ->where('event_time_start IS NOT NULL', null, false)
-        //     ->where(
-        //         "DATE_ADD(CONCAT(event_date_start,' ',event_time_start), INTERVAL 1 DAY) <= '{$date} {$time}'",
-        //         null,
-        //         false
-        //     )
-        //     ->where('status !=', self::COMPLETED)
-        //     ->set(['status' => self::COMPLETED])
-        //     ->update();
+        /*
+        --------------------------------------------------
+        CASE 3: NO end_date & end_time
+        → Complete after 1 day from start
+        --------------------------------------------------
+        */
+        $model->builder()
+            ->where('event_date_end IS NULL', null, false)
+            ->where('event_time_end IS NULL', null, false)
+            ->where('event_date_start IS NOT NULL', null, false)
+            ->where('event_time_start IS NOT NULL', null, false)
+            ->where(
+                "DATE_ADD(CONCAT(event_date_start,' ',event_time_start), INTERVAL 1 DAY) <= '{$dateTime}'",
+                null,
+                false
+            )
+            ->where('status !=', self::COMPLETED)
+            ->update(['status' => self::COMPLETED]);
 
-        // UPCOMING EVENTS
-        $builder->where('event_date_start >', $date)
+        /*
+        --------------------------------------------------
+        UPCOMING EVENTS
+        --------------------------------------------------
+        */
+        $model->builder()
+            ->where('event_date_start >', $date)
             ->where('status !=', self::UPCOMING)
-            ->set(['status' => self::UPCOMING])
-            ->update();
+            ->update(['status' => self::UPCOMING]);
 
-
-        CLI::write("Update Event Status executed at {$date} {$time}");
+        CLI::write("Update Event Status executed at {$dateTime}");
     }
 
 }

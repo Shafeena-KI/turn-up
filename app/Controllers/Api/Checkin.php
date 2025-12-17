@@ -739,13 +739,23 @@ public function markAsIn()
                 ->get()
                 ->getRow();
 
+
+            $profileImage = '';
+            if (!empty($partner->profile_image)) {
+                if (!preg_match('/^https?:\/\//', $partner->profile_image)) {
+                    $profileImage = base_url('uploads/profile_images/' . $partner->profile_image);
+                } else {
+                    $profileImage = $partner->profile_image;
+                }
+            }
+
             $checkin['partner_details'] = $partner ? [
                 'user_id' => $partner->user_id,
                 'name' => $partner->name,
                 'phone' => $partner->phone,
                 'email' => $partner->email,
                 'insta_id' => $partner->insta_id,
-                'profile_image' => $partner->profile_image
+                'profile_image' => $profileImage
             ] : null;
 
             // ENTRY REMARKS (TEXT VALUES)
