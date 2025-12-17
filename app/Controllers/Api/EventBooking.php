@@ -740,8 +740,8 @@ class EventBooking extends BaseController
 
         $baseURL = base_url();
         $profileImage = !empty($user['profile_image'])
-            ? $baseURL . '/uploads/profile/' . $user['profile_image']
-            : $baseURL . '/uploads/profile/default.jpg';
+            ? $baseURL . '/uploads/profile_images/' . $user['profile_image']
+            : $baseURL . '/uploads/profile_images/default.jpg';
 
 
 
