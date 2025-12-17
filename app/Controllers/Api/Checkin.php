@@ -692,6 +692,19 @@ public function markAsIn()
 
         foreach ($checkins as &$checkin) {
 
+            // USER PROFILE IMAGE URL
+            $userProfileImage = '';
+
+            if (!empty($checkin['user_profile_image'])) {
+                if (!preg_match('/^https?:\/\//', $checkin['user_profile_image'])) {
+                    $userProfileImage = base_url('uploads/profile_images/' . $checkin['user_profile_image']);
+                } else {
+                    $userProfileImage = $checkin['user_profile_image'];
+                }
+            }
+
+            $checkin['user_profile_image_url'] = $userProfileImage;
+
             // Status text mapping
             $statusMap = [
                 0 => 'Pending',
