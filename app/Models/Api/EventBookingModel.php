@@ -164,7 +164,7 @@ class EventBookingModel extends Model
             checkin.checkin_id,
             checkin.checkin_time,
             checkin.checkedin_by,
-            staff.name AS checkedin_by_name,
+            admin.name AS checkedin_by_name,
             checkin.partner,
             checkin.category_id,
 
@@ -183,8 +183,8 @@ class EventBookingModel extends Model
             ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
             // guest user
             ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
-            // staff who checked in (use alias 'staff')
-            ->join('app_users AS staff', 'staff.user_id = checkin.checkedin_by', 'left')
+            //admin name fetching 
+            ->join('admin_users AS admin', 'admin.admin_id = checkin.checkedin_by', 'left')
             // ticket/category (join using checkin.category_id)
             ->join('event_ticket_category', 'event_ticket_category.category_id = checkin.category_id', 'left')
             ->where('checkin.event_id', $event_id)
