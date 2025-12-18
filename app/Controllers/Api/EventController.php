@@ -69,10 +69,11 @@ class EventController extends BaseController
         // No token → skip authentication
 
         $events = $this->eventModel
-            ->where('status !=', 4)
+            ->whereIn('status', [1, 2, 3]) // upcoming, completed, cancelled
             ->orderBy('status', 'ASC')
             ->orderBy('event_date_start', 'ASC')
             ->findAll();
+
 
         $baseUrl = base_url('public/uploads/events/');
         $this->eventModel->updateEventStatuses();
