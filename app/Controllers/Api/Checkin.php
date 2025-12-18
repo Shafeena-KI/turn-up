@@ -703,7 +703,7 @@ public function markAsIn()
                 }
             }
 
-            $checkin['user_profile_image_url'] = $userProfileImage;
+            $checkin['user_profile_image'] = $userProfileImage;
 
             // Status text mapping
             $statusMap = [
