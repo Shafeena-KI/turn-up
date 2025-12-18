@@ -227,24 +227,26 @@ class EventInvite extends BaseController
 
             if ($eventCounts) {
 
-                // Approved seats
+                // Approved seats (already occupied)
                 $usedSeats += (int) $eventCounts->total_approved;
 
-                // Pending couples → 2 seats each
+                // Pending couples → block 2 seats each
                 $pendingCouples =
                     (int) $eventCounts->total_couple_invites -
                     (int) $eventCounts->total_couple_approved;
 
-                // Pending stags → 1 seat each
+                // Pending stags/female/other → block 1 seat each
                 $pendingStags =
                     ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
                     ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
                     ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
 
+                // BLOCK seats for pending
                 $usedSeats += ($pendingCouples * 2) + $pendingStags;
             }
 
             $availableSeats = $totalSeatsAllowed - $usedSeats;
+
 
             // DEFAULT
             $inviteStatus = 0;
@@ -252,15 +254,27 @@ class EventInvite extends BaseController
             // SEAT CHECK FIRST (MOST IMPORTANT)
             if ($availableSeats >= $requiredSeats) {
 
-                // VERIFIED USERS → AUTO APPROVE
+                // VERIFIED USERS → ALWAYS AUTO APPROVE
                 if ($user->profile_status == 2) {
                     $inviteStatus = 1;
                 }
-                // VIP CATEGORY → AUTO APPROVE
+
+                // VIP CATEGORY → APPROVE ONLY IF SEATS FIT ENTRY TYPE
                 elseif ($categoryType === 1) {
-                    $inviteStatus = 1;
+
+                    // VIP COUPLE → needs exactly 2 free seats
+                    if ($entryTypeValue === 4) {
+                        $inviteStatus = ($availableSeats >= 2) ? 1 : 0;
+                    }
+
+                    // VIP STAG / FEMALE / OTHER → needs exactly 1 free seat
+                    else {
+                        $inviteStatus = ($availableSeats >= 1) ? 1 : 0;
+                    }
                 }
-                // NORMAL + UNVERIFIED → PENDING
+
+
+                // NORMAL CATEGORY → ALWAYS PENDING
                 else {
                     $inviteStatus = 0;
                 }
