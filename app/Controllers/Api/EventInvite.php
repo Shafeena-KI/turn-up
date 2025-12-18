@@ -222,68 +222,60 @@ class EventInvite extends BaseController
                 FOR UPDATE
             ", [$event_id, $category_id])->getRow();
 
-
             $usedSeats = 0;
 
             if ($eventCounts) {
 
-                // Approved seats (already occupied)
+                // APPROVED seats always block
                 $usedSeats += (int) $eventCounts->total_approved;
 
-                // Pending couples → block 2 seats each
-                $pendingCouples =
-                    (int) $eventCounts->total_couple_invites -
-                    (int) $eventCounts->total_couple_approved;
+                // NORMAL category → pending blocks seats
+                if ($categoryType === 2) {
 
-                // Pending stags/female/other → block 1 seat each
-                $pendingStags =
-                    ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
-                    ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
-                    ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
+                    $pendingCouples =
+                        (int) $eventCounts->total_couple_invites -
+                        (int) $eventCounts->total_couple_approved;
 
-                // BLOCK seats for pending
-                $usedSeats += ($pendingCouples * 2) + $pendingStags;
+                    $pendingSingles =
+                        ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
+                        ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
+                        ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
+
+                    $usedSeats += ($pendingCouples * 2) + $pendingSingles;
+                }
+
+                // VIP → pending does NOT block seats
             }
+
 
             $availableSeats = $totalSeatsAllowed - $usedSeats;
 
 
             // DEFAULT
             $inviteStatus = 0;
-
+           
             // SEAT CHECK FIRST (MOST IMPORTANT)
             if ($availableSeats >= $requiredSeats) {
 
-                // VERIFIED USERS → ALWAYS AUTO APPROVE
+                // VERIFIED USERS → AUTO APPROVE
                 if ($user->profile_status == 2) {
                     $inviteStatus = 1;
                 }
 
-                // VIP CATEGORY → APPROVE ONLY IF SEATS FIT ENTRY TYPE
+                // VIP CATEGORY
                 elseif ($categoryType === 1) {
-
-                    // VIP COUPLE → needs exactly 2 free seats
-                    if ($entryTypeValue === 4) {
-                        $inviteStatus = ($availableSeats >= 2) ? 1 : 0;
-                    }
-
-                    // VIP STAG / FEMALE / OTHER → needs exactly 1 free seat
-                    else {
-                        $inviteStatus = ($availableSeats >= 1) ? 1 : 0;
-                    }
+                    $inviteStatus = 1; // approve if seats available
                 }
 
-
-                // NORMAL CATEGORY → ALWAYS PENDING
+                // NORMAL → pending
                 else {
                     $inviteStatus = 0;
                 }
-
-            } else {
-                // NOT ENOUGH SEATS
-                $inviteStatus = 0;
             }
 
+            // print_r($inviteStatus); 
+            // print_r($availableSeats); 
+            // print_r($requiredSeats); exit;
             // --- event_counters (INVITE COUNTER ONLY) ---
             $counterTable = $db->table('event_counters');
             $counter = $counterTable->get()->getRow();
@@ -305,15 +297,6 @@ class EventInvite extends BaseController
 
             // FINAL INVITE CODE
             $invite_code = 'IN' . $event_code . str_pad($new_invite_no, 3, '0', STR_PAD_LEFT);
-
-            // VIP = Approved, Normal = Pending
-            // if ($user->profile_status == 2) {
-            //     // VERIFIED USERS ALWAYS GET AUTO APPROVAL
-            //     $inviteStatus = 1;
-            // } else {
-            //     // OLD RULE: VIP auto-approved, normal pending
-            //     $inviteStatus = ($categoryType === 1) ? 1 : 0;
-            // }
             // APPROVAL TYPE
             $approvalType = ($inviteStatus === 1) ? 1 : 0;
             // SAVE INVITE
