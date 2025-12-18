@@ -69,35 +69,35 @@ class EventController extends BaseController
         // No token → skip authentication
 
         $events = $this->eventModel
-            ->orderBy('status', 'ASC')             // upcoming → completed → cancelled
-            ->orderBy('event_date_start', 'ASC')   // sort upcoming by date
+            ->where('status !=', 4)
+            ->orderBy('status', 'ASC')
+            ->orderBy('event_date_start', 'ASC')
             ->findAll();
 
         $baseUrl = base_url('public/uploads/events/');
-        $today = strtotime(date("Y-m-d"));
-
+        $this->eventModel->updateEventStatuses();
         foreach ($events as &$event) {
 
             // AUTO UPDATE EVENT STATUS 
-            $startDate = strtotime($event['event_date_start']);
-            $endDate = strtotime($event['event_date_end']);
-            $currentStatus = $event['status'];
-            $newStatus = $currentStatus;
+            // $startDate = strtotime($event['event_date_start']);
+            // $endDate = strtotime($event['event_date_end']);
+            // $currentStatus = $event['status'];
+            // $newStatus = $currentStatus;
 
-            if ($endDate < $today) {
-                $newStatus = 2;
-            } elseif ($startDate > $today) {
-                $newStatus = 1;
-            } elseif ($startDate <= $today && $endDate >= $today) {
-                $newStatus = 1;
-            }
+            // if ($endDate < $today) {
+            //     $newStatus = 2;
+            // } elseif ($startDate > $today) {
+            //     $newStatus = 1;
+            // } elseif ($startDate <= $today && $endDate >= $today) {
+            //     $newStatus = 1;
+            // }
 
-            if ($newStatus != $currentStatus) {
-                $this->db->table('events')
-                    ->where('event_id', $event['event_id'])
-                    ->update(['status' => $newStatus]);
-                $event['status'] = $newStatus;
-            }
+            // if ($newStatus != $currentStatus) {
+            //     $this->db->table('events')
+            //         ->where('event_id', $event['event_id'])
+            //         ->update(['status' => $newStatus]);
+            //     $event['status'] = $newStatus;
+            // }
 
             $event['poster_image'] = !empty($event['poster_image'])
                 ? $baseUrl . 'poster_images/' . $event['poster_image']
@@ -129,7 +129,6 @@ class EventController extends BaseController
             $event['total_booking'] = $eventCounts['total_booking'] ?? 0;
             $event['total_invites'] = $eventCounts['total_invites'] ?? 0;
         }
-
         return $this->response->setJSON([
             'status' => true,
             'data' => $events
@@ -393,39 +392,8 @@ class EventController extends BaseController
                 : null,
             'event_city' => $_POST['event_city'] ?? null,
             'total_seats' => $_POST['total_seats'] ?? null,
+            'status' => 1, // Default to Upcoming
         ];
-
-
-        // STATUS BASED ON DATE + TIME 
-
-        // START DATETIME
-        $startDateTime = null;
-        if (!empty($_POST['event_date_start'])) {
-            $startDateTime = strtotime(
-                $_POST['event_date_start'] . ' ' .
-                (!empty($_POST['event_time_start']) ? $_POST['event_time_start'] : '00:00')
-            );
-        }
-
-        // END DATETIME (ONLY IF PROVIDED)
-        $endDateTime = null;
-        if (!empty($_POST['event_date_end'])) {
-            $endDateTime = strtotime(
-                $_POST['event_date_end'] . ' ' .
-                (!empty($_POST['event_time_end']) ? $_POST['event_time_end'] : '23:59')
-            );
-        }
-
-        $currentTime = time(); // NOW
-
-        // DEFAULT STATUS
-        $event['status'] = 1; // Upcoming
-
-        // COMPLETED ONLY IF END DATE EXISTS AND PASSED
-        if ($endDateTime !== null && $endDateTime < $currentTime) {
-            $event['status'] = 2; // Completed
-        }
-
 
         // ---------------- HOST ID ARRAY ----------------
 
