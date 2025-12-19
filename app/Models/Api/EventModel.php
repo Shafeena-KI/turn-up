@@ -55,35 +55,30 @@ class EventModel extends Model
         // CASE 1: end_date < today → COMPLETED
         $this->builder()
             ->where('event_date_end <', $date)
-            ->where('status !=', 2)
-            ->update(['status' => 2]);
+            ->where('status !=', self::COMPLETED)
+            ->update(['status' => self::COMPLETED]);
 
         // CASE 2: end_date = today AND end_time <= now → COMPLETED
         $this->builder()
             ->where('event_date_end', $date)
             ->where('event_time_end IS NOT NULL', null, false)
             ->where('event_time_end <=', $time)
-            ->where('status !=', 2)
-            ->update(['status' => 2]);
+            ->where('status !=', self::COMPLETED)
+            ->update(['status' => self::COMPLETED]);
 
         // CASE 3: No end_date & end_time → complete after 1 day from start
         $this->builder()
             ->where('event_date_end IS NULL', null, false)
             ->where('event_time_end IS NULL', null, false)
             ->where('event_date_start IS NOT NULL', null, false)
-            ->where('event_time_start IS NOT NULL', null, false)
-            ->where(
-                "DATE_ADD(CONCAT(event_date_start,' ',event_time_start), INTERVAL 1 DAY) <= '{$dateTime}'",
-                null,
-                false
-            )
-            ->where('status !=', 2)
-            ->update(['status' => 2]);
+            ->where('event_date_start <', $date)
+            ->where('status !=', self::COMPLETED)
+            ->update(['status' => self::COMPLETED]);
 
         // UPCOMING events
         $this->builder()
             ->where('event_date_start >', $date)
-            ->where('status !=', 1)
-            ->update(['status' => 1]);
+            ->where('status !=', self::UPCOMING)
+            ->update(['status' => self::UPCOMING]);
     }
 }

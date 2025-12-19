@@ -58,12 +58,7 @@ class UpdateEventStatus extends BaseCommand
             ->where('event_date_end IS NULL', null, false)
             ->where('event_time_end IS NULL', null, false)
             ->where('event_date_start IS NOT NULL', null, false)
-            ->where('event_time_start IS NOT NULL', null, false)
-            ->where(
-                "DATE_ADD(CONCAT(event_date_start,' ',event_time_start), INTERVAL 1 DAY) <= '{$dateTime}'",
-                null,
-                false
-            )
+            ->where('event_date_start <', $date)
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
 
