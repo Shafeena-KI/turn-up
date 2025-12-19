@@ -76,9 +76,9 @@ class EventModel extends Model
             ->update(['status' => self::COMPLETED]);
 
         // UPCOMING events
-        $this->builder()
-            ->where('event_date_start >', $date)
-            ->where('status !=', self::UPCOMING)
-            ->update(['status' => self::UPCOMING]);
+        // $this->builder()
+        //     ->where('event_date_start >', $date)
+        //     ->where('status !=', self::UPCOMING)
+        //     ->update(['status' => self::UPCOMING]);
     }
 }

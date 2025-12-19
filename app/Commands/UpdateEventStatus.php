@@ -67,10 +67,10 @@ class UpdateEventStatus extends BaseCommand
         UPCOMING EVENTS
         --------------------------------------------------
         */
-        $model->builder()
-            ->where('event_date_start >', $date)
-            ->where('status !=', self::UPCOMING)
-            ->update(['status' => self::UPCOMING]);
+        // $model->builder()
+        //     ->where('event_date_start >', $date)
+        //     ->where('status !=', self::UPCOMING)
+        //     ->update(['status' => self::UPCOMING]);
 
         CLI::write("Update Event Status executed at {$dateTime}");
     }
