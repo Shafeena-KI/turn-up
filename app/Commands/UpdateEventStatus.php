@@ -12,11 +12,11 @@ class UpdateEventStatus extends BaseCommand
     protected $name = 'cron:update-events';
     protected $description = 'Update events status based on end_time/end_date';
 
-    /*
-    # Events Status :
-    */
-    const UPCOMING = 1;
+    // Event Status
+    const UPCOMING  = 1;
     const COMPLETED = 2;
+    const DELETED   = 3;
+    const CANCELLED = 4;
 
     public function run(array $params = [])
     {
@@ -26,13 +26,17 @@ class UpdateEventStatus extends BaseCommand
 
         $model = new EventModel();
 
+        // Common exclusion (DO NOT TOUCH these)
+        $excludeStatuses = [self::DELETED, self::CANCELLED];
+
         /*
         --------------------------------------------------
-        CASE 1: Events with end_date < today → COMPLETED
+        CASE 1: end_date < today → COMPLETED
         --------------------------------------------------
         */
         $model->builder()
             ->where('event_date_end <', $date)
+            ->whereNotIn('status', $excludeStatuses)
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
 
@@ -45,12 +49,13 @@ class UpdateEventStatus extends BaseCommand
             ->where('event_date_end', $date)
             ->where('event_time_end IS NOT NULL', null, false)
             ->where('event_time_end <=', $time)
+            ->whereNotIn('status', $excludeStatuses)
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
 
         /*
         --------------------------------------------------
-        CASE 3: NO end_date & end_time
+        CASE 3: No end_date & end_time
         → Complete after 1 day from start
         --------------------------------------------------
         */
@@ -59,6 +64,7 @@ class UpdateEventStatus extends BaseCommand
             ->where('event_time_end IS NULL', null, false)
             ->where('event_date_start IS NOT NULL', null, false)
             ->where('event_date_start <', $date)
+            ->whereNotIn('status', $excludeStatuses)
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
 
@@ -67,12 +73,13 @@ class UpdateEventStatus extends BaseCommand
         UPCOMING EVENTS
         --------------------------------------------------
         */
-        // $model->builder()
-        //     ->where('event_date_start >', $date)
-        //     ->where('status !=', self::UPCOMING)
-        //     ->update(['status' => self::UPCOMING]);
+        $model->builder()
+            ->where('event_date_start >', $date)
+            ->whereNotIn('status', $excludeStatuses)
+            ->where('status !=', self::UPCOMING)
+            ->update(['status' => self::UPCOMING]);
 
-        CLI::write("Update Event Status executed at {$dateTime}");
+        CLI::write("✔ Event status update executed at {$dateTime}", 'green');
     }
 
 }

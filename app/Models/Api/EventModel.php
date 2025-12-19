@@ -33,10 +33,10 @@ class EventModel extends Model
         'updated_at'
     ];
 
-    const UPCOMING = 1;
+    const UPCOMING  = 1;
     const COMPLETED = 2;
     const CANCELLED = 3;
-    const DELETED = 4;
+    const DELETED   = 4;
 
     public function getEventCodeById($eventId)
     {
@@ -46,39 +46,67 @@ class EventModel extends Model
 
         return $event['event_code'] ?? null;
     }
+    
+    /**
+     * Auto update event statuses (Cron-safe)
+     * Excludes CANCELLED & DELETED events
+     */
     public function updateEventStatuses()
     {
-        $dateTime = date('Y-m-d H:i:s');
         $date = date('Y-m-d');
         $time = date('H:i:s');
 
-        // CASE 1: end_date < today → COMPLETED
+        // NEVER touch these
+        $excludeStatuses = [self::CANCELLED, self::DELETED];
+
+        /*
+        --------------------------------------------------
+        CASE 1: end_date < today → COMPLETED
+        --------------------------------------------------
+        */
         $this->builder()
             ->where('event_date_end <', $date)
+            ->whereNotIn('status', $excludeStatuses)
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
 
-        // CASE 2: end_date = today AND end_time <= now → COMPLETED
+        /*
+        --------------------------------------------------
+        CASE 2: end_date = today AND end_time <= now
+        --------------------------------------------------
+        */
         $this->builder()
             ->where('event_date_end', $date)
             ->where('event_time_end IS NOT NULL', null, false)
             ->where('event_time_end <=', $time)
+            ->whereNotIn('status', $excludeStatuses)
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
 
-        // CASE 3: No end_date & end_time → complete after 1 day from start
+        /*
+        --------------------------------------------------
+        CASE 3: No end_date & end_time
+        → Complete after 1 day from start
+        --------------------------------------------------
+        */
         $this->builder()
             ->where('event_date_end IS NULL', null, false)
             ->where('event_time_end IS NULL', null, false)
             ->where('event_date_start IS NOT NULL', null, false)
             ->where('event_date_start <', $date)
+            ->whereNotIn('status', $excludeStatuses)
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
 
-        // UPCOMING events
-        // $this->builder()
-        //     ->where('event_date_start >', $date)
-        //     ->where('status !=', self::UPCOMING)
-        //     ->update(['status' => self::UPCOMING]);
+        /*
+        --------------------------------------------------
+        UPCOMING EVENTS
+        --------------------------------------------------
+        */
+        $this->builder()
+            ->where('event_date_start >', $date)
+            ->whereNotIn('status', $excludeStatuses)
+            ->where('status !=', self::UPCOMING)
+            ->update(['status' => self::UPCOMING]);
     }
 }
