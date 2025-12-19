@@ -562,12 +562,23 @@ class EventBooking extends BaseController
         $secretKey = getenv('EVENT_QR_SECRET');
         $expectedToken = hash_hmac('sha256', $booking_code, $secretKey);
 
+        // if (!hash_equals($expectedToken, $token)) {
+        //     return $this->response->setJSON([
+        //         'status' => false,
+        //         'message' => 'QR Tampered or Invalid Token'
+        //     ]);
+        // }
+
         if (!hash_equals($expectedToken, $token)) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'QR Tampered or Invalid Token'
-            ]);
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'QR Tampered or Invalid Token'
+                ]);
         }
+
 
         // Fetch booking
         $booking = $this->bookingModel->where('booking_code', $booking_code)->first();
