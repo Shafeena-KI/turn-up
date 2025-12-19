@@ -700,28 +700,84 @@ class EventController extends BaseController
             }
 
             // Gallery
-            $galleryImages = $this->request->getFiles()['gallery_images'] ?? [];
-            $galleryNames = [];
+            // Gallery
+            $uploadPath = FCPATH . 'public/uploads/events/gallery_images/';
+            if (!is_dir($uploadPath)) {
+                mkdir($uploadPath, 0777, true);
+            }
 
-            if (!empty($galleryImages)) {
-                $uploadPath = FCPATH . 'public/uploads/events/gallery_images/';
-                if (!is_dir($uploadPath))
-                    mkdir($uploadPath, 0777, true);
+            /**
+             * OLD GALLERY FROM DB
+             */
+            $oldGallery = json_decode($event['gallery_images'], true);
+            $oldGallery = is_array($oldGallery) ? $oldGallery : [];
 
-                foreach ($galleryImages as $file) {
-                    if ($file->isValid() && !$file->hasMoved()) {
+            /**
+             * EXISTING GALLERY FROM FRONTEND (URLs / filenames)
+             * This comes from normal POST (not files)
+             */
+            $existingGallery = $this->request->getPost('gallery_images');
+
+            /**
+             * FORCE ARRAY
+             */
+            if ($existingGallery === null) {
+                // User did not modify gallery
+                $existingGallery = $oldGallery;
+            } else {
+                $existingGallery = (array) $existingGallery;
+
+                // Normalize existing values (extract filename from URL)
+                $existingGallery = array_map(function ($img) {
+                    return basename($img);
+                }, $existingGallery);
+
+                /**
+                 * DELETE REMOVED IMAGES
+                 */
+                $deletedImages = array_diff($oldGallery, $existingGallery);
+
+                foreach ($deletedImages as $img) {
+                    $filePath = $uploadPath . $img;
+                    if (is_file($filePath)) {
+                        unlink($filePath);
+                    }
+                }
+            }
+
+            /**
+             * HANDLE NEW FILE UPLOADS (binary)
+             */
+            $newGallery = [];
+            $uploadedFiles = $this->request->getFiles();
+            $galleryFiles = $uploadedFiles['gallery_images'] ?? [];
+
+            if (!empty($galleryFiles)) {
+                foreach ($galleryFiles as $file) {
+
+                    // Only process real uploaded files
+                    if (is_object($file) && $file->isValid() && !$file->hasMoved()) {
+
                         $random = substr(md5(uniqid()), 0, 6);
                         $ext = $file->getExtension();
                         $newName = 'gallery_' . time() . '_' . $random . '.' . $ext;
+
                         $file->move($uploadPath, $newName);
-                        $galleryNames[] = $newName;
+                        $newGallery[] = $newName;
                     }
                 }
-
-                if (!empty($galleryNames)) {
-                    $data['gallery_images'] = json_encode($galleryNames);
-                }
             }
+
+            /**
+             * FINAL GALLERY (existing + new)
+             */
+            $finalGallery = array_values(array_unique(array_merge($existingGallery, $newGallery)));
+
+            /**
+             * SAVE TO DB
+             */
+            $data['gallery_images'] = json_encode($finalGallery);
+
         }
 
         // Update event
