@@ -533,17 +533,17 @@ class EventController extends BaseController
         $offset = ($page - 1) * $limit;
 
         // COUNT QUERY 
-        $countBuilder = $this->eventModel->where('status !=', 4);
-
+        $dataBuilder = $this->eventModel->builder();
+        $dataBuilder->where('status !=', 4);
         if (!empty($search)) {
-            $countBuilder->groupStart()
+            $dataBuilder->groupStart()
                 ->like('event_name', $search)
                 ->orLike('event_city', $search)
                 ->orLike('event_location', $search)
                 ->groupEnd();
         }
 
-        $total = $countBuilder->countAllResults();
+        $total = $dataBuilder->countAllResults();
 
         // ---------- DATA QUERY ----------
         $dataBuilder = $this->eventModel->where('status !=', 4);
