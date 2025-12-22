@@ -4,6 +4,7 @@ namespace App\Controllers\Api;
 
 use App\Controllers\BaseController;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Database;
 
 class Host extends BaseController
 {
@@ -14,7 +15,7 @@ class Host extends BaseController
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        $this->db = \Config\Database::connect();
+        $this->db = Database::connect();
     }
 
     // GET ALL HOSTS
