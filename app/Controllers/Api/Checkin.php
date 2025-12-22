@@ -13,11 +13,13 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class Checkin extends BaseController
 {
+    protected $userModel;
+    protected $eventModel;
     protected $inviteModel;
     protected $bookingModel;
-    protected $eventModel;
     protected $categoryModel;
-    protected $userModel;
+    protected $eventCountsModel;
+
 
 
     public function __construct()
@@ -26,12 +28,13 @@ class Checkin extends BaseController
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-        $this->inviteModel = new EventInviteModel();
-        $this->bookingModel = new EventBookingModel();
-        $this->eventModel = new EventModel();
-        $this->categoryModel = new EventCategoryModel();
-        $this->userModel = new AppUserModel();
+        
+        $this->eventModel       = new EventModel();
+        $this->userModel        = new AppUserModel();
         $this->eventCountsModel = new EventCountsModel();
+        $this->inviteModel      = new EventInviteModel();
+        $this->bookingModel     = new EventBookingModel();
+        $this->categoryModel    = new EventCategoryModel();
 
     }
 

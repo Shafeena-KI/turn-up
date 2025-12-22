@@ -2,12 +2,15 @@
 namespace App\Controllers\Api;
 require_once ROOTPATH . 'vendor/autoload.php';
 use App\Controllers\BaseController;
+use App\Libraries\NotificationLibrary;
 use App\Models\Api\AppUserModel;
 
+use Config\Database;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 class AppUser extends BaseController
 {
+    protected $db;
     protected $appUserModel;
     protected $notificationLibrary;
     public function __construct()
@@ -15,9 +18,10 @@ class AppUser extends BaseController
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        $this->appUserModel = new AppUserModel();
-        $this->db = \Config\Database::connect();
-        $this->notificationLibrary = new \App\Libraries\NotificationLibrary();
+        
+        $this->db                   = Database::connect();
+        $this->appUserModel         = new AppUserModel();
+        $this->notificationLibrary  = new NotificationLibrary();
     }
     public function UserLogin()
     {

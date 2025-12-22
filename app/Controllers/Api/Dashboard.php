@@ -3,6 +3,7 @@
 namespace App\Controllers\Api;
 
 use App\Controllers\BaseController;
+use Config\Database;
 
 class Dashboard extends BaseController
 {
@@ -13,7 +14,7 @@ class Dashboard extends BaseController
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        $this->db = \Config\Database::connect();
+        $this->db = Database::connect();
     }
 
     // GET TOTAL USERS COUNT

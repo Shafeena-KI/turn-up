@@ -2,6 +2,7 @@
 namespace App\Controllers\Api;
 
 use App\Controllers\BaseController;
+use App\Libraries\NotificationLibrary;
 use App\Models\Api\EventInviteModel;
 use App\Models\Api\EventModel;
 use App\Models\Api\EventCategoryModel;
@@ -9,14 +10,16 @@ use App\Models\Api\AppUserModel;
 use App\Models\Api\EventBookingModel;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\API\ResponseTrait;
+use Config\Database;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use CodeIgniter\I18n\Time;
 class EventInvite extends BaseController
 {
-    protected $inviteModel;
-    protected $eventModel;
+    protected $db;
     protected $userModel;
+    protected $eventModel;
+    protected $inviteModel;
     protected $bookingModel;
     protected $categoryModel;
     protected $notificationLibrary;
@@ -25,13 +28,14 @@ class EventInvite extends BaseController
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        $this->inviteModel = new EventInviteModel();
-        $this->eventModel = new EventModel();
-        $this->userModel = new AppUserModel();
-        $this->bookingModel = new EventBookingModel();
-        $this->categoryModel = new EventCategoryModel();
-        $this->db = \Config\Database::connect();
-        $this->notificationLibrary = new \App\Libraries\NotificationLibrary();
+        
+        $this->db                   = Database::connect();
+        $this->eventModel           = new EventModel();
+        $this->userModel            = new AppUserModel();
+        $this->inviteModel          = new EventInviteModel();
+        $this->bookingModel         = new EventBookingModel();
+        $this->categoryModel        = new EventCategoryModel();
+        $this->notificationLibrary  = new NotificationLibrary();
     }
     private function getAuthenticatedUser()
     {

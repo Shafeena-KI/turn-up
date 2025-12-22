@@ -402,7 +402,7 @@ class PaymentController extends ResourceController
                 'raw_response' => json_encode($orderData)
             ];
 
-            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS && $isSuccess) {
+            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS) {
                 $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::SUCCESS]);
                 $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAID]);
                 $this->createBookingRecord($transaction);
@@ -550,7 +550,7 @@ class PaymentController extends ResourceController
             }
 
             // Update records
-            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS && $isSuccess) {
+            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS) {
                 $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::SUCCESS]);
                 $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAID]);
                 $this->createBookingRecord($transaction);
@@ -627,7 +627,7 @@ class PaymentController extends ResourceController
             $payment = $this->paymentModel->find($transaction['payment_id']);
             $isSuccess = $data['type'] === 'PAYMENT_SUCCESS_WEBHOOK';
 
-            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS && $isSuccess) {
+            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS) {
                 // Get payment method details for successful payments
                 $paymentMethodData = null;
                 $paymentGroup = null;
@@ -862,7 +862,7 @@ class PaymentController extends ResourceController
             }
 
             // Create booking record only after marking paid
-            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS && $isSuccess) {
+            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS) {
                 $this->createBookingRecord($transaction);
                 log_message('info', 'Created booking record for transaction id: ' . ($transaction['id'] ?? 'NULL'));
             }

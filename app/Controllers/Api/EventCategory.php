@@ -5,20 +5,23 @@ use App\Controllers\BaseController;
 use App\Models\Api\EventCategoryModel;
 use App\Models\Api\EventModel;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Database;
 
 class EventCategory extends BaseController
 {
-    protected $categoryModel;
+    protected $db;
     protected $eventModel;
+    protected $categoryModel;
 
     public function __construct()
     {
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        $this->categoryModel = new EventCategoryModel();
-        $this->eventModel = new EventModel();
-        $this->db = \Config\Database::connect();
+        
+        $this->eventModel       = new EventModel();
+        $this->db               = Database::connect();
+        $this->categoryModel    = new EventCategoryModel();
     }
     //  Create Category
     public function createCategory()

@@ -4,8 +4,10 @@ namespace App\Controllers\Api;
 use App\Controllers\BaseController;
 use App\Models\Api\EventModel;
 use CodeIgniter\API\ResponseTrait;
+use Config\Database;
 class EventController extends BaseController
 {
+    protected $db;
     protected $eventModel;
 
     public function __construct()
@@ -13,9 +15,10 @@ class EventController extends BaseController
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        $this->eventModel = new EventModel();
-        $this->db = \Config\Database::connect();
         helper(['form', 'url']);
+        
+        $this->db           = Database::connect();
+        $this->eventModel   = new EventModel();
     }
     public function getToken()
     {

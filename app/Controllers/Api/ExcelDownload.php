@@ -17,8 +17,8 @@ class ExcelDownload extends BaseController
 
     public function __construct()
     {
-        $this->eventModel = new EventModel();
-        $this->inviteModel = new EventInviteModel();
+        $this->eventModel   = new EventModel();
+        $this->inviteModel  = new EventInviteModel();
         $this->bookingModel = new EventBookingModel();
     }
 

@@ -8,24 +8,28 @@ use App\Models\Api\EventCategoryModel;
 use App\Models\Api\EventCountsModel;
 
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Database;
 
 class EventBooking extends BaseController
 {
-    protected $bookingModel;
-    protected $inviteModel;
-    protected $categoryModel;
     protected $db;
+    protected $inviteModel;
+    protected $bookingModel;
+    protected $categoryModel;
+    protected $eventCountsModel;
+
 
     public function __construct()
     {
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        $this->bookingModel = new EventBookingModel();
-        $this->inviteModel = new EventInviteModel();
-        $this->categoryModel = new EventCategoryModel();
+        
+        $this->db               = Database::connect();
+        $this->inviteModel      = new EventInviteModel();
         $this->eventCountsModel = new EventCountsModel();
-        $this->db = \Config\Database::connect();
+        $this->bookingModel     = new EventBookingModel();
+        $this->categoryModel    = new EventCategoryModel();
     }
     public function getAllEventBookingCounts()
     {
