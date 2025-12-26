@@ -619,45 +619,90 @@ class EventBooking extends BaseController
         // --- EVENT DATE / TIME VALIDATION ---
 
 
-        $tz = new \DateTimeZone('Asia/Kolkata');
+        // $tz = new \DateTimeZone('Asia/Kolkata');
 
-        // Fix end time if it is 00:00:00 → consider full day till 23:59:59
-        $endTime = ($event['event_time_end'] === null)
-            ? '23:59:59'
-            : $event['event_time_end'];
+        // // Fix end time if it is 00:00:00 → consider full day till 23:59:59
+        // $endTime = ($event['event_time_end'] === null)
+        //     ? '23:59:59'
+        //     : $event['event_time_end'];
 
-        // Event start/end
-        $eventStartDateTime = new \DateTime(
-            $event['event_date_start'] . ' ' . $event['event_time_start'],
-            $tz
-        );
+        // // Event start/end
+        // $eventStartDateTime = new \DateTime(
+        //     $event['event_date_start'] . ' ' . $event['event_time_start'],
+        //     $tz
+        // );
 
-        $eventEndDateTime = new \DateTime(
-            $event['event_date_end'] . ' ' . $endTime,
-            $tz
-        );
+        // $eventEndDateTime = new \DateTime(
+        //     $event['event_date_end'] . ' ' . $endTime,
+        //     $tz
+        // );
 
-        // Check-in window (5 hours before start)
-        $checkinStartTime = (clone $eventStartDateTime)->modify('-5 hours');
+        // // Check-in window (5 hours before start)
+        // $checkinStartTime = (clone $eventStartDateTime)->modify('-5 hours');
 
-        // Current time
-        $now = new \DateTime('now', $tz);
+        // // Current time
+        // $now = new \DateTime('now', $tz);
 
-        // Before check-in window
-        if ($now < $checkinStartTime) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Event check-in has not started yet'
-            ]);
-        }
+        // // Before check-in window
+        // if ($now < $checkinStartTime) {
+        //     return $this->response->setJSON([
+        //         'status' => false,
+        //         'message' => 'Event check-in has not started yet'
+        //     ]);
+        // }
 
-        // After event end
-        if ($now > $eventEndDateTime) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Event check-in closed'
-            ]);
-        }
+        // // After event end
+        // if ($now > $eventEndDateTime) {
+        //     return $this->response->setJSON([
+        //         'status' => false,
+        //         'message' => 'Event check-in closed'
+        //     ]);
+        // }
+
+
+    
+
+$tz = new \DateTimeZone('Asia/Kolkata');
+
+// Fix end time if null → consider full day till 23:59:59
+$endTime = empty($event['event_time_end']) ? '23:59:59' : $event['event_time_end'];
+
+// Event start datetime
+$eventStartDateTime = new \DateTime(
+    $event['event_date_start'] . ' ' . $event['event_time_start'],
+    $tz
+);
+
+// If event_date_end is null, use event_date_start
+$endDate = empty($event['event_date_end']) ? $event['event_date_start'] : $event['event_date_end'];
+
+$eventEndDateTime = new \DateTime(
+    $endDate . ' ' . $endTime,
+    $tz
+);
+
+// Allow check-in 5 hours before start
+$checkinStartTime = (clone $eventStartDateTime)->modify('-5 hours');
+
+// Current time
+$now = new \DateTime('now', $tz);
+
+// Before check-in window
+if ($now < $checkinStartTime) {
+    return $this->response->setJSON([
+        'status' => false,
+        'message' => 'Event check-in has not started yet'
+    ]);
+}
+
+// After event end
+if ($now > $eventEndDateTime) {
+    return $this->response->setJSON([
+        'status' => false,
+        'message' => 'Event check-in closed'
+    ]);
+}
+
 
 
 
