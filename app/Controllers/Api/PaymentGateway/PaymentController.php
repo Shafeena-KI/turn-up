@@ -39,146 +39,6 @@ class PaymentController extends ResourceController
     }
 
     /**
-     * Create payment link only (for direct payment link usage)
-     */
-    public function createPaymentLink()
-    {
-        $this->paymentModel->transStart();
-
-        try {
-            $input = $this->request->getJSON(true);
-            $userId = $this->request->getPost('user_id') ?? $input['user_id'] ?? null;
-            if (!$userId) {
-                throw new \InvalidArgumentException('User ID is required');
-            }
-            $userId = (int) $userId;
-            $clientIP = $this->request->getIPAddress();
-
-            // Validate authentication
-            if (!$userId || !is_numeric($userId) || $userId <= 0) {
-                throw new \InvalidArgumentException('Valid user authentication required');
-            }
-
-            // Validate input
-            if (!is_array($input) || !isset($input['invite_id'])) {
-                throw new \InvalidArgumentException('Invalid input data');
-            }
-
-            $inviteId = (int) $input['invite_id'];
-            if ($inviteId <= 0) {
-                throw new \InvalidArgumentException('Valid invite ID is required');
-            }
-
-            // Check for duplicate payments
-            $this->validateNoDuplicatePayment($inviteId, $userId);
-
-            // Get and validate invite
-            $invite = $this->eventInviteModel->find($inviteId);
-            if (!$invite || $invite['user_id'] != $userId) {
-                throw new \InvalidArgumentException('Invite not found or unauthorized');
-            }
-
-            // Only allow payments for APPROVED invites
-            if ($invite['status'] == EventInviteModel::PAYMENT_PENDING) {
-                $invCategory = $this->eventCategorygModel->getInviteCategory($inviteId);
-                $totalInvite = $this->categoryLibrary->count($invCategory->entry_type);
-
-                if (!empty($invCategory) && !empty($totalInvite)) {
-                    if ($invCategory->balance_seats < $totalInvite['invite_total']) {
-                        throw new \InvalidArgumentException('Your booking cannot be completed because the required number of seats is not available.');
-                    }
-                } else {
-                    throw new \InvalidArgumentException('Your initial payment attempt has failed. Please request admin approval to retry the payment.');
-                }
-            }
-
-            // Only allow payments for APPROVED invites
-            if ($invite['status'] != EventInviteModel::APPROVED && $invite['status'] != EventInviteModel::PAYMENT_PENDING) {
-                throw new \InvalidArgumentException('Invite must be approved for payment');
-            }
-
-            $inviteDetails = $this->eventInviteModel->getInviteDetails($inviteId, $userId);
-            if (!$inviteDetails || $inviteDetails->price <= 0) {
-                throw new \InvalidArgumentException('Invalid event or price');
-            }
-
-            // Generate order and create records
-            $orderId = $this->cashfree->generateOrderId();
-            $returnUrl = $input['return_url'] ?? base_url('api/payment/link-callback?order_id=' . $orderId);
-
-            // Create payment record
-            $paymentId = $this->paymentModel->insert([
-                'invite_id' => $inviteId,
-                'user_id' => $userId,
-                'event_id' => $inviteDetails->event_id,
-                'amount' => $inviteDetails->price,
-                'payment_status' => PaymentModel::PENDING,
-                'payment_gateway' => 'cashfree',
-                'payment_date' => date('Y-m-d H:i:s')
-            ]);
-
-            if (!$paymentId) {
-                throw new \RuntimeException('Failed to create payment record');
-            }
-
-            // Create transaction record
-            $transactionId = $this->transactionModel->insert([
-                'payment_id' => $paymentId,
-                'transaction_id' => $orderId,
-                'amount' => $inviteDetails->price,
-                'status' => TransactionModel::INITIATED
-            ]);
-
-            if (!$transactionId) {
-                throw new \RuntimeException('Failed to create transaction record');
-            }
-
-            // Update invite status to PAYMENT_PENDING
-            $this->eventInviteModel->update($inviteId, ['status' => EventInviteModel::PAYMENT_PENDING]);
-
-            // Create payment link with same callback as checkout
-            $linkCallbackUrl = $input['return_url'] ?? base_url('api/payment/link-callback?order_id=' . urlencode($orderId));
-            $linkResult = $this->cashfree->createPaymentLink(
-                $orderId,
-                $inviteDetails->price,
-                $inviteDetails->customer_name,
-                $inviteDetails->customer_email,
-                $inviteDetails->customer_phone,
-                $linkCallbackUrl
-            );
-
-            if (!$linkResult['success']) {
-                throw new \RuntimeException('Payment link creation failed: ' . ($linkResult['error'] ?? 'Unknown'));
-            }
-
-            $this->paymentModel->transCommit();
-
-            log_message('info', 'Payment link created: ' . $orderId);
-
-            return $this->respond([
-                'success' => true,
-                'order_id' => $orderId,
-                'link_id' => $linkResult['data']['link_id'] ?? null,
-                'payment_link' => $linkResult['data']['link_url'] ?? null,
-                'order_amount' => (float) $inviteDetails->price,
-                'order_currency' => 'INR',
-                'link_expiry_time' => $linkResult['data']['link_expiry_time'] ?? null
-            ]);
-
-        } catch (\Exception $e) {
-            $this->paymentModel->transRollback();
-
-            log_message('error', 'Payment link creation failed: ' . $e->getMessage());
-
-            if ($e instanceof \InvalidArgumentException) {
-                return $this->fail($e->getMessage(), 400);
-            }
-
-            return $this->fail('Payment service temporarily unavailable', 503);
-        }
-    }
-
-    /**
      * Create payment order
      */
     public function createOrder()
@@ -353,10 +213,12 @@ class PaymentController extends ResourceController
                 throw new \RuntimeException('Payment verification failed: ' . ($result['error'] ?? 'Unknown error'));
             }
 
-            $orderData = $result['data'] ?? [];
-            $status = strtolower($orderData['order_status'] ?? 'unknown');
+            // Handle the new structured response from CashfreePayment::verifyPayment
+            $isVerified = $result['verified'] ?? false;
+            $orderStatus = $result['order_status'] ?? 'unknown';
+            $paymentStatus = $result['payment_status'] ?? null;
 
-            log_message('info', 'Order status for ' . $orderId . ': ' . $status);
+            log_message('info', 'Payment verification for ' . $orderId . ' - Verified: ' . ($isVerified ? 'YES' : 'NO') . ', Order Status: ' . $orderStatus . ', Payment Status: ' . ($paymentStatus ?? 'NULL'));
 
             $transaction = $this->transactionModel->where('transaction_id', $orderId)->first();
             if (!$transaction) {
@@ -368,47 +230,35 @@ class PaymentController extends ResourceController
                 throw new \RuntimeException('Payment not found');
             }
 
-            // Get payment method details - try Payment Link orders first
-            $paymentMethodData = null;
-            $paymentGroup = null;
-
-            if ($status === 'paid') {
-                // Try Payment Link orders API first
-                $linkId = 'link_' . $orderId;
-                $linkOrders = $this->cashfree->getLinkOrders($linkId);
-                if ($linkOrders['success'] && !empty($linkOrders['data'])) {
-                    $latestOrder = $linkOrders['data'][0];
-                    $paymentMethodData = $latestOrder['payment_method'] ?? null;
-                    $paymentGroup = $latestOrder['payment_group'] ?? null;
-                } else {
-                    // Fallback to regular payment details
-                    $paymentDetails = $this->cashfree->getPaymentDetails($orderId);
-                    if ($paymentDetails['success'] && isset($paymentDetails['data'])) {
-                        $paymentMethodData = $paymentDetails['data']['payment_method'] ?? null;
-                        $paymentGroup = $paymentDetails['data']['payment_group'] ?? null;
-                    }
-                }
-            }
-
-            $paymentMethod = $this->extractPaymentMethod($paymentMethodData);
-            $isSuccess = $status === 'paid';
+            $paymentMethod = $result['payment_method'] == 'wallet' ? 'app' : $result['payment_method'];
 
             $updateData = [
-                'status' => $isSuccess ? TransactionModel::SUCCESS : TransactionModel::FAILED,
-                'gateway_transaction_id' => $orderData['cf_order_id'] ?? $orderId,
-                'payment_method' => $paymentMethod['type'] ?? $paymentGroup ?? 'unknown',
-                'payment_details' => $paymentMethod['details'],
+                'status' => $isVerified ? TransactionModel::SUCCESS : TransactionModel::FAILED,
+                'gateway_transaction_id' => $result['cf_payment_id'] ?? $orderId,
+                'payment_method' => $paymentMethod ?? 'unknown',
                 'completed_at' => date('Y-m-d H:i:s'),
-                'raw_response' => json_encode($orderData)
+                'raw_response' => json_encode($result)
             ];
 
-            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS) {
+            if ($result['payment_time'] ?? null) {
+                $updateData['payment_details'] = json_encode([
+                    'details' => $result['payment_details'] ?? null,
+                    'payment_time' => $result['payment_time'],
+                    'payment_amount' => $result['payment_amount'] ?? null,
+                    'order_amount' => $result['order_amount'] ?? null
+                ]);
+            }
+
+
+            if ($isVerified) {
                 $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::SUCCESS]);
                 $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAID]);
                 $this->createBookingRecord($transaction);
+                log_message('info', 'Payment verified and marked as SUCCESS for order: ' . $orderId);
             } else {
                 $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::FAILED]);
                 $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAYMENT_PENDING]);
+                log_message('info', 'Payment verification failed for order: ' . $orderId . ' - ' . ($result['message'] ?? 'Unknown reason'));
             }
 
             $this->transactionModel->update($transaction['id'], $updateData);
@@ -416,8 +266,10 @@ class PaymentController extends ResourceController
 
             return $this->respond([
                 'success' => true,
-                'status' => $status,
-                'order_data' => $orderData
+                'verified' => $isVerified,
+                'order_status' => $orderStatus,
+                'payment_status' => $paymentStatus,
+                'message' => $result['message'] ?? ($isVerified ? 'Payment verified successfully' : 'Payment not completed')
             ]);
 
         } catch (\Exception $e) {
@@ -502,23 +354,19 @@ class PaymentController extends ResourceController
                 }
             } else {
                 log_message('warning', 'Payment link orders not found, trying regular order verification');
-                // Fallback to regular order verification
+                // Use the updated verifyPayment method which handles v2025-01-01 properly
                 $result = $this->cashfree->verifyPayment($orderId);
                 if ($result['success']) {
-                    $orderData = $result['data'] ?? [];
-                    $status = strtolower($orderData['order_status'] ?? 'unknown');
-
-                    if (in_array($status, ['active', 'paid'])) {
-                        $paymentDetails = $this->cashfree->getPaymentDetails($orderId);
-                        if ($paymentDetails['success'] && isset($paymentDetails['data'])) {
-                            $paymentData = $paymentDetails['data'];
-                            if ($status === 'active') {
-                                $status = strtolower($paymentData['payment_status'] ?? 'failed');
-                            }
-                            $paymentMethodData = $paymentData['payment_method'] ?? null;
-                            $paymentGroup = $paymentData['payment_group'] ?? null;
-                        }
-                    }
+                    $isVerified = $result['verified'] ?? false;
+                    $status = $isVerified ? 'paid' : 'failed';
+                    $orderData = [
+                        'order_status' => $result['order_status'] ?? 'unknown',
+                        'payment_status' => $result['payment_status'] ?? null,
+                        'cf_payment_id' => $result['cf_payment_id'] ?? null,
+                        'payment_method' => $result['payment_method'] ?? null,
+                        'payment_time' => $result['payment_time'] ?? null
+                    ];
+                    $paymentGroup = $result['payment_method'] ?? null;
                 }
             }
 
@@ -825,7 +673,7 @@ class PaymentController extends ResourceController
 
             $updateData = [
                 'status' => $isSuccess ? TransactionModel::SUCCESS : TransactionModel::FAILED,
-                'gateway_transaction_id' => $latestOrder['link_id'] ?? $linkIdToCheck,
+                'gateway_transaction_id' => $latestOrder['cf_order_id'] ?? $latestOrder['link_id'] ?? $linkIdToCheck,
                 'completed_at' => date('Y-m-d H:i:s'),
                 'raw_response' => json_encode($latestOrder)
             ];
@@ -1006,8 +854,6 @@ class PaymentController extends ResourceController
         ];
     }
 
-
-
     private function createBookingRecord($transaction)
     {
         try {
@@ -1052,6 +898,4 @@ class PaymentController extends ResourceController
             return false;
         }
     }
-
-
 }

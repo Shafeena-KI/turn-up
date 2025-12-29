@@ -161,30 +161,94 @@ class CashfreePayment
      */
     public function verifyPayment($orderId)
     {
-        $url = $this->config->getApiUrl() . '/orders/' . $orderId;
-        
         try {
-            $response = $this->client->request('GET', $url, [
-                'headers' => array_merge($this->config->getHeaders(), [
-                    'x-api-version' => '2025-01-01'
-                ]),
-                'http_errors' => false
-            ]);
-
-            $statusCode = $response->getStatusCode();
-            $responseBody = $response->getBody();
-
-            if ($statusCode >= 200 && $statusCode < 300) {
+            // Get order details first
+            $orderResponse = $this->getOrderDetails($orderId);
+            
+            if (!$orderResponse['success']) {
+                return $orderResponse;
+            }
+            
+            $orderData = $orderResponse['data'];
+            
+            // Check if order status is PAID
+            if (isset($orderData['order_status']) && $orderData['order_status'] === 'PAID') {
+                // Get payment details for additional verification
+                $paymentResponse = $this->getPaymentDetails($orderId);
+                
+                if ($paymentResponse['success']) {
+                    $paymentData = $paymentResponse['data'];
+                    
+                    // Verify payment status is SUCCESS
+                    if (isset($paymentData['payment_status']) && $paymentData['payment_status'] === 'SUCCESS') {
+                        return [
+                            'success' => true,
+                            'verified' => true,
+                            'order_status' => $orderData['order_status'],
+                            'payment_status' => $paymentData['payment_status'],
+                            'order_amount' => $orderData['order_amount'] ?? null,
+                            'payment_amount' => $paymentData['payment_amount'] ?? null,
+                            'payment_method' => is_array($paymentData['payment_method'] ?? null) ? json_encode($paymentData['payment_method']) : ($paymentData['payment_method'] ?? null),
+                            'payment_time' => $paymentData['payment_time'] ?? null,
+                            'cf_payment_id' => $paymentData['cf_payment_id'] ?? null
+                        ];
+                    }
+                }
+                
+                // Order is PAID but payment verification failed
                 return [
                     'success' => true,
-                    'data' => json_decode($responseBody, true)
-                ];
-            } else {
-                return [
-                    'success' => false,
-                    'error' => 'HTTP ' . $statusCode . ': ' . $responseBody
+                    'verified' => false,
+                    'order_status' => $orderData['order_status'],
+                    'message' => 'Order marked as paid but payment verification failed'
                 ];
             }
+            
+            // For ACTIVE orders, check if payment was actually completed via payment link
+            if (isset($orderData['order_status']) && $orderData['order_status'] === 'ACTIVE') {
+                // Try to get payment link orders to check actual payment status
+                $linkId = 'link_' . $orderId;
+                $linkOrders = $this->getLinkOrders($linkId);
+                
+                if ($linkOrders['success'] && !empty($linkOrders['data'])) {
+                    $latestOrder = $linkOrders['data'][0];
+                    $linkOrderStatus = $latestOrder['order_status'] ?? 'unknown';
+                    
+                    if ($linkOrderStatus === 'PAID') {
+                        // Get payment details from the actual order ID
+                        $cfOrderId = $latestOrder['order_id'] ?? null;
+                        if ($cfOrderId) {
+                            $paymentResponse = $this->getPaymentDetails($cfOrderId);
+                            if ($paymentResponse['success']) {
+                                $paymentData = $paymentResponse['data'];
+                                if (isset($paymentData['payment_status']) && $paymentData['payment_status'] === 'SUCCESS') {
+                                    return [
+                                        'success' => true,
+                                        'verified' => true,
+                                        'order_status' => 'PAID',
+                                        'payment_status' => $paymentData['payment_status'],
+                                        'order_amount' => $latestOrder['order_amount'] ?? null,
+                                        'payment_amount' => $paymentData['payment_amount'] ?? null,
+                                        'payment_method' => $paymentData['payment_group'] ?? null,
+                                        'payment_details' => is_array($paymentData['payment_method'] ?? null) ? json_encode($paymentData['payment_method']) : ($paymentData['payment_method'] ?? null),
+                                        'payment_time' => $paymentData['payment_time'] ?? null,
+                                        'cf_payment_id' => $paymentData['cf_payment_id'] ?? null
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Order is not paid
+            return [
+                'success' => true,
+                'verified' => false,
+                'order_status' => $orderData['order_status'] ?? 'UNKNOWN',
+                'message' => 'Payment not completed'
+            ];
+            
         } catch (\Exception $e) {
             return [
                 'success' => false,
