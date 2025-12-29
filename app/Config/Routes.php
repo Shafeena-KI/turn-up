@@ -26,6 +26,9 @@ $routes->post('api/admin/change-password', 'Api\Login::changePassword');
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
 $routes->post('api/user/verifyotp', 'Api\AppUser::verifyOtp');
 $routes->post('api/admin/verifysocial', 'Api\AppUser::verifySocial');
+$routes->post('api/user/logout', 'Api\Login::userLogout');
+$routes->get('api/hello', 'Api\Login::index');
+
 
 //registration/user management
 $routes->post('api/user/register', 'Api\AppUser::register');

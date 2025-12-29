@@ -16,10 +16,57 @@ class Dashboard extends BaseController
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->db = Database::connect();
     }
+    public function getToken()
+    {
+        // Try all possible header names
+        $authHeader = $this->request->getHeaderLine('Authorization');
+
+        if (empty($authHeader)) {
+            $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        }
+
+        if (empty($authHeader)) {
+            $authHeader = $_SERVER['Authorization'] ?? '';
+        }
+
+        // Extract token
+        if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return null;
+    }
+    protected function validateToken()
+    {
+        $token = $this->getToken();
+
+        // Token is OPTIONAL → validate only if provided
+        if ($token) {
+            $user = $this->db->table('admin_users')
+                ->where('token', trim($token))
+                ->get()
+                ->getRow();
+
+            if (!$user) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid or expired token.'
+                    ]);
+            }
+        }
+
+        return true; // token valid OR not provided
+    }
 
     // GET TOTAL USERS COUNT
     public function getTotalUsers()
     {
+        $auth = $this->validateToken();
+        if ($auth !== true)
+            return $auth;
         $count = $this->db->table('app_users')->countAllResults();
 
         return $this->response->setJSON([
@@ -30,6 +77,9 @@ class Dashboard extends BaseController
     }
     public function getTotalEvents()
     {
+        $auth = $this->validateToken();
+        if ($auth !== true)
+            return $auth;
         $count = $this->db->table('events')->countAllResults();
 
         return $this->response->setJSON([
@@ -40,6 +90,9 @@ class Dashboard extends BaseController
     }
     public function getTotalApprovedInvites()
     {
+        $auth = $this->validateToken();
+        if ($auth !== true)
+            return $auth;
         // Sum total approved invites from event_counts table
         $result = $this->db->table('event_counts')
             ->selectSum('total_approved', 'total_approved')
@@ -56,6 +109,9 @@ class Dashboard extends BaseController
     }
     public function getTotalBookings()
     {
+        $auth = $this->validateToken();
+        if ($auth !== true)
+            return $auth;
         $result = $this->db->table('event_counts')
             ->selectSum('total_booking', 'total_bookings')
             ->get()
@@ -70,6 +126,9 @@ class Dashboard extends BaseController
 
     public function getUpcomingEventsDetails()
     {
+        $auth = $this->validateToken();
+        if ($auth !== true)
+            return $auth;
         $events = $this->db->table('events')
             ->where('status', 1)
             ->orderBy('event_date_start', 'ASC')
