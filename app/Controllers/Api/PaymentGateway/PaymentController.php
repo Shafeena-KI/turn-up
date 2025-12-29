@@ -213,10 +213,12 @@ class PaymentController extends ResourceController
                 throw new \RuntimeException('Payment verification failed: ' . ($result['error'] ?? 'Unknown error'));
             }
 
-            $orderData = $result['data'] ?? [];
-            $status = strtolower($orderData['order_status'] ?? 'unknown');
+            // Handle the new structured response from CashfreePayment::verifyPayment
+            $isVerified = $result['verified'] ?? false;
+            $orderStatus = $result['order_status'] ?? 'unknown';
+            $paymentStatus = $result['payment_status'] ?? null;
 
-            log_message('info', 'Order status for ' . $orderId . ': ' . $status);
+            log_message('info', 'Payment verification for ' . $orderId . ' - Verified: ' . ($isVerified ? 'YES' : 'NO') . ', Order Status: ' . $orderStatus . ', Payment Status: ' . ($paymentStatus ?? 'NULL'));
 
             $transaction = $this->transactionModel->where('transaction_id', $orderId)->first();
             if (!$transaction) {
@@ -228,47 +230,35 @@ class PaymentController extends ResourceController
                 throw new \RuntimeException('Payment not found');
             }
 
-            // Get payment method details - try Payment Link orders first
-            $paymentMethodData = null;
-            $paymentGroup = null;
-
-            if ($status === 'paid') {
-                // Try Payment Link orders API first
-                $linkId = 'link_' . $orderId;
-                $linkOrders = $this->cashfree->getLinkOrders($linkId);
-                if ($linkOrders['success'] && !empty($linkOrders['data'])) {
-                    $latestOrder = $linkOrders['data'][0];
-                    $paymentMethodData = $latestOrder['payment_method'] ?? null;
-                    $paymentGroup = $latestOrder['payment_group'] ?? null;
-                } else {
-                    // Fallback to regular payment details
-                    $paymentDetails = $this->cashfree->getPaymentDetails($orderId);
-                    if ($paymentDetails['success'] && isset($paymentDetails['data'])) {
-                        $paymentMethodData = $paymentDetails['data']['payment_method'] ?? null;
-                        $paymentGroup = $paymentDetails['data']['payment_group'] ?? null;
-                    }
-                }
-            }
-
-            $paymentMethod = $this->extractPaymentMethod($paymentMethodData);
-            $isSuccess = $status === 'paid';
+            $paymentMethod = $result['payment_method'] == 'wallet' ? 'app' : $result['payment_method'];
 
             $updateData = [
-                'status' => $isSuccess ? TransactionModel::SUCCESS : TransactionModel::FAILED,
-                'gateway_transaction_id' => $orderData['cf_order_id'] ?? $orderId,
-                'payment_method' => $paymentMethod['type'] ?? $paymentGroup ?? 'unknown',
-                'payment_details' => $paymentMethod['details'],
+                'status' => $isVerified ? TransactionModel::SUCCESS : TransactionModel::FAILED,
+                'gateway_transaction_id' => $result['cf_payment_id'] ?? $orderId,
+                'payment_method' => $paymentMethod ?? 'unknown',
                 'completed_at' => date('Y-m-d H:i:s'),
-                'raw_response' => json_encode($orderData)
+                'raw_response' => json_encode($result)
             ];
 
-            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS) {
+            if ($result['payment_time'] ?? null) {
+                $updateData['payment_details'] = json_encode([
+                    'details' => $result['payment_details'] ?? null,
+                    'payment_time' => $result['payment_time'],
+                    'payment_amount' => $result['payment_amount'] ?? null,
+                    'order_amount' => $result['order_amount'] ?? null
+                ]);
+            }
+
+
+            if ($isVerified) {
                 $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::SUCCESS]);
                 $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAID]);
                 $this->createBookingRecord($transaction);
+                log_message('info', 'Payment verified and marked as SUCCESS for order: ' . $orderId);
             } else {
                 $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::FAILED]);
                 $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAYMENT_PENDING]);
+                log_message('info', 'Payment verification failed for order: ' . $orderId . ' - ' . ($result['message'] ?? 'Unknown reason'));
             }
 
             $this->transactionModel->update($transaction['id'], $updateData);
@@ -276,8 +266,10 @@ class PaymentController extends ResourceController
 
             return $this->respond([
                 'success' => true,
-                'status' => $status,
-                'order_data' => $orderData
+                'verified' => $isVerified,
+                'order_status' => $orderStatus,
+                'payment_status' => $paymentStatus,
+                'message' => $result['message'] ?? ($isVerified ? 'Payment verified successfully' : 'Payment not completed')
             ]);
 
         } catch (\Exception $e) {
@@ -362,23 +354,19 @@ class PaymentController extends ResourceController
                 }
             } else {
                 log_message('warning', 'Payment link orders not found, trying regular order verification');
-                // Fallback to regular order verification
+                // Use the updated verifyPayment method which handles v2025-01-01 properly
                 $result = $this->cashfree->verifyPayment($orderId);
                 if ($result['success']) {
-                    $orderData = $result['data'] ?? [];
-                    $status = strtolower($orderData['order_status'] ?? 'unknown');
-
-                    if (in_array($status, ['active', 'paid'])) {
-                        $paymentDetails = $this->cashfree->getPaymentDetails($orderId);
-                        if ($paymentDetails['success'] && isset($paymentDetails['data'])) {
-                            $paymentData = $paymentDetails['data'];
-                            if ($status === 'active') {
-                                $status = strtolower($paymentData['payment_status'] ?? 'failed');
-                            }
-                            $paymentMethodData = $paymentData['payment_method'] ?? null;
-                            $paymentGroup = $paymentData['payment_group'] ?? null;
-                        }
-                    }
+                    $isVerified = $result['verified'] ?? false;
+                    $status = $isVerified ? 'paid' : 'failed';
+                    $orderData = [
+                        'order_status' => $result['order_status'] ?? 'unknown',
+                        'payment_status' => $result['payment_status'] ?? null,
+                        'cf_payment_id' => $result['cf_payment_id'] ?? null,
+                        'payment_method' => $result['payment_method'] ?? null,
+                        'payment_time' => $result['payment_time'] ?? null
+                    ];
+                    $paymentGroup = $result['payment_method'] ?? null;
                 }
             }
 
@@ -685,7 +673,7 @@ class PaymentController extends ResourceController
 
             $updateData = [
                 'status' => $isSuccess ? TransactionModel::SUCCESS : TransactionModel::FAILED,
-                'gateway_transaction_id' => $latestOrder['link_id'] ?? $linkIdToCheck,
+                'gateway_transaction_id' => $latestOrder['cf_order_id'] ?? $latestOrder['link_id'] ?? $linkIdToCheck,
                 'completed_at' => date('Y-m-d H:i:s'),
                 'raw_response' => json_encode($latestOrder)
             ];
@@ -866,8 +854,6 @@ class PaymentController extends ResourceController
         ];
     }
 
-
-
     private function createBookingRecord($transaction)
     {
         try {
@@ -912,6 +898,4 @@ class PaymentController extends ResourceController
             return false;
         }
     }
-
-
 }
