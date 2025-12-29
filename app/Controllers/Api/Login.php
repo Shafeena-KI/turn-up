@@ -5,12 +5,14 @@ require_once ROOTPATH . 'vendor/autoload.php';
 
 use App\Controllers\BaseController;
 use App\Models\AdminModel;
+use App\Models\AppUserModel;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
 class Login extends BaseController
 {
     protected $adminModel;
+    protected $appuserModel;
 
     public function __construct()
     {
@@ -19,7 +21,51 @@ class Login extends BaseController
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         $this->adminModel = new AdminModel();
     }
+    public function index()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
 
+        if (empty($authHeader)) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Authorization token is required.'
+                ]);
+        }
+
+
+        // Format: Bearer tokenvalue
+        $token = str_replace('Bearer ', '', $authHeader);
+
+        if (empty($token)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Invalid token format.'
+            ]);
+        }
+
+        // Decode token
+        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+        $decoded = JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
+
+        $admin_id = $decoded->data->admin_id ?? null;
+
+        if (!$admin_id) {
+            return $this->response->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => 'Invalid token.'
+            ]);
+        }
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Hello'
+        ]);
+    }
     // public function adminLogin()
     // {
     //     try {
@@ -220,7 +266,7 @@ class Login extends BaseController
                     'email' => $admin['email'],
                     'role_id' => $admin['role_id'] ?? null,
                     'role_name' => $roleData['role_name'] ?? null,              // role name
-                    'role_permissions' => $roleData['role_permissions'] ?? [] ,
+                    'role_permissions' => $roleData['role_permissions'] ?? [],
                     'password' => $password  // role permissions
                 ],
                 'token' => $token
@@ -346,7 +392,67 @@ class Login extends BaseController
             ]);
         }
     }
+    public function userLogout()
+    {
+        try {
+            // Get token from Authorization header
+            $authHeader = $this->request->getHeaderLine('Authorization');
 
+            if (empty($authHeader)) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Authorization token is required.'
+                    ]);
+            }
+
+
+            // Format: Bearer tokenvalue
+            $token = str_replace('Bearer ', '', $authHeader);
+
+            if (empty($token)) {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'Invalid token format.'
+                ]);
+            }
+
+            // Decode token
+            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+            $decoded = JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
+
+            $user_id = $decoded->data->user_id ?? null;
+
+            if (!$user_id) {
+                return $this->response->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Invalid token.'
+                ]);
+            }
+
+            // Clear token from DB
+            $this->appuserModel->update($user_id, ['token' => null]);
+
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Logout successful. Token cleared.'
+            ]);
+
+        } catch (\Throwable $e) {
+
+            return $this->response->setJSON([
+                'status' => 500,
+                'success' => false,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
     //  Validate Token 
     private function validateToken()
     {
@@ -495,65 +601,65 @@ class Login extends BaseController
 
 
 
-public function updateAdmin()
-{
-    // Validate token
-    $auth = $this->validateToken();
-    if (!$auth['status'])
-        return $this->response->setJSON($auth);
+    public function updateAdmin()
+    {
+        // Validate token
+        $auth = $this->validateToken();
+        if (!$auth['status'])
+            return $this->response->setJSON($auth);
 
-    // Always try to parse JSON (even if content-type is wrong)
-    $json = $this->request->getJSON(true);
-    if (!is_array($json)) {
-        $json = [];
-    }
-
-    // Admin ID from any source
-    $id = $json['admin_id']
-        ?? $this->request->getPost('admin_id')
-        ?? $this->request->getVar('admin_id');
-
-    if (empty($id)) {
-        return $this->response->setJSON([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Admin ID is required'
-        ]);
-    }
-
-    // Find admin
-    $admin = $this->adminModel->find($id);
-    if (!$admin) {
-        return $this->response->setJSON([
-            'status' => 404,
-            'success' => false,
-            'message' => 'Admin not found'
-        ]);
-    }
-
-    // Allowed fields
-    $fields = ['name', 'email', 'phone', 'role_id', 'status', 'password'];
-    $update = [];
-
-    foreach ($fields as $field) {
-        $value = $json[$field] ?? $this->request->getPost($field);
-        if ($value !== null && $value !== '') {
-            if ($field === 'password') {
-                $value = password_hash($value, PASSWORD_DEFAULT);
-            }
-            $update[$field] = $value;
+        // Always try to parse JSON (even if content-type is wrong)
+        $json = $this->request->getJSON(true);
+        if (!is_array($json)) {
+            $json = [];
         }
+
+        // Admin ID from any source
+        $id = $json['admin_id']
+            ?? $this->request->getPost('admin_id')
+            ?? $this->request->getVar('admin_id');
+
+        if (empty($id)) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Admin ID is required'
+            ]);
+        }
+
+        // Find admin
+        $admin = $this->adminModel->find($id);
+        if (!$admin) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'Admin not found'
+            ]);
+        }
+
+        // Allowed fields
+        $fields = ['name', 'email', 'phone', 'role_id', 'status', 'password'];
+        $update = [];
+
+        foreach ($fields as $field) {
+            $value = $json[$field] ?? $this->request->getPost($field);
+            if ($value !== null && $value !== '') {
+                if ($field === 'password') {
+                    $value = password_hash($value, PASSWORD_DEFAULT);
+                }
+                $update[$field] = $value;
+            }
+        }
+
+        $this->adminModel->update($id, $update);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Admin updated successfully',
+            'data' => $this->adminModel->find($id)
+        ]);
     }
-
-    $this->adminModel->update($id, $update);
-
-    return $this->response->setJSON([
-        'status' => 200,
-        'success' => true,
-        'message' => 'Admin updated successfully',
-        'data' => $this->adminModel->find($id)
-    ]);
-}
 
 
 
@@ -602,57 +708,57 @@ public function updateAdmin()
 
 
     public function changePassword()
-{
-    // Validate token
-    $auth = $this->validateToken();
-    if (!$auth['status'])
-        return $this->response->setJSON($auth);
+    {
+        // Validate token
+        $auth = $this->validateToken();
+        if (!$auth['status'])
+            return $this->response->setJSON($auth);
 
-    $data = $this->request->getJSON(true);
+        $data = $this->request->getJSON(true);
 
-    $adminId = $auth['admin_id']; // logged-in admin
-    $oldPassword = $data['old_password'] ?? null;
-    $newPassword = $data['new_password'] ?? null;
+        $adminId = $auth['admin_id']; // logged-in admin
+        $oldPassword = $data['old_password'] ?? null;
+        $newPassword = $data['new_password'] ?? null;
 
-    if (!$oldPassword || !$newPassword) {
+        if (!$oldPassword || !$newPassword) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Old password and new password are required.'
+            ]);
+        }
+
+        // Fetch admin details
+        $admin = $this->adminModel->find($adminId);
+
+        if (!$admin) {
+            return $this->response->setJSON([
+                'status' => 404,
+                'success' => false,
+                'message' => 'Admin not found.'
+            ]);
+        }
+
+        // Verify old password
+        if (!password_verify($oldPassword, $admin['password'])) {
+            return $this->response->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => 'Old password is incorrect.'
+            ]);
+        }
+
+        // Update password
+        $this->adminModel->update($adminId, [
+            'password' => password_hash($newPassword, PASSWORD_DEFAULT)
+        ]);
+
         return $this->response->setJSON([
-            'status' => 400,
-            'success' => false,
-            'message' => 'Old password and new password are required.'
+            'status' => 200,
+            'success' => true,
+            'message' => 'Password updated successfully.'
         ]);
     }
-
-    // Fetch admin details
-    $admin = $this->adminModel->find($adminId);
-
-    if (!$admin) {
-        return $this->response->setJSON([
-            'status' => 404,
-            'success' => false,
-            'message' => 'Admin not found.'
-        ]);
-    }
-
-    // Verify old password
-    if (!password_verify($oldPassword, $admin['password'])) {
-        return $this->response->setJSON([
-            'status' => 401,
-            'success' => false,
-            'message' => 'Old password is incorrect.'
-        ]);
-    }
-
-    // Update password
-    $this->adminModel->update($adminId, [
-        'password' => password_hash($newPassword, PASSWORD_DEFAULT)
-    ]);
-
-    return $this->response->setJSON([
-        'status' => 200,
-        'success' => true,
-        'message' => 'Password updated successfully.'
-    ]);
-}
 
 
 }

@@ -16,9 +16,9 @@ class EventController extends BaseController
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
         helper(['form', 'url']);
-        
-        $this->db           = Database::connect();
-        $this->eventModel   = new EventModel();
+
+        $this->db = Database::connect();
+        $this->eventModel = new EventModel();
     }
     public function getToken()
     {
@@ -249,13 +249,6 @@ class EventController extends BaseController
                 ->where('token', trim($token))
                 ->get()
                 ->getRow();
-
-            // if (!$user) {
-            //     return $this->response->setJSON([
-            //         'status' => false,
-            //         'message' => 'Invalid or expired token.'
-            //     ]);
-            // }
             if (!$user) {
                 return $this->response
                     ->setStatusCode(401)
@@ -530,6 +523,39 @@ class EventController extends BaseController
     }
     public function listEvents($search = '')
     {
+        if ($this->request->getMethod() === 'options') {
+            return $this->response->setStatusCode(200);
+        }
+
+        $token = $this->getToken();
+
+        // 1️⃣ Token REQUIRED
+        if (!$token) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Authorization token required.'
+                ]);
+        }
+
+        // 2️⃣ Token MUST be VALID
+        $user = $this->db->table('admin_users')
+            ->where('token', trim($token))
+            ->get()
+            ->getRow();
+
+        if (!$user) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Invalid or expired token.'
+                ]);
+        }
+
         $page = (int) $this->request->getGet('current_page') ?: 1;
         $limit = (int) $this->request->getGet('per_page') ?: 10;
         $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
