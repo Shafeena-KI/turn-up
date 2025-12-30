@@ -22,6 +22,7 @@ class PaymentReportController extends ResourceController
         $page = $this->request->getGet('page') ?? 1;
         $limit = $this->request->getGet('limit') ?? 20;
         $status = $this->request->getGet('status');
+        $name = $this->request->getGet('keyword');
 
         $order = strtoupper($this->request->getGet('order') ?? '') ?: 'DESC';
         $order = in_array($order, ['ASC', 'DESC']) ? $order : 'DESC';
@@ -57,6 +58,10 @@ class PaymentReportController extends ResourceController
             
         if ($status) {
             $query->where('transactions.status', $status);
+        }
+        
+        if ($name) {
+            $query->like('app_users.name', $name);
         }
         
         $transactions = $query->paginate($limit, 'default', $page);
@@ -142,11 +147,12 @@ class PaymentReportController extends ResourceController
         $page = $this->request->getGet('page') ?? 1;
         $limit = $this->request->getGet('limit') ?? 20;
         $filterStatus = $this->request->getGet('status');
+        $keyword = $this->request->getGet('keyword');
         $order = strtoupper($this->request->getGet('order') ?? '') ?: 'DESC';
         $order = in_array($order, ['ASC', 'DESC']) ? $order : 'DESC';
         
         // Get event details with transaction counts
-        $eventDetails = $this->transactionModel
+        $query = $this->transactionModel
             ->select('events.event_id, 
                 events.event_name, 
                 events.event_location, 
@@ -158,8 +164,13 @@ class PaymentReportController extends ResourceController
             ')
             ->join('payments', 'payments.payment_id = transactions.payment_id')
             ->join('events', 'events.event_id = payments.event_id')
-            ->groupBy('events.event_id')
-            ->findAll();
+            ->groupBy('events.event_id');
+            
+        if ($keyword) {
+            $query->like('events.event_name', $keyword);
+        }
+        
+        $eventDetails = $query->findAll();
 
         // Get status counts grouped by event
         $statusCounts = $this->transactionModel
@@ -279,10 +290,11 @@ class PaymentReportController extends ResourceController
         
         $page = $this->request->getGet('page') ?? 1;
         $limit = $this->request->getGet('limit') ?? 20;
+        $name = $this->request->getGet('keyword');
         $order = strtoupper($this->request->getGet('order') ?? '') ?: 'DESC';
         $order = in_array($order, ['ASC', 'DESC']) ? $order : 'DESC';
         
-        $transactions = $this->transactionModel
+        $query = $this->transactionModel
             ->select('
             transactions.id,
             transactions.payment_id,
@@ -313,8 +325,13 @@ class PaymentReportController extends ResourceController
             ->join('event_invites', 'event_invites.invite_id = payments.invite_id')
             ->join('event_booking', 'event_booking.booking_id = payments.booking_id', 'left')
             ->where('payments.user_id', $userId)
-            ->orderBy('transactions.initiated_at', $order)
-            ->paginate($limit, 'default', $page);
+            ->orderBy('transactions.initiated_at', $order);
+            
+        if ($name) {
+            $query->like('app_users.name', $name);
+        }
+        
+        $transactions = $query->paginate($limit, 'default', $page);
             
         // Transform profile_image to full URL
         foreach ($transactions as &$transaction) {
@@ -342,6 +359,7 @@ class PaymentReportController extends ResourceController
         $page = $this->request->getGet('page') ?? 1;
         $limit = $this->request->getGet('limit') ?? 20;
         $status = $this->request->getGet('status');
+        $name = $this->request->getGet('keyword');
         $order = strtoupper($this->request->getGet('order') ?? '') ?: 'DESC';
         $order = in_array($order, ['ASC', 'DESC']) ? $order : 'DESC';
         
@@ -379,6 +397,10 @@ class PaymentReportController extends ResourceController
             
         if ($status) {
             $query->where('transactions.status', $status);
+        }
+        
+        if ($name) {
+            $query->like('app_users.name', $name);
         }
         
         $transactions = $query->paginate($limit, 'default', $page);
