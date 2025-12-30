@@ -692,20 +692,24 @@ class EventController extends BaseController
                 continue;
             }
 
+            // DATE fields
             if (in_array($field, ['event_date_start', 'event_date_end'])) {
-                $timestamp = strtotime($value);
-                if ($timestamp === false) {
+                try {
+                    $dt = new \DateTime($value);
+                    $value = $dt->format('Y-m-d');
+                } catch (\Exception $e) {
                     continue; // invalid date → skip
                 }
-                $value = date('Y-m-d', $timestamp);
             }
 
+            // TIME fields
             if (in_array($field, ['event_time_start', 'event_time_end'])) {
-                $timestamp = strtotime($value);
-                if ($timestamp === false) {
+                try {
+                    $dt = new \DateTime($value);
+                    $value = $dt->format('H:i:s');
+                } catch (\Exception $e) {
                     continue; // invalid time → skip
                 }
-                $value = date('H:i:s', $timestamp);
             }
 
             $data[$field] = $value;

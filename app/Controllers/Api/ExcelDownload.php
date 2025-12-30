@@ -17,8 +17,8 @@ class ExcelDownload extends BaseController
 
     public function __construct()
     {
-        $this->eventModel   = new EventModel();
-        $this->inviteModel  = new EventInviteModel();
+        $this->eventModel = new EventModel();
+        $this->inviteModel = new EventInviteModel();
         $this->bookingModel = new EventBookingModel();
     }
 
@@ -71,12 +71,20 @@ class ExcelDownload extends BaseController
         $sheet->setCellValue('A3', 'Location: ' . ($event['event_location'] ?? ''));
         $sheet->mergeCells('A3:I3');
 
+        $eventDateTime = '';
+
+        if (!empty($event['event_date_start']) && !empty($event['event_time_start'])) {
+            $eventDateTime = date(
+                'd M Y, h:i A',
+                strtotime($event['event_date_start'] . ' ' . $event['event_time_start'])
+            );
+        }
+
         $sheet->setCellValue(
             'A4',
-            'Event Date & Time: ' . (!empty($event['event_date_start'])
-                ? date('d M Y, h:i A', strtotime($event['event_time_start']))
-                : '')
+            'Event Date & Time: ' . $eventDateTime
         );
+
         $sheet->mergeCells('A4:I4');
 
         // INVITE COUNTS 
@@ -231,12 +239,20 @@ class ExcelDownload extends BaseController
         $sheet->setCellValue('A3', 'Location: ' . ($event['event_location'] ?? ''));
         $sheet->mergeCells('A3:J3');
 
+        $eventDateTime = '';
+
+        if (!empty($event['event_date_start']) && !empty($event['event_time_start'])) {
+            $eventDateTime = date(
+                'd M Y, h:i A',
+                strtotime($event['event_date_start'] . ' ' . $event['event_time_start'])
+            );
+        }
+
         $sheet->setCellValue(
             'A4',
-            'Event Date & Time: ' . (!empty($event['event_date_start'])
-                ? date('d M Y, h:i A', strtotime($event['event_time_start']))
-                : '')
+            'Event Date & Time: ' . $eventDateTime
         );
+
         $sheet->mergeCells('A4:J4');
 
         /* ======================
@@ -395,12 +411,20 @@ class ExcelDownload extends BaseController
 
         $sheet->setCellValue('A3', 'Venue: ' . ($event['event_location'] ?? ''));
         $sheet->mergeCells('A3:J3');
+        $eventDateTime = '';
+
+        if (!empty($event['event_date_start']) && !empty($event['event_time_start'])) {
+            $eventDateTime = date(
+                'd M Y, h:i A',
+                strtotime($event['event_date_start'] . ' ' . $event['event_time_start'])
+            );
+        }
+
         $sheet->setCellValue(
             'A4',
-            'Event Date & Time: ' . (!empty($event['event_date_start'])
-                ? date('d M Y, h:i A', strtotime($event['event_time_start']))
-                : '')
+            'Event Date & Time: ' . $eventDateTime
         );
+
         $sheet->mergeCells('A4:J4');
 
         // COUNTS
