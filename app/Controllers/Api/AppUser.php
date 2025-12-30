@@ -18,10 +18,10 @@ class AppUser extends BaseController
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        
-        $this->db                   = Database::connect();
-        $this->appUserModel         = new AppUserModel();
-        $this->notificationLibrary  = new NotificationLibrary();
+
+        $this->db = Database::connect();
+        $this->appUserModel = new AppUserModel();
+        $this->notificationLibrary = new NotificationLibrary();
     }
     public function UserLogin()
     {
@@ -117,12 +117,12 @@ class AppUser extends BaseController
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
-            'message' => 'OTP sent successfully.',
-            'data' => [
-                'user_id' => $user['user_id'],
-                'otp' => $otp,
-                'whatsapp_response' => $whatsappResponse
-            ]
+            'message' => 'OTP has been sent to your WhatsApp.',
+            // 'data' => [
+            //     'user_id' => $user['user_id'],
+            //     'otp' => $otp,
+            //     'whatsapp_response' => $whatsappResponse
+            // ]
         ]);
     }
     public function verifyOtp()
@@ -262,11 +262,8 @@ class AppUser extends BaseController
             ]);
         }
 
-
-        $user_id = $auth['user_id'];
-
         $json = $this->request->getJSON(true);
-        $user_id = $json['user_id'] ?? null;
+        $user_id = $json['user_id'] ?? $auth['user_id'] ?? null;
 
         if (empty($user_id)) {
             return $this->response->setJSON([
@@ -286,14 +283,14 @@ class AppUser extends BaseController
             ]);
         }
 
-        // Profile image URL
+        /* ---------------- Profile Image ---------------- */
         if (!empty($user['profile_image'])) {
             if (!preg_match('/^https?:\/\//', $user['profile_image'])) {
                 $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
             }
         }
 
-        // Gender mapping
+        /* ---------------- Gender Mapping ---------------- */
         $genderMap = [
             1 => 'Male',
             2 => 'Female',
@@ -302,13 +299,16 @@ class AppUser extends BaseController
         ];
         $user['gender'] = $genderMap[(int) $user['gender']] ?? 'Not set';
 
-        // Handle interests
+        /* ---------------- Interests ---------------- */
         $interestList = [];
         if (!empty($user['interest_id'])) {
             $interestIds = explode(',', $user['interest_id']);
             $db = \Config\Database::connect();
-            $builder = $db->table('interests');
-            $interests = $builder->whereIn('interest_id', $interestIds)->get()->getResultArray();
+
+            $interests = $db->table('interests')
+                ->whereIn('interest_id', $interestIds)
+                ->get()
+                ->getResultArray();
 
             foreach ($interests as $i) {
                 $interestList[] = [
@@ -320,12 +320,28 @@ class AppUser extends BaseController
         unset($user['interest_id']);
         $user['interests'] = $interestList;
 
+        /* ---------------- User Verifications ---------------- */
+        $db = \Config\Database::connect();
+        $verification = $db->table('user_verifications')
+            ->select('instagram_verified, linkedin_verified,email_verified')
+            ->where('user_id', $user_id)
+            ->get()
+            ->getRowArray();
+
+        $user['instagram_verified'] = (int) ($verification['instagram_verified'] ?? 0);
+        $user['linkedin_verified'] = (int) ($verification['linkedin_verified'] ?? 0);
+        $user['email_verified'] = (int) ($verification['email_verified'] ?? 0);
+        
+        /* ---------------- Remove Sensitive Data ---------------- */
+        unset($user['password'], $user['otp']);
+
         return $this->response->setJSON([
             'status' => 200,
             'success' => true,
             'data' => $user
         ]);
     }
+
     private function getAdminAuthenticatedUser()
     {
         $authHeader = $this->request->getHeaderLine('Authorization');
@@ -448,7 +464,7 @@ class AppUser extends BaseController
         // Replace admin score return logic
         $user['instagram_verified'] = (int) ($verify['instagram_verified'] ?? 0);
         $user['linkedin_verified'] = (int) ($verify['linkedin_verified'] ?? 0);
-
+        $user['email_verified'] = (int) ($verify['email_verified'] ?? 0);
         // Use score from app_user table
         $user['profile_score'] = (int) $user['profile_score'];
 
