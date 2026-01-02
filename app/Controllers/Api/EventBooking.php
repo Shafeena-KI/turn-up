@@ -24,12 +24,12 @@ class EventBooking extends BaseController
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        
-        $this->db               = Database::connect();
-        $this->inviteModel      = new EventInviteModel();
+
+        $this->db = Database::connect();
+        $this->inviteModel = new EventInviteModel();
         $this->eventCountsModel = new EventCountsModel();
-        $this->bookingModel     = new EventBookingModel();
-        $this->categoryModel    = new EventCategoryModel();
+        $this->bookingModel = new EventBookingModel();
+        $this->categoryModel = new EventCategoryModel();
     }
     public function getAllEventBookingCounts()
     {
@@ -247,9 +247,11 @@ class EventBooking extends BaseController
                 ->orLike('app_users.phone', $search)
                 ->orLike('app_users.email', $search)
                 ->orLike("CASE 
-                        WHEN event_ticket_category.category_name = 1 THEN 'VIP'
-                        WHEN event_ticket_category.category_name = 2 THEN 'Normal'
-                    END", $search)
+                    WHEN event_ticket_category.category_name = 1 THEN 'VIP'
+                    WHEN event_ticket_category.category_name = 2 THEN 'Normal'
+                 END", $search)
+                ->orLike('event_booking.booking_code', $search)                          // <-- Booking code
+                ->orLike("DATE_FORMAT(event_booking.created_at, '%d-%m-%Y')", $search)  // <-- Booking date in dd-mm-yyyy
                 ->groupEnd();
         }
 
@@ -660,48 +662,48 @@ class EventBooking extends BaseController
         // }
 
 
-    
 
-$tz = new \DateTimeZone('Asia/Kolkata');
 
-// Fix end time if null → consider full day till 23:59:59
-$endTime = empty($event['event_time_end']) ? '23:59:59' : $event['event_time_end'];
+        $tz = new \DateTimeZone('Asia/Kolkata');
 
-// Event start datetime
-$eventStartDateTime = new \DateTime(
-    $event['event_date_start'] . ' ' . $event['event_time_start'],
-    $tz
-);
+        // Fix end time if null → consider full day till 23:59:59
+        $endTime = empty($event['event_time_end']) ? '23:59:59' : $event['event_time_end'];
 
-// If event_date_end is null, use event_date_start
-$endDate = empty($event['event_date_end']) ? $event['event_date_start'] : $event['event_date_end'];
+        // Event start datetime
+        $eventStartDateTime = new \DateTime(
+            $event['event_date_start'] . ' ' . $event['event_time_start'],
+            $tz
+        );
 
-$eventEndDateTime = new \DateTime(
-    $endDate . ' ' . $endTime,
-    $tz
-);
+        // If event_date_end is null, use event_date_start
+        $endDate = empty($event['event_date_end']) ? $event['event_date_start'] : $event['event_date_end'];
 
-// Allow check-in 5 hours before start
-$checkinStartTime = (clone $eventStartDateTime)->modify('-5 hours');
+        $eventEndDateTime = new \DateTime(
+            $endDate . ' ' . $endTime,
+            $tz
+        );
 
-// Current time
-$now = new \DateTime('now', $tz);
+        // Allow check-in 5 hours before start
+        $checkinStartTime = (clone $eventStartDateTime)->modify('-5 hours');
 
-// Before check-in window
-if ($now < $checkinStartTime) {
-    return $this->response->setJSON([
-        'status' => false,
-        'message' => 'Event check-in has not started yet'
-    ]);
-}
+        // Current time
+        $now = new \DateTime('now', $tz);
 
-// After event end
-if ($now > $eventEndDateTime) {
-    return $this->response->setJSON([
-        'status' => false,
-        'message' => 'Event check-in closed'
-    ]);
-}
+        // Before check-in window
+        if ($now < $checkinStartTime) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Event check-in has not started yet'
+            ]);
+        }
+
+        // After event end
+        if ($now > $eventEndDateTime) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Event check-in closed'
+            ]);
+        }
 
 
 
