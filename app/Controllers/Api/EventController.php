@@ -521,142 +521,341 @@ class EventController extends BaseController
             "tag_id" => $tagIDs,
         ]);
     }
-    public function listEvents($search = '')
-    {
-        if ($this->request->getMethod() === 'options') {
-            return $this->response->setStatusCode(200);
-        }
-
-        $token = $this->getToken();
-
-        // 1️⃣ Token REQUIRED
-        if (!$token) {
-            return $this->response
-                ->setStatusCode(401)
-                ->setJSON([
-                    'status' => 401,
-                    'success' => false,
-                    'message' => 'Authorization token required.'
-                ]);
-        }
-
-        // 2️⃣ Token MUST be VALID
-        $user = $this->db->table('admin_users')
-            ->where('token', trim($token))
-            ->get()
-            ->getRow();
-
-        if (!$user) {
-            return $this->response
-                ->setStatusCode(401)
-                ->setJSON([
-                    'status' => 401,
-                    'success' => false,
-                    'message' => 'Invalid or expired token.'
-                ]);
-        }
-
-        $page = (int) $this->request->getGet('current_page') ?: 1;
-        $limit = (int) $this->request->getGet('per_page') ?: 10;
-        $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
-        $offset = ($page - 1) * $limit;
-        $rawSearch = $search;
-        $rawSearch = $search;
-
-        if (!empty($search)) {
-
-            // dd mm yyyy
-            if (preg_match('/^(\d{2})\s(\d{2})\s(\d{4})$/', $search, $m)) {
-                $search = $m[3] . '-' . $m[2] . '-' . $m[1];
-            }
-
-            // dd-mm-yyyy OR dd/mm/yyyy
-            elseif (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', $search, $m)) {
-                $search = $m[3] . '-' . $m[2] . '-' . $m[1];
-            }
-        }
 
 
-        // COUNT QUERY 
-        $dataBuilder = $this->eventModel->builder();
-        $dataBuilder->where('status !=', 4);
-        if (!empty($search)) {
-            $dataBuilder->groupStart()
-                ->like('event_name', $search)
-                ->orLike('event_code', $search)
-                ->orLike('event_city', $search)
-                ->orLike('event_location', $search)
-                ->orLike('event_date_start', $search)
-                ->orLike('event_date_end', $search)
 
-                ->groupEnd();
-        }
+    // public function listEvents($search = '')
+    // {
+    //     if ($this->request->getMethod() === 'options') {
+    //         return $this->response->setStatusCode(200);
+    //     }
+
+    //     $token = $this->getToken();
+
+    //     // 1️⃣ Token REQUIRED
+    //     if (!$token) {
+    //         return $this->response
+    //             ->setStatusCode(401)
+    //             ->setJSON([
+    //                 'status' => 401,
+    //                 'success' => false,
+    //                 'message' => 'Authorization token required.'
+    //             ]);
+    //     }
+
+    //     // 2️⃣ Token MUST be VALID
+    //     $user = $this->db->table('admin_users')
+    //         ->where('token', trim($token))
+    //         ->get()
+    //         ->getRow();
+
+    //     if (!$user) {
+    //         return $this->response
+    //             ->setStatusCode(401)
+    //             ->setJSON([
+    //                 'status' => 401,
+    //                 'success' => false,
+    //                 'message' => 'Invalid or expired token.'
+    //             ]);
+    //     }
+
+    //     $page = (int) $this->request->getGet('current_page') ?: 1;
+    //     $limit = (int) $this->request->getGet('per_page') ?: 10;
+    //     $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
+    //     $offset = ($page - 1) * $limit;
+    //     $rawSearch = $search;
+    //     $rawSearch = $search;
+
+    //     if (!empty($search)) {
+
+    //         // dd mm yyyy
+    //         if (preg_match('/^(\d{2})\s(\d{2})\s(\d{4})$/', $search, $m)) {
+    //             $search = $m[3] . '-' . $m[2] . '-' . $m[1];
+    //         }
+
+    //         // dd-mm-yyyy OR dd/mm/yyyy
+    //         elseif (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', $search, $m)) {
+    //             $search = $m[3] . '-' . $m[2] . '-' . $m[1];
+    //         }
+    //     }
 
 
-        $total = $dataBuilder->countAllResults();
+    //     // COUNT QUERY 
+    //     $dataBuilder = $this->eventModel->builder();
+    //     $dataBuilder->where('status !=', 4);
+    //     if (!empty($search)) {
+    //         $dataBuilder->groupStart()
+    //             ->like('event_name', $search)
+    //             ->orLike('event_code', $search)
+    //             ->orLike('event_city', $search)
+    //             ->orLike('event_location', $search)
+    //             ->orLike('event_date_start', $search)
+    //             ->orLike('event_date_end', $search)
 
-        // ---------- DATA QUERY ----------
-        $dataBuilder = $this->eventModel->where('status !=', 4);
-
-        if (!empty($search)) {
-            $dataBuilder->groupStart()
-                ->like('event_name', $search)
-                ->orLike('event_code', $search)
-                ->orLike('event_city', $search)
-                ->orLike('event_location', $search)
-                ->orLike('event_date_start', $search)
-                ->orLike('event_date_end', $search)
-                ->groupEnd();
-        }
+    //             ->groupEnd();
+    //     }
 
 
-        $events = $dataBuilder
-            ->orderBy('event_id', 'DESC')
-            ->findAll($limit, $offset);
+    //     $total = $dataBuilder->countAllResults();
 
-        // ---------- FORMAT DATA ----------
-        $baseUrl = base_url('public/uploads/events/');
+    //     // ---------- DATA QUERY ----------
+    //     $dataBuilder = $this->eventModel->where('status !=', 4);
 
-        foreach ($events as &$event) {
+    //     if (!empty($search)) {
+    //         $dataBuilder->groupStart()
+    //             ->like('event_name', $search)
+    //             ->orLike('event_code', $search)
+    //             ->orLike('event_city', $search)
+    //             ->orLike('event_location', $search)
+    //             ->orLike('event_date_start', $search)
+    //             ->orLike('event_date_end', $search)
+    //             ->groupEnd();
+    //     }
 
-            $event['poster_image'] = !empty($event['poster_image'])
-                ? $baseUrl . 'poster_images/' . $event['poster_image']
-                : null;
 
-            $gallery = json_decode($event['gallery_images'], true);
-            $event['gallery_images'] = is_array($gallery)
-                ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
-                : [];
+    //     $events = $dataBuilder
+    //         ->orderBy('event_id', 'DESC')
+    //         ->findAll($limit, $offset);
 
-            $event['ticket_categories'] = $this->db->table('event_ticket_category')
-                ->select('category_name, price')
-                ->where('event_id', $event['event_id'])
-                ->where('status', 1)
-                ->get()
-                ->getResultArray();
+    //     // ---------- FORMAT DATA ----------
+    //     $baseUrl = base_url('public/uploads/events/');
 
-            $eventCounts = $this->db->table('event_counts')
-                ->selectSum('total_booking')
-                ->where('event_id', $event['event_id'])
-                ->get()
-                ->getRowArray();
+    //     foreach ($events as &$event) {
 
-            $event['total_booking'] = (int) ($eventCounts['total_booking'] ?? 0);
-        }
+    //         $event['poster_image'] = !empty($event['poster_image'])
+    //             ? $baseUrl . 'poster_images/' . $event['poster_image']
+    //             : null;
 
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'data' => [
-                'current_page' => $page,
-                'per_page' => $limit,
-                'keyword' => $search,
-                'total_records' => $total,
-                'total_pages' => ceil($total / $limit),
-                'events' => $events
-            ]
-        ], JSON_UNESCAPED_SLASHES);
+    //         $gallery = json_decode($event['gallery_images'], true);
+    //         $event['gallery_images'] = is_array($gallery)
+    //             ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
+    //             : [];
+
+    //         $event['ticket_categories'] = $this->db->table('event_ticket_category')
+    //             ->select('category_name, price')
+    //             ->where('event_id', $event['event_id'])
+    //             ->where('status', 1)
+    //             ->get()
+    //             ->getResultArray();
+
+    //         $eventCounts = $this->db->table('event_counts')
+    //             ->selectSum('total_booking')
+    //             ->where('event_id', $event['event_id'])
+    //             ->get()
+    //             ->getRowArray();
+
+    //         $event['total_booking'] = (int) ($eventCounts['total_booking'] ?? 0);
+    //     }
+
+    //     return $this->response->setJSON([
+    //         'status' => 200,
+    //         'success' => true,
+    //         'data' => [
+    //             'current_page' => $page,
+    //             'per_page' => $limit,
+    //             'keyword' => $search,
+    //             'total_records' => $total,
+    //             'total_pages' => ceil($total / $limit),
+    //             'events' => $events
+    //         ]
+    //     ], JSON_UNESCAPED_SLASHES);
+    // }
+
+
+
+public function listEvents($search = '')
+{
+    if ($this->request->getMethod() === 'options') {
+        return $this->response->setStatusCode(200);
     }
+
+    $token = $this->getToken();
+
+    // 1️⃣ Token REQUIRED
+    if (!$token) {
+        return $this->response
+            ->setStatusCode(401)
+            ->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => 'Authorization token required.'
+            ]);
+    }
+
+    // 2️⃣ Token MUST be VALID
+    $user = $this->db->table('admin_users')
+        ->where('token', trim($token))
+        ->get()
+        ->getRow();
+
+    if (!$user) {
+        return $this->response
+            ->setStatusCode(401)
+            ->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => 'Invalid or expired token.'
+            ]);
+    }
+
+    $page = (int) $this->request->getGet('current_page') ?: 1;
+    $limit = (int) $this->request->getGet('per_page') ?: 10;
+    $offset = ($page - 1) * $limit;
+
+    $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
+    $startDate = $this->request->getGet('start_date');
+    $endDate = $this->request->getGet('end_date');
+
+    $rawSearch = $search;
+
+    // Convert search dates (if user types date in keyword)
+    if (!empty($search)) {
+        if (preg_match('/^(\d{2})\s(\d{2})\s(\d{4})$/', $search, $m)) {
+            $search = $m[3] . '-' . $m[2] . '-' . $m[1];
+        } elseif (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', $search, $m)) {
+            $search = $m[3] . '-' . $m[2] . '-' . $m[1];
+        }
+    }
+
+    // Convert start_date and end_date to Y-m-d
+    if (!empty($startDate)) {
+        if (preg_match('/^(\d{2})\s(\d{2})\s(\d{4})$/', $startDate, $m)) {
+            $startDate = $m[3] . '-' . $m[2] . '-' . $m[1];
+        } elseif (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', $startDate, $m)) {
+            $startDate = $m[3] . '-' . $m[2] . '-' . $m[1];
+        }
+    }
+
+    if (!empty($endDate)) {
+        if (preg_match('/^(\d{2})\s(\d{2})\s(\d{4})$/', $endDate, $m)) {
+            $endDate = $m[3] . '-' . $m[2] . '-' . $m[1];
+        } elseif (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', $endDate, $m)) {
+            $endDate = $m[3] . '-' . $m[2] . '-' . $m[1];
+        }
+    }
+
+    $eventCode = $this->request->getGet('eventCode');
+
+    // COUNT QUERY
+    $dataBuilder = $this->eventModel->builder();
+    $dataBuilder->where('status !=', 4);
+
+    if (!empty($search)) {
+        $dataBuilder->groupStart()
+            ->like('event_name', $search)
+            ->orLike('event_code', $search)
+            ->orLike('event_city', $search)
+            ->orLike('event_location', $search)
+            ->orLike('event_date_start', $search)
+            ->orLike('event_date_end', $search)
+            ->groupEnd();
+    }
+
+    if (!empty($eventCode)) {
+        $dataBuilder->where('event_code', $eventCode);
+    }
+
+    // --- FIXED DATE FILTERS ---
+    if (!empty($startDate)) {
+        $dataBuilder->groupStart()
+            ->where('event_date_start >=', $startDate)
+            ->orWhere('event_date_start IS NULL')
+            ->groupEnd();
+    }
+
+    if (!empty($endDate)) {
+        $dataBuilder->groupStart()
+            ->where('event_date_end <=', $endDate)
+            ->orWhere('event_date_end IS NULL')
+            ->groupEnd();
+    }
+
+    $total = $dataBuilder->countAllResults();
+
+    // ---------- DATA QUERY ----------
+    $dataBuilder = $this->eventModel->where('status !=', 4);
+
+    if (!empty($search)) {
+        $dataBuilder->groupStart()
+            ->like('event_name', $search)
+            ->orLike('event_code', $search)
+            ->orLike('event_city', $search)
+            ->orLike('event_location', $search)
+            ->orLike('event_date_start', $search)
+            ->orLike('event_date_end', $search)
+            ->groupEnd();
+    }
+
+    if (!empty($eventCode)) {
+        $dataBuilder->where('event_code', $eventCode);
+    }
+
+    // --- FIXED DATE FILTERS ---
+    if (!empty($startDate)) {
+        $dataBuilder->groupStart()
+            ->where('event_date_start >=', $startDate)
+            ->orWhere('event_date_start IS NULL')
+            ->groupEnd();
+    }
+
+    if (!empty($endDate)) {
+        $dataBuilder->groupStart()
+            ->where('event_date_end <=', $endDate)
+            ->orWhere('event_date_end IS NULL')
+            ->groupEnd();
+    }
+
+    $events = $dataBuilder
+        ->orderBy('event_id', 'DESC')
+        ->findAll($limit, $offset);
+
+    // ---------- FORMAT DATA ----------
+    $baseUrl = base_url('public/uploads/events/');
+
+    foreach ($events as &$event) {
+        $event['poster_image'] = !empty($event['poster_image'])
+            ? $baseUrl . 'poster_images/' . $event['poster_image']
+            : null;
+
+        $gallery = json_decode($event['gallery_images'], true);
+        $event['gallery_images'] = is_array($gallery)
+            ? array_map(fn($img) => $baseUrl . 'gallery_images/' . $img, $gallery)
+            : [];
+
+        $event['ticket_categories'] = $this->db->table('event_ticket_category')
+            ->select('category_name, price')
+            ->where('event_id', $event['event_id'])
+            ->where('status', 1)
+            ->get()
+            ->getResultArray();
+
+        $eventCounts = $this->db->table('event_counts')
+            ->selectSum('total_booking')
+            ->where('event_id', $event['event_id'])
+            ->get()
+            ->getRowArray();
+
+        $event['total_booking'] = (int) ($eventCounts['total_booking'] ?? 0);
+    }
+
+    return $this->response->setJSON([
+        'status' => 200,
+        'success' => true,
+        'data' => [
+            'current_page' => $page,
+            'per_page' => $limit,
+            'keyword' => $search,
+            'total_records' => $total,
+            'total_pages' => ceil($total / $limit),
+            'events' => $events
+        ]
+    ], JSON_UNESCAPED_SLASHES);
+}
+
+
+
+
+
 
     // Update Event
     public function update()
