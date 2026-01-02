@@ -53,6 +53,26 @@ class UpdateEventStatus extends BaseCommand
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
 
+
+        /*
+        --------------------------------------------------
+        CASE 2.5:
+        start_date & start_time exist
+        end_time exists
+        NO end_date
+        → expire on same day when end_time passes
+        --------------------------------------------------
+        */
+            $model->builder()
+                ->where('event_date_end IS NULL', null, false)
+                ->where('event_date_start', $date)
+                ->where('event_time_start IS NOT NULL', null, false)
+                ->where('event_time_end IS NOT NULL', null, false)
+                ->where('event_time_end <=', $time)
+                ->whereNotIn('status', $excludeStatuses)
+                ->where('status !=', self::COMPLETED)
+                ->update(['status' => self::COMPLETED]);
+
         /*
         --------------------------------------------------
         CASE 3: No end_date & end_time
