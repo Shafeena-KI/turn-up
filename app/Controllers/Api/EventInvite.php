@@ -490,53 +490,66 @@ class EventInvite extends BaseController
     {
         $page = (int) $this->request->getGet('current_page') ?: 1;
         $limit = (int) $this->request->getGet('per_page') ?: 10;
-        $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
         $offset = ($page - 1) * $limit;
 
-        // Join with events, categories, users and event_counts
+        $search = $search ?: ($this->request->getGet('keyword') ?? null);
+        $startDate = trim($this->request->getGet('start_date') ?? '');
+        $endDate = trim($this->request->getGet('end_date') ?? '');
+
+        // Convert dates to Y-m-d format if provided
+        if ($startDate !== '') {
+            $startDate = date('Y-m-d', strtotime(str_replace(['/', '-'], '-', $startDate)));
+        }
+        if ($endDate !== '') {
+            $endDate = date('Y-m-d', strtotime(str_replace(['/', '-'], '-', $endDate)));
+        }
+
+        // Base query
         $builder = $this->inviteModel
             ->select("
-        event_invites.*,
-        events.event_name,
-        events.event_city,
-        events.total_seats AS event_total_seats,
-        event_ticket_category.category_name,
-        event_ticket_category.total_seats,
-        event_ticket_category.actual_booked_seats,
-        event_ticket_category.dummy_booked_seats,
-        event_ticket_category.dummy_invites,
-        event_ticket_category.balance_seats,
-        app_users.name,
-        app_users.phone,
-        app_users.email,
-        app_users.insta_id,
-        app_users.profile_image,
-        app_users.profile_status,
-        ec.total_invites,
-        ec.total_male_invites,
-        ec.total_female_invites,
-        ec.total_other_invites,
-        ec.total_couple_invites,
-        ec.total_approved,
-        ec.total_male_approved,
-        ec.total_female_approved,
-        ec.total_other_approved,
-        ec.total_couple_approved
-    ")
+            event_invites.*,
+            events.event_name,
+            events.event_city,
+            events.total_seats AS event_total_seats,
+            event_ticket_category.category_name,
+            event_ticket_category.total_seats,
+            event_ticket_category.actual_booked_seats,
+            event_ticket_category.dummy_booked_seats,
+            event_ticket_category.dummy_invites,
+            event_ticket_category.balance_seats,
+            app_users.name,
+            app_users.phone,
+            app_users.email,
+            app_users.insta_id,
+            app_users.profile_image,
+            app_users.profile_status,
+            ec.total_invites,
+            ec.total_male_invites,
+            ec.total_female_invites,
+            ec.total_other_invites,
+            ec.total_couple_invites,
+            ec.total_approved,
+            ec.total_male_approved,
+            ec.total_female_approved,
+            ec.total_other_approved,
+            ec.total_couple_approved
+        ")
             ->join('events', 'events.event_id = event_invites.event_id', 'left')
             ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
             ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
             ->join(
                 'event_counts ec',
                 'ec.event_id = event_invites.event_id 
-                    AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
+                AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
                 'left'
             );
 
+        // Event filter
         if (!empty($event_id)) {
             $builder->where('event_invites.event_id', $event_id);
         }
-        // Search filter
+
+        // Keyword search
         if (!empty($search)) {
             $builder->groupStart()
                 ->like('events.event_name', $search)
@@ -546,12 +559,17 @@ class EventInvite extends BaseController
                 ->orLike('app_users.phone', $search)
                 ->orLike('app_users.email', $search)
                 ->orLike('event_ticket_category.category_name', $search)
-                ->orWhere("
-                    DATE_FORMAT(event_invites.requested_at, '%d %m %Y') LIKE '%".$search."%' 
-                    OR DATE_FORMAT(event_invites.requested_at, '%d-%m-%Y') LIKE '%".$search."%'
-                    OR DATE_FORMAT(event_invites.requested_at, '%d/%m/%Y') LIKE '%".$search."%'
-                ")
                 ->groupEnd();
+        }
+
+        // Date range filter
+        if ($startDate !== '' && $endDate !== '') {
+            $builder->where("DATE(event_invites.requested_at) >=", $startDate)
+                ->where("DATE(event_invites.requested_at) <=", $endDate);
+        } elseif ($startDate !== '') {
+            $builder->where("DATE(event_invites.requested_at) >=", $startDate);
+        } elseif ($endDate !== '') {
+            $builder->where("DATE(event_invites.requested_at) <=", $endDate);
         }
 
         // Total count
@@ -562,43 +580,22 @@ class EventInvite extends BaseController
             ->orderBy('event_invites.invite_id', 'DESC')
             ->findAll($limit, $offset);
 
+        // Map results (category_text, status_text, etc.)
         foreach ($invites as &$invite) {
-
-            // Category text
             $invite['category_text'] = $invite['category_name'] ?? 'No Category';
 
-            // Status text
-            $statusMap = [
-                0 => 'Pending',
-                1 => 'Approved',
-                2 => 'Rejected',
-                3 => 'Expired',
-                4 => 'Payment Pending',
-                5 => 'Paid'
-            ];
-
+            $statusMap = [0 => 'Pending', 1 => 'Approved', 2 => 'Rejected', 3 => 'Expired', 4 => 'Payment Pending', 5 => 'Paid'];
             $invite['status_text'] = $statusMap[$invite['status']] ?? 'Unknown';
 
-            // Entry type mapping
-            $entryTypeMap = [
-                1 => 'Male',
-                2 => 'Female',
-                3 => 'Other',
-                4 => 'Couple'
-            ];
-
+            $entryTypeMap = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
             $invite['entry_type_text'] = $entryTypeMap[$invite['entry_type']] ?? 'N/A';
 
-            $invite['partner'] = $invite['partner'] ?? null; // Show only Insta ID
-            unset($invite['partner_details']); // Ensure partner_details is removed
+            $invite['partner'] = $invite['partner'] ?? null;
+            unset($invite['partner_details']);
 
             $imageBaseUrl = base_url('uploads/profile_images/');
-            // Full Profile Image URL for main user
-            $invite['profile_image'] = !empty($invite['profile_image'])
-                ? $imageBaseUrl . $invite['profile_image']
-                : null;
+            $invite['profile_image'] = !empty($invite['profile_image']) ? $imageBaseUrl . $invite['profile_image'] : null;
 
-            // NEW: Event total counts from event_counts table 
             $invite['event_counts'] = [
                 'total_invites' => (int) $invite['total_invites'],
                 'total_male_invites' => (int) $invite['total_male_invites'],
@@ -611,6 +608,7 @@ class EventInvite extends BaseController
                 'total_other_approved' => (int) $invite['total_other_approved'],
                 'total_couple_approved' => (int) $invite['total_couple_approved'],
             ];
+
             $invite['event_ticket_category'] = [
                 'total_seats' => (int) $invite['total_seats'],
                 'actual_booked_seats' => (int) $invite['actual_booked_seats'],
@@ -635,6 +633,9 @@ class EventInvite extends BaseController
             ]
         ]);
     }
+
+
+
     // Approve or Reject Invite (manual)
     public function updateInviteStatus()
     {
