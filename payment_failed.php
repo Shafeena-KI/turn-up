@@ -70,20 +70,23 @@
             document.getElementById('orderId').textContent = orderId;
             
             // Fetch failure details
-            const baseUrl = '<?= getenv("TURN_UP_LIVE_URL") ?: "http://localhost/turn-up" ?>';
-            fetch(`${baseUrl}/api/payment/failure/${orderId}`)
+            // const baseUrl = 'http://localhost/turn-up';
+            const baseUrl = 'https://dodgerblue-dogfish-415708.hostingersite.com/turnupeventadmin/backend/';
+
+            fetch(`${baseUrl}/api/transaction/${orderId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        document.getElementById('amount').textContent = `₹${data.transaction.net_credited || 'N/A'}`;
-                        document.getElementById('failureReason').textContent = data.failure_details.error_description || 'Payment cancelled';
-                        document.getElementById('transactionDate').textContent = data.failed_at || new Date().toLocaleString();
+                        document.getElementById('amount').textContent = `₹${data.data.amount || 'N/A'}`;
+                        document.getElementById('transactionDate').textContent = data.data.completed_at ? new Date(data.data.completed_at).toLocaleString() : 'N/A';
+                        document.getElementById('failureReason').textContent = data.data.error_description || 'Payment cancelled';
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching failure details:', error);
                     document.getElementById('failureReason').textContent = 'Payment cancelled or failed';
-                    document.getElementById('transactionDate').textContent = new Date().toLocaleString();
+                    document.getElementById('transactionDate').textContent = data.data.completed_at ? new Date(data.data.completed_at).toLocaleString() : 'N/A';
+
                 });
         }
         
@@ -92,7 +95,7 @@
                 window.opener.postMessage({type: 'payment_complete', order_id: orderId}, '*');
                 window.close();
             } else {
-                window.location.href = '/'; // fallback
+                window.location.href = '/home'; // fallback
             }
         }
     </script>

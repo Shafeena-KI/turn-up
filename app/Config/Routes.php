@@ -151,6 +151,7 @@ $routes->get('api/payment/success', 'Api\PaymentGateway\PaymentController::succe
 
 // Transaction APIs
 $routes->get('api/transactions', 'Api\PaymentGateway\PaymentReportController::getAllTransactions');
+$routes->get('api/transaction/(:any)', 'Api\PaymentGateway\PaymentReportController::getTransaction/$1');
 $routes->get('api/transaction-data/(:any)', 'Api\PaymentGateway\PaymentReportController::getTransactionDetails/$1');
 $routes->get('api/event-transactions', 'Api\PaymentGateway\PaymentReportController::getAllEventTransaction');
 $routes->get('api/transactions/user/(:num)', 'Api\PaymentGateway\PaymentReportController::getUserTransactions/$1');

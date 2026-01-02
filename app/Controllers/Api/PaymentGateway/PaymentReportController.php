@@ -418,4 +418,41 @@ class PaymentReportController extends ResourceController
             'pager' => $this->transactionModel->pager->getDetails()
         ]);
     }
+
+        /**
+     * Get transaction details by ID
+     */
+    public function getTransaction($transactionId = null)
+    {
+        if (!$transactionId) {
+            return $this->fail('Transaction ID is required', 400);
+        }
+        
+        $transaction = $this->transactionModel
+            ->select('
+            id,
+            transaction_id,
+            payment_method,
+            gateway_transaction_id,
+            amount,
+            commission,
+            net_credited,
+            status, 
+            initiated_at,
+            completed_at,
+            raw_response
+            ')
+            ->where('transaction_id', $transactionId)
+            ->first();
+            
+        if (!$transaction) {
+            return $this->failNotFound('Transaction not found');
+        }
+    
+        
+        return $this->respond([
+            'success' => true,
+            'data' => $transaction
+        ]);
+    }
 }

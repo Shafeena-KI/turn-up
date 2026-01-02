@@ -37,7 +37,7 @@
             </div>
             <div class="detail-row">
                 <span class="detail-label">Payment Method:</span>
-                <span class="detail-value" id="paymentMethod">Loading...</span>
+                <span class="detail-value" style="text-transform: uppercase;" id="paymentMethod">Loading...</span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">Transaction Date:</span>
@@ -63,16 +63,18 @@
             document.getElementById('orderId').textContent = orderId;
             
             // Fetch transaction details
-            const baseUrl = '<?= getenv("TURN_UP_LIVE_URL") ?: "http://localhost/turn-up" ?>';
-            fetch(`${baseUrl}/api/payment/verify/${orderId}`)
+            // const baseUrl = 'http://localhost/turn-up';
+            const baseUrl = 'https://dodgerblue-dogfish-415708.hostingersite.com/turnupeventadmin/backend/';
+
+            fetch(`${baseUrl}/api/transaction/${orderId}`)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.order_data) {
-                        document.getElementById('amount').textContent = `₹${data.order_data.order_amount || 'N/A'}`;
-                        document.getElementById('transactionDate').textContent = new Date().toLocaleString();
+                    if (data.success && data.data) {
+                        document.getElementById('amount').textContent = `₹${data.data.amount || 'N/A'}`;
+                        document.getElementById('transactionDate').textContent = data.data.completed_at ? new Date(data.data.completed_at).toLocaleString() : 'N/A';
                         
                         // Try to get payment method from order data
-                        const paymentMethod = data.order_data.payment_method || 'N/A';
+                        const paymentMethod = data.data.payment_method || 'N/A';
                         document.getElementById('paymentMethod').textContent = paymentMethod;
                     }
                 })
@@ -86,7 +88,7 @@
                 window.opener.postMessage({type: 'payment_complete', order_id: orderId}, '*');
                 window.close();
             } else {
-                window.location.href = '/'; // fallback
+                window.location.href = '/home'; // fallback
             }
         }
     </script>
