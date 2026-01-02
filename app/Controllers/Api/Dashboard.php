@@ -80,7 +80,9 @@ class Dashboard extends BaseController
         $auth = $this->validateToken();
         if ($auth !== true)
             return $auth;
-        $count = $this->db->table('events')->countAllResults();
+        $count = $this->db->table('events')
+            ->whereNotIn('status', [3, 4]) // exclude status 3 & 4
+            ->countAllResults();
 
         return $this->response->setJSON([
             'status' => 200,
