@@ -664,6 +664,8 @@ class Checkin extends BaseController
             ->select('
         c.partner,
         c.entry_type,
+        c.category_id,
+        etc.category_name,
         c.entry_status,
         c.entry_remarks_id,
         c.entry_comments_id,
@@ -696,6 +698,7 @@ class Checkin extends BaseController
     ')
             ->join('events e', 'e.event_id = c.event_id', 'left')
             ->join('app_users u', 'u.user_id = c.user_id', 'left') // 👈 NEW JOIN
+            ->join('event_ticket_category etc', 'etc.category_id = c.category_id', 'left')
             ->where('c.entry_status', 1)
             ->groupBy('c.event_id');
 
@@ -823,6 +826,7 @@ class Checkin extends BaseController
                 'profile_image' => $profileImage
             ] : null;
 
+
             // ENTRY REMARKS (TEXT VALUES)
             $remarkIDs = json_decode($checkin['entry_remarks_id'], true);
 
@@ -842,28 +846,7 @@ class Checkin extends BaseController
 
 
 
-            // ENTRY COMMENTS (TEXT VALUES)
-// $checkin['entry_comments'] = []; // default empty array
 
-            // if (!empty($checkin['entry_comments_id'])) {
-//     $commentIDs = json_decode($checkin['entry_comments_id'], true);
-
-            //     // Normalize single values to array
-//     if (!is_array($commentIDs)) {
-//         $commentIDs = [$commentIDs];
-//     }
-
-            //     // Fetch comments from DB
-//     if (!empty($commentIDs)) {
-//         $commentsList = $db->table('entry_comments')
-//             ->select('entry_comments')
-//             ->whereIn('entry_comments_id', $commentIDs)
-//             ->get()
-//             ->getResultArray();
-
-            //         $checkin['entry_comments'] = array_column($commentsList, 'entry_comments');
-//     }
-// }
 
             // ENTRY COMMENTS (STRING VALUE)
             $checkin['entry_comments'] = null;
@@ -887,6 +870,8 @@ class Checkin extends BaseController
                     $checkin['entry_comments'] = $commentRow['entry_comments'] ?? null;
                 }
             }
+
+
 
 
 
