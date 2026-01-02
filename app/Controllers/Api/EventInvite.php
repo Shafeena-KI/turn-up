@@ -28,14 +28,14 @@ class EventInvite extends BaseController
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-        
-        $this->db                   = Database::connect();
-        $this->eventModel           = new EventModel();
-        $this->userModel            = new AppUserModel();
-        $this->inviteModel          = new EventInviteModel();
-        $this->bookingModel         = new EventBookingModel();
-        $this->categoryModel        = new EventCategoryModel();
-        $this->notificationLibrary  = new NotificationLibrary();
+
+        $this->db = Database::connect();
+        $this->eventModel = new EventModel();
+        $this->userModel = new AppUserModel();
+        $this->inviteModel = new EventInviteModel();
+        $this->bookingModel = new EventBookingModel();
+        $this->categoryModel = new EventCategoryModel();
+        $this->notificationLibrary = new NotificationLibrary();
     }
     private function getAuthenticatedUser()
     {
@@ -257,7 +257,7 @@ class EventInvite extends BaseController
 
             // DEFAULT
             $inviteStatus = 0;
-           
+
             // SEAT CHECK FIRST (MOST IMPORTANT)
             if ($availableSeats >= $requiredSeats) {
 
@@ -542,9 +542,15 @@ class EventInvite extends BaseController
                 ->like('events.event_name', $search)
                 ->orLike('events.event_city', $search)
                 ->orLike('app_users.name', $search)
+                ->orLike('event_invites.invite_code', $search)
                 ->orLike('app_users.phone', $search)
                 ->orLike('app_users.email', $search)
                 ->orLike('event_ticket_category.category_name', $search)
+                ->orWhere("
+                    DATE_FORMAT(event_invites.requested_at, '%d %m %Y') LIKE '%".$search."%' 
+                    OR DATE_FORMAT(event_invites.requested_at, '%d-%m-%Y') LIKE '%".$search."%'
+                    OR DATE_FORMAT(event_invites.requested_at, '%d/%m/%Y') LIKE '%".$search."%'
+                ")
                 ->groupEnd();
         }
 

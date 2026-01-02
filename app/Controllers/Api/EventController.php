@@ -560,6 +560,22 @@ class EventController extends BaseController
         $limit = (int) $this->request->getGet('per_page') ?: 10;
         $search = $search ?: ($this->request->getGet('keyword') ?? $this->request->getGet('search'));
         $offset = ($page - 1) * $limit;
+        $rawSearch = $search;
+        $rawSearch = $search;
+
+        if (!empty($search)) {
+
+            // dd mm yyyy
+            if (preg_match('/^(\d{2})\s(\d{2})\s(\d{4})$/', $search, $m)) {
+                $search = $m[3] . '-' . $m[2] . '-' . $m[1];
+            }
+
+            // dd-mm-yyyy OR dd/mm/yyyy
+            elseif (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', $search, $m)) {
+                $search = $m[3] . '-' . $m[2] . '-' . $m[1];
+            }
+        }
+
 
         // COUNT QUERY 
         $dataBuilder = $this->eventModel->builder();
@@ -567,10 +583,15 @@ class EventController extends BaseController
         if (!empty($search)) {
             $dataBuilder->groupStart()
                 ->like('event_name', $search)
+                ->orLike('event_code', $search)
                 ->orLike('event_city', $search)
                 ->orLike('event_location', $search)
+                ->orLike('event_date_start', $search)
+                ->orLike('event_date_end', $search)
+
                 ->groupEnd();
         }
+
 
         $total = $dataBuilder->countAllResults();
 
@@ -580,10 +601,14 @@ class EventController extends BaseController
         if (!empty($search)) {
             $dataBuilder->groupStart()
                 ->like('event_name', $search)
+                ->orLike('event_code', $search)
                 ->orLike('event_city', $search)
                 ->orLike('event_location', $search)
+                ->orLike('event_date_start', $search)
+                ->orLike('event_date_end', $search)
                 ->groupEnd();
         }
+
 
         $events = $dataBuilder
             ->orderBy('event_id', 'DESC')
