@@ -679,6 +679,7 @@ class Checkin extends BaseController
         u.email AS user_email,
         u.insta_id AS user_insta_id,
         u.profile_image AS user_profile_image,
+        u.profile_status AS profile_status, 
 
         c.event_id AS event_id, 
         e.event_name,
@@ -715,6 +716,12 @@ class Checkin extends BaseController
                 ->like('e.event_name', $search)
                 ->orLike('e.event_city', $search)
                 ->orLike('e.event_location', $search)
+
+                ->orLike('c.booking_code', $search)
+                ->orLike('u.name', $search)
+                ->orLike('u.phone', $search)
+                ->orLike('u.email', $search)
+
                 ->groupEnd();
         }
 
@@ -793,6 +800,10 @@ class Checkin extends BaseController
             // Replace admin_id with admin name in response
             $checkin['checkedin_by'] = $adminRow['name'] ?? 'Unknown';
 
+            $checkin['profile_status'] = isset($checkin['profile_status']) 
+                ? (string) $checkin['profile_status'] 
+                : null;
+
 
             // 2. Format the checkin time
             $checkin['checkin_time_formatted'] = !empty($checkin['checkin_time'])
@@ -826,6 +837,8 @@ class Checkin extends BaseController
                 'profile_image' => $profileImage
             ] : null;
 
+
+            
 
             // ENTRY REMARKS (TEXT VALUES)
             $remarkIDs = json_decode($checkin['entry_remarks_id'], true);

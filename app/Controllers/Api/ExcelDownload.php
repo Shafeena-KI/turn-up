@@ -94,24 +94,35 @@ class ExcelDownload extends BaseController
             'total_female_invites' => 0,
             'total_other_invites' => 0,
             'total_couple_invites' => 0,
-            'total_invites' => count($invites),
+            // 'total_invites' => count($invites),
+            'total_invites' => 0,
+
         ];
 
         foreach ($invites as $invite) {
             switch ($invite['entry_type']) {
                 case 'Male':
                     $counts['total_male_invites']++;
+                    $counts['total_invites']++;
                     break;
+
                 case 'Female':
                     $counts['total_female_invites']++;
+                    $counts['total_invites']++;
                     break;
+
                 case 'Other':
                     $counts['total_other_invites']++;
+                    $counts['total_invites']++;
                     break;
+
                 case 'Couple':
                     $counts['total_couple_invites']++;
+                    $counts['total_invites'] += 2;
                     break;
             }
+
+
         }
 
         // Header row (Row 5)
@@ -263,25 +274,34 @@ class ExcelDownload extends BaseController
             'female' => 0,
             'other' => 0,
             'couple' => 0,
-            'total' => count($bookings),
+            // 'total' => count($bookings),
+            'total' => 0,
         ];
 
         foreach ($bookings as $booking) {
             switch ($booking['entry_type'] ?? '') {
                 case 'Male':
                     $counts['male']++;
+                    $counts['total']++;
                     break;
+
                 case 'Female':
                     $counts['female']++;
+                    $counts['total']++;
                     break;
+
                 case 'Other':
                     $counts['other']++;
+                    $counts['total']++;
                     break;
+
                 case 'Couple':
                     $counts['couple']++;
+                    $counts['total'] += 2;
                     break;
             }
         }
+
 
         // Count Header (Row 5)
         $sheet->setCellValue('A5', 'Counts');
@@ -434,25 +454,34 @@ class ExcelDownload extends BaseController
             'female' => 0,
             'other' => 0,
             'couple' => 0,
-            'total' => count($checkins),
+            // 'total' => count($checkins),
+            'total' => 0,
         ];
 
         foreach ($checkins as $c) {
             switch ($c['entry_type'] ?? '') {
                 case 'Male':
                     $counts['male']++;
+                    $counts['total']++;
                     break;
+
                 case 'Female':
                     $counts['female']++;
+                    $counts['total']++;
                     break;
+
                 case 'Other':
                     $counts['other']++;
+                    $counts['total']++;
                     break;
+
                 case 'Couple':
                     $counts['couple']++;
+                    $counts['total'] += 2;
                     break;
             }
         }
+
 
         $sheet->setCellValue('A6', 'Counts');
         $sheet->setCellValue('B6', 'Male');
@@ -506,7 +535,23 @@ class ExcelDownload extends BaseController
             $sheet->setCellValue('E' . $row, $c['booking_code'] ?? '');
             $sheet->setCellValue('F' . $row, $c['ticket_type'] ?? 'N/A');
             $sheet->setCellValue('G' . $row, $c['entry_type'] ?? '');
-            $sheet->setCellValue('H' . $row, $c['partner_name'] ?? '');
+            $partner = '';
+
+            if (!empty($c['partner'])) {
+                // If partner is JSON array → decode and join
+                if (is_string($c['partner']) && str_starts_with(trim($c['partner']), '[')) {
+                    $decoded = json_decode($c['partner'], true);
+                    if (is_array($decoded)) {
+                        $partner = implode(', ', $decoded);
+                    }
+                } else {
+                    // Normal string name
+                    $partner = $c['partner'];
+                }
+            }
+
+            $sheet->setCellValue('H' . $row, $partner);
+
             $sheet->setCellValue('I' . $row, $c['checkin_time'] ?? '');
             $sheet->setCellValue('J' . $row, $c['checkedin_by'] ?? '');
             $row++;
