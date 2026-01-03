@@ -574,6 +574,7 @@ class ExcelDownload extends BaseController
         $writer->save('php://output');
         exit;
     }
-    
+
 
 }
+
