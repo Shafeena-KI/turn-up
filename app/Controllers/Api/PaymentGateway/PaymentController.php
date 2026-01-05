@@ -660,6 +660,7 @@ class PaymentController extends ResourceController
                 return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
             }
 
+
             // Find payment using payment_id from transaction
             $payment = $this->paymentModel->where('payment_id', $transaction['payment_id'])->first();
             if (!$payment) {
@@ -667,6 +668,7 @@ class PaymentController extends ResourceController
                 $db->transRollback();
                 return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
             }
+
 
             $isSuccess = in_array($status, ['paid', 'success']);
             log_message('info', 'Is payment successful? ' . ($isSuccess ? 'YES' : 'NO') . ' (Status: ' . $status . ')');
@@ -709,17 +711,22 @@ class PaymentController extends ResourceController
                 log_message('error', 'Event invite update failed. Errors: ' . json_encode($this->eventInviteModel->errors()) . ' DB error: ' . json_encode($this->eventInviteModel->db->error()));
             }
 
+            // Update transaction row using where (avoid relying on PK name)
+            $transactionUpdateOk = $this->transactionModel
+                                            ->where('transaction_id', $orderId)
+                                            ->set($updateData)
+                                            ->update();
+
+            $getTransaction = $this->transactionModel
+                                            ->where('transaction_id', $orderId)
+                                            ->first();
+
             // Create booking record only after marking paid
-            if ($transaction && $transaction['status'] == TransactionModel::SUCCESS) {
-                $this->createBookingRecord($transaction);
+            if ($getTransaction && $getTransaction['status'] == TransactionModel::SUCCESS) {
+                $this->createBookingRecord($getTransaction);
                 log_message('info', 'Created booking record for transaction id: ' . ($transaction['id'] ?? 'NULL'));
             }
 
-            // Update transaction row using where (avoid relying on PK name)
-            $transactionUpdateOk = $this->transactionModel
-                ->where('transaction_id', $orderId)
-                ->set($updateData)
-                ->update();
             log_message('info', 'Transaction update ok? ' . ($transactionUpdateOk ? 'YES' : 'NO'));
             if (!$transactionUpdateOk) {
                 log_message('error', 'Transaction update failed: ' . json_encode($this->transactionModel->errors()) . ' DB error: ' . json_encode($this->transactionModel->db->error()));
