@@ -234,19 +234,19 @@ class EventInvite extends BaseController
                 $usedSeats += (int) $eventCounts->total_approved;
 
                 // NORMAL category → pending blocks seats
-                if ($categoryType === 2) {
+                // if ($categoryType === 2) {
 
-                    $pendingCouples =
-                        (int) $eventCounts->total_couple_invites -
-                        (int) $eventCounts->total_couple_approved;
+                //     $pendingCouples =
+                //         (int) $eventCounts->total_couple_invites -
+                //         (int) $eventCounts->total_couple_approved;
 
-                    $pendingSingles =
-                        ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
-                        ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
-                        ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
+                //     $pendingSingles =
+                //         ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
+                //         ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
+                //         ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
 
-                    $usedSeats += ($pendingCouples * 2) + $pendingSingles;
-                }
+                //     $usedSeats += ($pendingCouples * 2) + $pendingSingles;
+                // }
 
                 // VIP → pending does NOT block seats
             }
@@ -282,7 +282,8 @@ class EventInvite extends BaseController
             // print_r($requiredSeats); exit;
             // --- event_counters (INVITE COUNTER ONLY) ---
             $counterTable = $db->table('event_counters');
-            $counter = $counterTable->get()->getRow();
+            // $counter = $counterTable->get()->getRow();
+            $counter = $db->query("SELECT * FROM event_counters FOR UPDATE")->getRow();
 
             if ($counter) {
                 $new_invite_no = (int) $counter->last_invite_no + 1;
@@ -486,153 +487,8 @@ class EventInvite extends BaseController
                 ]);
         }
     }
-    public function listInvites($event_id = null, $search = null)
-    {
-        $page = (int) $this->request->getGet('current_page') ?: 1;
-        $limit = (int) $this->request->getGet('per_page') ?: 10;
-        $offset = ($page - 1) * $limit;
 
-        $search = $search ?: ($this->request->getGet('keyword') ?? null);
-        $startDate = trim($this->request->getGet('start_date') ?? '');
-        $endDate = trim($this->request->getGet('end_date') ?? '');
 
-        // Convert dates to Y-m-d format if provided
-        if ($startDate !== '') {
-            $startDate = date('Y-m-d', strtotime(str_replace(['/', '-'], '-', $startDate)));
-        }
-        if ($endDate !== '') {
-            $endDate = date('Y-m-d', strtotime(str_replace(['/', '-'], '-', $endDate)));
-        }
-
-        // Base query
-        $builder = $this->inviteModel
-            ->select("
-            event_invites.*,
-            events.event_name,
-            events.event_city,
-            events.total_seats AS event_total_seats,
-            event_ticket_category.category_name,
-            event_ticket_category.total_seats,
-            event_ticket_category.actual_booked_seats,
-            event_ticket_category.dummy_booked_seats,
-            event_ticket_category.dummy_invites,
-            event_ticket_category.balance_seats,
-            app_users.name,
-            app_users.phone,
-            app_users.email,
-            app_users.insta_id,
-            app_users.profile_image,
-            app_users.profile_status,
-            ec.total_invites,
-            ec.total_male_invites,
-            ec.total_female_invites,
-            ec.total_other_invites,
-            ec.total_couple_invites,
-            ec.total_approved,
-            ec.total_male_approved,
-            ec.total_female_approved,
-            ec.total_other_approved,
-            ec.total_couple_approved
-        ")
-            ->join('events', 'events.event_id = event_invites.event_id', 'left')
-            ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
-            ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
-            ->join(
-                'event_counts ec',
-                'ec.event_id = event_invites.event_id 
-                AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
-                'left'
-            );
-
-        // Event filter
-        if (!empty($event_id)) {
-            $builder->where('event_invites.event_id', $event_id);
-        }
-
-        // Keyword search
-        if (!empty($search)) {
-            $builder->groupStart()
-                ->like('events.event_name', $search)
-                ->orLike('events.event_city', $search)
-                ->orLike('app_users.name', $search)
-                ->orLike('event_invites.invite_code', $search)
-                ->orLike('app_users.phone', $search)
-                ->orLike('app_users.email', $search)
-                ->orLike('event_ticket_category.category_name', $search)
-                ->groupEnd();
-        }
-
-        // Date range filter
-        if ($startDate !== '' && $endDate !== '') {
-            $builder->where("DATE(event_invites.requested_at) >=", $startDate)
-                ->where("DATE(event_invites.requested_at) <=", $endDate);
-        } elseif ($startDate !== '') {
-            $builder->where("DATE(event_invites.requested_at) >=", $startDate);
-        } elseif ($endDate !== '') {
-            $builder->where("DATE(event_invites.requested_at) <=", $endDate);
-        }
-
-        // Total count
-        $total = $builder->countAllResults(false);
-
-        // Fetch paginated results
-        $invites = $builder
-            ->orderBy('event_invites.invite_id', 'DESC')
-            ->findAll($limit, $offset);
-
-        // Map results (category_text, status_text, etc.)
-        foreach ($invites as &$invite) {
-            $invite['category_text'] = $invite['category_name'] ?? 'No Category';
-
-            $statusMap = [0 => 'Pending', 1 => 'Approved', 2 => 'Rejected', 3 => 'Expired', 4 => 'Payment Pending', 5 => 'Paid'];
-            $invite['status_text'] = $statusMap[$invite['status']] ?? 'Unknown';
-
-            $entryTypeMap = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
-            $invite['entry_type_text'] = $entryTypeMap[$invite['entry_type']] ?? 'N/A';
-
-            $invite['partner'] = $invite['partner'] ?? null;
-            unset($invite['partner_details']);
-
-            $imageBaseUrl = base_url('uploads/profile_images/');
-            $invite['profile_image'] = !empty($invite['profile_image']) ? $imageBaseUrl . $invite['profile_image'] : null;
-
-            $invite['event_counts'] = [
-                'total_invites' => (int) $invite['total_invites'],
-                'total_male_invites' => (int) $invite['total_male_invites'],
-                'total_female_invites' => (int) $invite['total_female_invites'],
-                'total_other_invites' => (int) $invite['total_other_invites'],
-                'total_couple_invites' => (int) $invite['total_couple_invites'],
-                'total_approved' => (int) $invite['total_approved'],
-                'total_male_approved' => (int) $invite['total_male_approved'],
-                'total_female_approved' => (int) $invite['total_female_approved'],
-                'total_other_approved' => (int) $invite['total_other_approved'],
-                'total_couple_approved' => (int) $invite['total_couple_approved'],
-            ];
-
-            $invite['event_ticket_category'] = [
-                'total_seats' => (int) $invite['total_seats'],
-                'actual_booked_seats' => (int) $invite['actual_booked_seats'],
-                'dummy_booked_seats' => (int) $invite['dummy_booked_seats'],
-                'dummy_invites' => (int) $invite['dummy_invites'],
-                'balance_seats' => (int) $invite['balance_seats']
-            ];
-        }
-
-        $totalPages = ceil($total / $limit);
-
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'data' => [
-                'current_page' => $page,
-                'per_page' => $limit,
-                'keyword' => $search,
-                'total_records' => $total,
-                'total_pages' => $totalPages,
-                'invites' => $invites
-            ]
-        ]);
-    }
 
 
 
@@ -998,9 +854,30 @@ class EventInvite extends BaseController
         }
 
         // ----- PAGINATION (AFTER GROUPING BY EVENT) -----
+        // $allEvents = array_values($finalData);
+        // $totalEvents = count($allEvents);
+        // $paginatedEvents = array_slice($allEvents, $offset, $limit);
+
+        // ----- SORT EVENTS (LATEST FIRST) -----
         $allEvents = array_values($finalData);
+
+        // Sort by event_date_start DESC (latest first)
+        usort($allEvents, function ($a, $b) {
+
+            $dateCompare = strtotime($b['event_date_start']) <=> strtotime($a['event_date_start']);
+            if ($dateCompare !== 0) {
+                return $dateCompare; // different dates → normal DESC
+            }
+
+            // Same date → order by event_id DESC (latest created first)
+            return $b['event_id'] <=> $a['event_id'];
+        });
+
+
+        // ----- PAGINATION (AFTER SORTING) -----
         $totalEvents = count($allEvents);
         $paginatedEvents = array_slice($allEvents, $offset, $limit);
+
 
         $totalPages = ceil($totalEvents / $limit);
 
@@ -1017,4 +894,156 @@ class EventInvite extends BaseController
             ]
         ]);
     }
+
+        public function listInvites($event_id = null, $search = null)
+    {
+        $page = (int) $this->request->getGet('current_page') ?: 1;
+        $limit = (int) $this->request->getGet('per_page') ?: 10;
+        $offset = ($page - 1) * $limit;
+
+        $search = $search ?: ($this->request->getGet('keyword') ?? null);
+        $startDate = trim($this->request->getGet('start_date') ?? '');
+        $endDate = trim($this->request->getGet('end_date') ?? '');
+
+        // Convert dates to Y-m-d format if provided
+        if ($startDate !== '') {
+            $startDate = date('Y-m-d', strtotime(str_replace(['/', '-'], '-', $startDate)));
+        }
+        if ($endDate !== '') {
+            $endDate = date('Y-m-d', strtotime(str_replace(['/', '-'], '-', $endDate)));
+        }
+
+        // Base query
+        $builder = $this->inviteModel
+            ->select("
+            event_invites.*,
+            events.event_name,
+            events.event_city,
+            events.total_seats AS event_total_seats,
+            event_ticket_category.category_name,
+            event_ticket_category.total_seats,
+            event_ticket_category.actual_booked_seats,
+            event_ticket_category.dummy_booked_seats,
+            event_ticket_category.dummy_invites,
+            event_ticket_category.balance_seats,
+            app_users.name,
+            app_users.phone,
+            app_users.email,
+            app_users.insta_id,
+            app_users.profile_image,
+            app_users.profile_status,
+            ec.total_invites,
+            ec.total_male_invites,
+            ec.total_female_invites,
+            ec.total_other_invites,
+            ec.total_couple_invites,
+            ec.total_approved,
+            ec.total_male_approved,
+            ec.total_female_approved,
+            ec.total_other_approved,
+            ec.total_couple_approved
+        ")
+            ->join('events', 'events.event_id = event_invites.event_id', 'left')
+            ->join('event_ticket_category', 'event_ticket_category.category_id = event_invites.category_id', 'left')
+            ->join('app_users', 'app_users.user_id = event_invites.user_id', 'left')
+            ->join(
+                'event_counts ec',
+                'ec.event_id = event_invites.event_id 
+                AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
+                'left'
+            );
+
+        // Event filter
+        if (!empty($event_id)) {
+            $builder->where('event_invites.event_id', $event_id);
+        }
+
+        // Keyword search
+        if (!empty($search)) {
+            $builder->groupStart()
+                ->like('events.event_name', $search)
+                ->orLike('events.event_city', $search)
+                ->orLike('app_users.name', $search)
+                ->orLike('event_invites.invite_code', $search)
+                ->orLike('app_users.phone', $search)
+                ->orLike('app_users.email', $search)
+                ->orLike('event_ticket_category.category_name', $search)
+                ->groupEnd();
+        }
+
+        // Date range filter
+        if ($startDate !== '' && $endDate !== '') {
+            $builder->where("DATE(event_invites.requested_at) >=", $startDate)
+                ->where("DATE(event_invites.requested_at) <=", $endDate);
+        } elseif ($startDate !== '') {
+            $builder->where("DATE(event_invites.requested_at) >=", $startDate);
+        } elseif ($endDate !== '') {
+            $builder->where("DATE(event_invites.requested_at) <=", $endDate);
+        }
+
+        // Total count
+        $total = $builder->countAllResults(false);
+        //         $countBuilder = clone $builder;
+        // $total = $countBuilder->countAllResults();
+
+
+        // Fetch paginated results
+        $invites = $builder
+            ->orderBy('event_invites.invite_id', 'DESC')
+            ->findAll($limit, $offset);
+
+        // Map results (category_text, status_text, etc.)
+        foreach ($invites as &$invite) {
+            $invite['category_text'] = $invite['category_name'] ?? 'No Category';
+
+            $statusMap = [0 => 'Pending', 1 => 'Approved', 2 => 'Rejected', 3 => 'Expired', 4 => 'Payment Pending', 5 => 'Paid'];
+            $invite['status_text'] = $statusMap[$invite['status']] ?? 'Unknown';
+
+            $entryTypeMap = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'];
+            $invite['entry_type_text'] = $entryTypeMap[$invite['entry_type']] ?? 'N/A';
+
+            $invite['partner'] = $invite['partner'] ?? null;
+            unset($invite['partner_details']);
+
+            $imageBaseUrl = base_url('uploads/profile_images/');
+            $invite['profile_image'] = !empty($invite['profile_image']) ? $imageBaseUrl . $invite['profile_image'] : null;
+
+            $invite['event_counts'] = [
+                'total_invites' => (int) $invite['total_invites'],
+                'total_male_invites' => (int) $invite['total_male_invites'],
+                'total_female_invites' => (int) $invite['total_female_invites'],
+                'total_other_invites' => (int) $invite['total_other_invites'],
+                'total_couple_invites' => (int) $invite['total_couple_invites'],
+                'total_approved' => (int) $invite['total_approved'],
+                'total_male_approved' => (int) $invite['total_male_approved'],
+                'total_female_approved' => (int) $invite['total_female_approved'],
+                'total_other_approved' => (int) $invite['total_other_approved'],
+                'total_couple_approved' => (int) $invite['total_couple_approved'],
+            ];
+
+            $invite['event_ticket_category'] = [
+                'total_seats' => (int) $invite['total_seats'],
+                'actual_booked_seats' => (int) $invite['actual_booked_seats'],
+                'dummy_booked_seats' => (int) $invite['dummy_booked_seats'],
+                'dummy_invites' => (int) $invite['dummy_invites'],
+                'balance_seats' => (int) $invite['balance_seats']
+            ];
+        }
+
+        $totalPages = ceil($total / $limit);
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'data' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'keyword' => $search,
+                'total_records' => $total,
+                'total_pages' => $totalPages,
+                'invites' => $invites
+            ]
+        ]);
+    }
+
 }

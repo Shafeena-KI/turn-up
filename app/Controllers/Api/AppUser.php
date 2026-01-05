@@ -118,11 +118,11 @@ class AppUser extends BaseController
             'status' => 200,
             'success' => true,
             'message' => 'OTP has been sent to your WhatsApp.',
-            // 'data' => [
-            //     'user_id' => $user['user_id'],
-            //     'otp' => $otp,
-            //     'whatsapp_response' => $whatsappResponse
-            // ]
+            'data' => [
+                'user_id' => $user['user_id'],
+                'otp' => $otp,
+                'whatsapp_response' => $whatsappResponse
+            ]
         ]);
     }
     public function verifyOtp()
@@ -331,7 +331,7 @@ class AppUser extends BaseController
         $user['instagram_verified'] = (int) ($verification['instagram_verified'] ?? 0);
         $user['linkedin_verified'] = (int) ($verification['linkedin_verified'] ?? 0);
         $user['email_verified'] = (int) ($verification['email_verified'] ?? 0);
-        
+
         /* ---------------- Remove Sensitive Data ---------------- */
         unset($user['password'], $user['otp']);
 
@@ -672,6 +672,8 @@ class AppUser extends BaseController
             'data' => $updateData
         ]);
     }
+
+
     private function getAuthenticatedUser()
     {
         $authHeader = $this->request->getHeaderLine('Authorization');
@@ -853,11 +855,14 @@ class AppUser extends BaseController
                 $updateVerify['linkedin_score_added'] = 1;
             }
 
-            if ((int) $verify['email_verified'] === 1 && (int) $verify['email_score_added'] === 0) {
+            $emailScoreAdded = isset($verify['email_score_added']) ? (int) $verify['email_score_added'] : 0;
+
+            if ((int) $verify['email_verified'] === 1 && $emailScoreAdded === 0) {
                 $profile_score += 15;
                 $addedScore += 15;
                 $updateVerify['email_score_added'] = 1;
             }
+
 
             $profile_score = min(100, $profile_score);
 
@@ -922,6 +927,9 @@ class AppUser extends BaseController
             ]);
         }
     }
+
+
+
 
     public function verifySocial()
     {
@@ -1034,6 +1042,8 @@ class AppUser extends BaseController
         }
     }
 
+
+
     // DELETE USER (soft delete)
     public function deleteUser()
     {
@@ -1069,18 +1079,23 @@ class AppUser extends BaseController
         ]);
     }
     // listing users, deleted users are not bieng listed
+
+
     public function listUsers($search = '')
     {
         $page = (int) $this->request->getGet('current_page') ?: 1;
         $limit = (int) $this->request->getGet('per_page') ?: 10;
-
-        // Accept both keyword and search
-        $search = $this->request->getGet('keyword') ?? $this->request->getGet('search');
-
         $offset = ($page - 1) * $limit;
 
-        // Base query
-        $builder = $this->appUserModel->where('status !=', 4);
+        $search = $this->request->getGet('keyword') ?? $this->request->getGet('search');
+        $profileStatus = $this->request->getGet('profile_status');
+
+        $builder = $this->appUserModel;
+
+        // Filter by profile_status if provided
+        if ($profileStatus !== null && $profileStatus !== '') {
+            $builder = $builder->where('profile_status', $profileStatus);
+        }
 
         // Apply search filter
         if (!empty($search)) {
@@ -1088,26 +1103,33 @@ class AppUser extends BaseController
                 ->like('name', $search)
                 ->orLike('email', $search)
                 ->orLike('location', $search)
+                ->orLike('phone', $search)
                 ->groupEnd();
         }
 
-        // Count total results
         $total = $builder->countAllResults(false);
 
-        // Fetch data
         $users = $builder
             ->orderBy('user_id', 'DESC')
             ->findAll($limit, $offset);
+
         $genderMap = [
             1 => 'Male',
             2 => 'Female',
             3 => 'Other',
             4 => 'Couple',
         ];
-        // Add base URL to images
+
+        $profileStatusMap = [
+            0 => 'Incomplete',
+            1 => 'Pending',
+            2 => 'Verified',
+            3 => 'Rejected',
+        ];
+
         foreach ($users as &$user) {
-            // Map gender integer to text
             $user['gender'] = $genderMap[(int) $user['gender']] ?? 'Not set';
+            $user['profile_status_text'] = $profileStatusMap[(int) $user['profile_status']] ?? 'Not set';
             if (!empty($user['profile_image'])) {
                 $user['profile_image'] = base_url('uploads/profile_images/' . $user['profile_image']);
             }
@@ -1122,12 +1144,17 @@ class AppUser extends BaseController
                 'current_page' => $page,
                 'per_page' => $limit,
                 'keyword' => $search,
+                'profile_status_filter' => $profileStatus,
                 'total_records' => $total,
                 'total_pages' => $totalPages,
                 'users' => $users
             ]
         ]);
     }
+
+
+
+
     //profile status 
     public function updateProfileStatus()
     {
@@ -1237,5 +1264,322 @@ class AppUser extends BaseController
             'message' => 'Account status updated successfully'
         ])->setStatusCode(200);
     }
+
+
+
+    public function saveLocation()
+    {
+        try {
+            $auth = $this->getAuthenticatedUser();
+
+            if (isset($auth['error'])) {
+                return $this->response->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => $auth['error']
+                ]);
+            }
+
+            $user_id = $auth['user_id'];
+            $data = $this->request->getJSON(true);
+
+            $location = trim($data['location'] ?? '');
+            $latitude = $data['latitude'] ?? null;
+            $longitude = $data['longitude'] ?? null;
+            $timestamp = $data['timestamp'] ?? null;
+
+            if ($location === '') {
+                return $this->response->setJSON([
+                    'status' => 400,
+                    'success' => false,
+                    'message' => 'Location is required.'
+                ]);
+            }
+
+            // Update user table
+            $this->appUserModel->update($user_id, [
+                'location' => $location,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'location_updated_at' => $timestamp ? date('Y-m-d H:i:s', strtotime($timestamp)) : date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+
+            // ✅ Update verification and profile_score
+            $verify = $this->db->table('user_verifications')->where('user_id', $user_id)->get()->getRowArray();
+            if (!$verify) {
+                // Create default verification row if missing
+                $this->db->table('user_verifications')->insert([
+                    'user_id' => $user_id,
+                    'score' => 0,
+                    'location_verified' => 0,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+                $verify = $this->db->table('user_verifications')->where('user_id', $user_id)->get()->getRowArray();
+            }
+
+            $addedScore = 0;
+            $profileScore = (int) $this->appUserModel->find($user_id)['profile_score'];
+
+            if ((int) $verify['location_verified'] === 0) {
+                $addedScore = 10;
+                $profileScore += 10;
+
+                $this->db->table('user_verifications')
+                    ->where('user_id', $user_id)
+                    ->update([
+                        'location_verified' => 1,
+                        'score' => $profileScore,
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+
+                // Update user profile score
+                $this->appUserModel->update($user_id, [
+                    'profile_score' => $profileScore,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+            }
+
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Location saved successfully.',
+                'new_score_added' => $addedScore,
+                'profile_score' => $profileScore,
+                'data' => [
+                    'location' => $location,
+                    'latitude' => $latitude,
+                    'longitude' => $longitude
+                ]
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->response->setJSON([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Server error',
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+
+
+    public function sendEmailVerification()
+    {
+        $auth = $this->getAuthenticatedUser();
+        if (isset($auth['error'])) {
+            return $this->response->setJSON([
+                'status' => 401,
+                'success' => false,
+                'message' => $auth['error']
+            ]);
+        }
+
+        $user = $this->appUserModel->find($auth['user_id']);
+        if (!$user || empty($user['email'])) {
+            return $this->response->setJSON([
+                'status' => 400,
+                'success' => false,
+                'message' => 'Email not found'
+            ]);
+        }
+
+        // Ensure user_verifications row exists
+        $db = db_connect();
+        $uv = $db->table('user_verifications')
+            ->where('user_id', $user['user_id'])
+            ->get()
+            ->getRowArray();
+
+            if ($uv && (int)$uv['email_verified'] === 1) {
+                return $this->response->setJSON([
+                    'status' => 200,
+                    'success' => true,
+                    'already_verified' => true,
+                    'message' => 'Your email is already verified.'
+                ]);
+            }
+
+        if (!$uv) {
+            $db->table('user_verifications')
+                ->insert([
+                    'user_id' => $user['user_id'],
+                    'email_verified' => 0,
+                    'phone_verified' => 0,
+                    'instagram_verified' => 0,
+                    'linkedin_verified' => 0,
+                    'location_verified' => 0,
+                    'dob_added' => 0,
+                    'gender_verified' => 0,
+                    'profile_image_added' => 0,
+                    'interest_added' => 0,
+                    'score' => 0,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+        }
+
+        // Generate email verification hash
+        $secret = env('app.emailVerifySecret');
+        $hash = md5($user['user_id'] . $secret);
+
+        // Save hash in app_users
+        $this->appUserModel->update($user['user_id'], [
+            'email_verify_hash' => $hash
+        ]);
+
+        // Prepare email
+        $link = base_url("api/verify-email/{$hash}");
+        $emailBody = "
+        <p>Hi {$user['name']},</p>
+        <p>Thank you for signing up!</p>
+        <p>Please confirm your email address to complete your registration.</p>
+        <p>
+            <a href='{$link}' style='background:#4CAF50;color:white;padding:12px 20px;
+               text-decoration:none;border-radius:5px;'>Verify Email</a>
+        </p>
+        <p>If you did not create an account, ignore this email.</p>
+        <p>Best regards,<br>Turn Up</p>
+    ";
+
+        $email = \Config\Services::email();
+        $email->setTo($user['email']);
+        $email->setSubject('Turn Up - Confirm Your Email Address');
+        $email->setMessage($emailBody);
+        $email->setMailType('html');
+
+        if (!$email->send()) {
+            return $this->response->setJSON([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Email sending failed'
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Verification email sent'
+        ]);
+    }
+
+
+
+
+    // public function verifyEmail($hash = null)
+    // {
+    //     if (!$hash)
+    //         return redirect()->to('/invalid-link');
+
+    //     $db = db_connect();
+
+    //     $user = $db->table('app_users')->where('email_verify_hash', $hash)->get()->getRowArray();
+    //     if (!$user)
+    //         return redirect()->to('/invalid-link');
+
+    //     $verify = $db->table('user_verifications')->where('user_id', $user['user_id'])->get()->getRowArray();
+    //     if (!$verify)
+    //         return redirect()->to('/invalid-link');
+
+    //     if ((int)$verify['email_verified'] === 1) {
+    //         return $this->response->setJSON([
+    //             'status' => 200,
+    //             'success' => true,
+    //             'already_verified' => true,
+    //             'message' => 'Email is already verified.'
+    //         ]);
+    //     }
+
+
+    //     $profileScore = (int) $user['profile_score'];
+    //     $updateVerify = [
+    //         'email_verified' => 1,
+    //         'updated_at' => date('Y-m-d H:i:s')
+    //     ];
+
+    //     // ✅ Add score only once
+    //     if ((int) $verify['email_score_added'] === 0) {
+    //         $profileScore += 15;
+    //         $updateVerify['email_score_added'] = 1;
+    //     }
+
+    //     // Update verification table
+    //     $db->table('user_verifications')
+    //         ->where('user_id', $user['user_id'])
+    //         ->update($updateVerify);
+
+    //     // Update user score
+    //     $db->table('app_users')
+    //         ->where('user_id', $user['user_id'])
+    //         ->update([
+    //             'profile_score' => $profileScore,
+    //             'updated_at' => date('Y-m-d H:i:s')
+    //         ]);
+
+    //     return $this->response->setJSON(['status' => 200, 'success' => true, 'message' => 'Email verified successfully.']);
+    // }
+
+
+
+public function verifyEmail($hash = null)
+{
+    if (!$hash) return view('email_status', [
+        'type' => 'error',
+        'title' => 'Invalid Link',
+        'message' => 'This verification link is invalid or expired.'
+    ]);
+
+    $db = db_connect();
+
+    $user = $db->table('app_users')->where('email_verify_hash', $hash)->get()->getRowArray();
+    if (!$user) return view('email_status', [
+        'type' => 'error',
+        'title' => 'Invalid Link',
+        'message' => 'This verification link is invalid or expired.'
+    ]);
+
+    $verify = $db->table('user_verifications')->where('user_id', $user['user_id'])->get()->getRowArray();
+    if (!$verify) return view('email_status', [
+        'type' => 'error',
+        'title' => 'Invalid Link',
+        'message' => 'This verification link is invalid or expired.'
+    ]);
+
+    if ((int)$verify['email_verified'] === 1) {
+        return view('email_status', [
+            'type' => 'info',
+            'title' => 'Already Verified',
+            'message' => 'This email has already been verified earlier.'
+        ]);
+    }
+
+    $profileScore = (int) $user['profile_score'];
+    $updateVerify = [
+        'email_verified' => 1,
+        'updated_at' => date('Y-m-d H:i:s')
+    ];
+
+    if ((int) $verify['email_score_added'] === 0) {
+        $profileScore += 15;
+        $updateVerify['email_score_added'] = 1;
+    }
+
+    $db->table('user_verifications')->where('user_id', $user['user_id'])->update($updateVerify);
+    $db->table('app_users')->where('user_id', $user['user_id'])->update([
+        'profile_score' => $profileScore,
+        'updated_at' => date('Y-m-d H:i:s')
+    ]);
+
+    return view('email_status', [
+        'type' => 'success',
+        'title' => 'Email Verified Successfully',
+        'message' => 'Your email has been verified. You can return to the app.'
+    ]);
+}
+
+
+
+
+
 
 }

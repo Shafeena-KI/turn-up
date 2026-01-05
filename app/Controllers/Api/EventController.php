@@ -370,6 +370,28 @@ class EventController extends BaseController
             'status' => 1, // Default to Upcoming
         ];
 
+        // ---------------- EVENT CODE VALIDATION ----------------
+
+        if (empty($event['event_code'])) {
+            respond(false, "Event code is required.");
+        }
+
+        if (!preg_match('/^[A-Z]{4}$/', $event['event_code'])) {
+            respond(false, "Event code must be exactly 4 letters (A-Z).");
+        }
+
+        $db = \Config\Database::connect();
+
+        // Check if code already exists
+        $exists = $db->table('events')
+            ->where('event_code', $event['event_code'])
+            ->countAllResults();
+
+        if ($exists > 0) {
+            respond(false, "This event code already exists. Please choose a different one.");
+        }
+
+
         // ---------------- HOST ID ARRAY ----------------
 
         $hostRaw = $_POST['host_id'] ?? null;
@@ -455,6 +477,7 @@ class EventController extends BaseController
         // Store as raw array (NOT JSON string)
         $event['poster_image'] = $posterFile;
         $event['gallery_images'] = json_encode($galleryFiles);
+
         // ---------------- SAVE EVENT ----------------
 
         $db = \Config\Database::connect();
@@ -1055,7 +1078,6 @@ class EventController extends BaseController
         header("Access-Control-Allow-Headers: Content-Type, Authorization");
         header("Access-Control-Allow-Methods: POST, OPTIONS");
 
-        // Handle Preflight (OPTION) request
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
             return $this->response->setStatusCode(200);
         }
@@ -1067,6 +1089,21 @@ class EventController extends BaseController
             ]);
         }
 
+        $db = db_connect();
+
+        // 🔹 Check in event_invites table
+        $inviteCount = $db->table('event_invites')
+            ->where('event_id', $id)
+            ->countAllResults();
+
+        if ($inviteCount > 0) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Event cannot be deleted because invites already exist for this event.'
+            ]);
+        }
+
+        // 🔹 Soft delete event
         $updated = $this->eventModel->update($id, ['status' => 4]);
 
         return $this->response->setJSON([
@@ -1074,4 +1111,5 @@ class EventController extends BaseController
             'message' => $updated ? 'Event deleted successfully' : 'Failed to delete event'
         ]);
     }
+
 }

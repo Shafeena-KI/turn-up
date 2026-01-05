@@ -41,6 +41,11 @@ $routes->get('api/user/list', 'Api\AppUser::listUsers'); // default (no search)
 $routes->get('api/user/list/(:any)', 'Api\AppUser::listUsers/$1'); // with search term
 $routes->post('api/user/profile-status', 'Api\AppUser::updateProfileStatus');
 $routes->post('api/user/account-status', 'Api\AppUser::updateAccountStatus');
+$routes->post('api/user/savelocation', 'Api\AppUser::saveLocation');
+$routes->post('api/send-email-verification', 'Api\AppUser::sendEmailVerification');
+$routes->get('api/verify-email/(:any)', 'Api\AppUser::verifyEmail/$1');
+
+
 
 
 

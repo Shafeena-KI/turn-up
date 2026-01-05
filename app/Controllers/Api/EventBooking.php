@@ -47,7 +47,11 @@ class EventBooking extends BaseController
         $eventBuilder = $this->db->table('event_booking eb')
             ->select('eb.event_id')
             ->join('events e', 'e.event_id = eb.event_id', 'left')
-            ->groupBy('eb.event_id');
+            ->groupBy('eb.event_id')
+            ->orderBy('e.event_date_start', 'DESC')  // latest date first
+            ->orderBy('e.event_time_start', 'DESC')  // latest time first
+            ->orderBy('e.event_id', 'DESC');         // tie-breaker for same date/time
+
 
         if (!empty($keyword)) {
             $eventBuilder->groupStart()
@@ -341,24 +345,24 @@ class EventBooking extends BaseController
 
 
 
-public function listBookings($event_id = null)
-{
-    $page  = (int) $this->request->getGet('current_page');
-    $limit = (int) $this->request->getGet('per_page');
+    public function listBookings($event_id = null)
+    {
+        $page = (int) $this->request->getGet('current_page');
+        $limit = (int) $this->request->getGet('per_page');
 
-    $page  = $page > 0 ? $page : 1;
-    $limit = $limit > 0 ? $limit : 10;
+        $page = $page > 0 ? $page : 1;
+        $limit = $limit > 0 ? $limit : 10;
 
-    $keyword     = trim($this->request->getGet('keyword') ?? '');
-    $startDate   = trim($this->request->getGet('start_date') ?? '');
-    $endDate     = trim($this->request->getGet('end_date') ?? '');
-    $eventCode   = trim($this->request->getGet('event_code') ?? '');
-    $bookingCode = trim($this->request->getGet('booking_code') ?? '');
+        $keyword = trim($this->request->getGet('keyword') ?? '');
+        $startDate = trim($this->request->getGet('start_date') ?? '');
+        $endDate = trim($this->request->getGet('end_date') ?? '');
+        $eventCode = trim($this->request->getGet('event_code') ?? '');
+        $bookingCode = trim($this->request->getGet('booking_code') ?? '');
 
-    $offset = ($page - 1) * $limit;
+        $offset = ($page - 1) * $limit;
 
-    $builder = $this->bookingModel
-        ->select("
+        $builder = $this->bookingModel
+            ->select("
             event_booking.*,
             events.event_name,
             events.event_city,
@@ -377,90 +381,90 @@ public function listBookings($event_id = null)
             event_counts.total_other_booking,
             event_counts.total_couple_booking
         ")
-        ->join('events', 'events.event_id = event_booking.event_id', 'left')
-        ->join('event_ticket_category', 'event_ticket_category.category_id = event_booking.category_id', 'left')
-        ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
-        ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
-        ->join('event_counts', 'event_counts.event_id = event_booking.event_id', 'left')
-        ->where('event_booking.status !=', 4)
-        ->groupBy('event_booking.booking_id');
+            ->join('events', 'events.event_id = event_booking.event_id', 'left')
+            ->join('event_ticket_category', 'event_ticket_category.category_id = event_booking.category_id', 'left')
+            ->join('app_users', 'app_users.user_id = event_booking.user_id', 'left')
+            ->join('event_invites', 'event_invites.invite_id = event_booking.invite_id', 'left')
+            ->join('event_counts', 'event_counts.event_id = event_booking.event_id', 'left')
+            ->where('event_booking.status !=', 4)
+            ->groupBy('event_booking.booking_id');
 
-    if (!empty($event_id)) {
-        $builder->where('event_booking.event_id', $event_id);
-    }
+        if (!empty($event_id)) {
+            $builder->where('event_booking.event_id', $event_id);
+        }
 
-    // Keyword search
-    if ($keyword !== '') {
-        $builder->groupStart()
-            ->like('events.event_name', $keyword)
-            ->orLike('events.event_city', $keyword)
-            ->orLike('app_users.name', $keyword)
-            ->orLike('app_users.phone', $keyword)
-            ->orLike('app_users.email', $keyword)
-            ->orLike("CASE 
+        // Keyword search
+        if ($keyword !== '') {
+            $builder->groupStart()
+                ->like('events.event_name', $keyword)
+                ->orLike('events.event_city', $keyword)
+                ->orLike('app_users.name', $keyword)
+                ->orLike('app_users.phone', $keyword)
+                ->orLike('app_users.email', $keyword)
+                ->orLike("CASE 
                 WHEN event_ticket_category.category_name = 1 THEN 'VIP'
                 WHEN event_ticket_category.category_name = 2 THEN 'Normal'
             END", $keyword)
-            ->orLike('event_booking.booking_code', $keyword)
-            ->orLike("DATE_FORMAT(event_booking.created_at, '%d-%m-%Y')", $keyword)
-            ->groupEnd();
+                ->orLike('event_booking.booking_code', $keyword)
+                ->orLike("DATE_FORMAT(event_booking.created_at, '%d-%m-%Y')", $keyword)
+                ->groupEnd();
+        }
+
+        if ($eventCode !== '') {
+            $builder->where('events.event_code', $eventCode);
+        }
+
+        if ($bookingCode !== '') {
+            $builder->where('event_booking.booking_code', $bookingCode);
+        }
+
+        if ($startDate !== '') {
+            $startDate = date('Y-m-d', strtotime(str_replace('/', '-', $startDate)));
+            $builder->where('DATE(event_booking.created_at) >=', $startDate);
+        }
+
+        if ($endDate !== '') {
+            $endDate = date('Y-m-d', strtotime(str_replace('/', '-', $endDate)));
+            $builder->where('DATE(event_booking.created_at) <=', $endDate);
+        }
+
+        $total = $builder->countAllResults(false);
+
+        $bookings = $builder
+            ->orderBy('event_booking.booking_id', 'DESC')
+            ->findAll($limit, $offset);
+
+        foreach ($bookings as &$booking) {
+            $booking['category_text'] = [1 => 'VIP', 2 => 'Normal'][$booking['category_name']] ?? 'Unknown';
+            $booking['status_text'] = [1 => 'Booked', 2 => 'Cancelled', 3 => 'Attended'][$booking['status']] ?? 'Unknown';
+            $booking['entry_type'] = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'][$booking['entry_type']] ?? 'N/A';
+
+            $booking['profile_image'] = !empty($booking['profile_image'])
+                ? base_url('uploads/profile_images/' . $booking['profile_image'])
+                : null;
+
+            $booking['event_counts'] = [
+                'total_booking' => (int) $booking['total_booking'],
+                'total_male_booking' => (int) $booking['total_male_booking'],
+                'total_female_booking' => (int) $booking['total_female_booking'],
+                'total_other_booking' => (int) $booking['total_other_booking'],
+                'total_couple_booking' => (int) $booking['total_couple_booking'],
+            ];
+        }
+
+        return $this->response->setJSON([
+            'status' => 200,
+            'success' => true,
+            'data' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'keyword' => $keyword,
+                'total_records' => $total,
+                'total_pages' => $limit ? ceil($total / $limit) : 0,
+                'bookings' => $bookings,
+            ]
+        ]);
     }
-
-    if ($eventCode !== '') {
-        $builder->where('events.event_code', $eventCode);
-    }
-
-    if ($bookingCode !== '') {
-        $builder->where('event_booking.booking_code', $bookingCode);
-    }
-
-    if ($startDate !== '') {
-        $startDate = date('Y-m-d', strtotime(str_replace('/', '-', $startDate)));
-        $builder->where('DATE(event_booking.created_at) >=', $startDate);
-    }
-
-    if ($endDate !== '') {
-        $endDate = date('Y-m-d', strtotime(str_replace('/', '-', $endDate)));
-        $builder->where('DATE(event_booking.created_at) <=', $endDate);
-    }
-
-    $total = $builder->countAllResults(false);
-
-    $bookings = $builder
-        ->orderBy('event_booking.booking_id', 'DESC')
-        ->findAll($limit, $offset);
-
-    foreach ($bookings as &$booking) {
-        $booking['category_text'] = [1 => 'VIP', 2 => 'Normal'][$booking['category_name']] ?? 'Unknown';
-        $booking['status_text']   = [1 => 'Booked', 2 => 'Cancelled', 3 => 'Attended'][$booking['status']] ?? 'Unknown';
-        $booking['entry_type']    = [1 => 'Male', 2 => 'Female', 3 => 'Other', 4 => 'Couple'][$booking['entry_type']] ?? 'N/A';
-
-        $booking['profile_image'] = !empty($booking['profile_image'])
-            ? base_url('uploads/profile_images/' . $booking['profile_image'])
-            : null;
-
-        $booking['event_counts'] = [
-            'total_booking'        => (int) $booking['total_booking'],
-            'total_male_booking'   => (int) $booking['total_male_booking'],
-            'total_female_booking' => (int) $booking['total_female_booking'],
-            'total_other_booking'  => (int) $booking['total_other_booking'],
-            'total_couple_booking' => (int) $booking['total_couple_booking'],
-        ];
-    }
-
-    return $this->response->setJSON([
-        'status'  => 200,
-        'success' => true,
-        'data'    => [
-            'current_page'  => $page,
-            'per_page'      => $limit,
-            'keyword'       => $keyword,
-            'total_records' => $total,
-            'total_pages'   => $limit ? ceil($total / $limit) : 0,
-            'bookings'      => $bookings,
-        ]
-    ]);
-}
 
 
 
