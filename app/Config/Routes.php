@@ -6,9 +6,13 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/', 'Home::index');
+$routes->get('/license-manager', 'Home::licenseManager');
+$routes->post('/license-manager/verify-key', 'Home::verifyPrivateKey');
+$routes->options('/license-manager/verify-key', 'Home::options');
+$routes->options('/license-manager', 'Home::options');
 
 //admin login
-$routes->post('api/admin/login', 'Api\Login::adminLogin');
+$routes->post('api/admin/login', 'Api\Login::adminLogin', ['filter' => 'license']);
 $routes->post('api/admin/logout', 'Api\Login::adminLogout');
 
 $routes->post('api/admin/create', 'Api\Login::createAdmin');
@@ -21,6 +25,15 @@ $routes->post('api/admin/change-password', 'Api\Login::changePassword');
 
 
 
+//super admin license management
+$routes->post('api/license/grant-access', 'Api\SuperAdminLicense::grantAccess');
+$routes->post('api/license/revoke-access', 'Api\SuperAdminLicense::revokeAccess');
+$routes->post('api/license/check-license', 'Api\SuperAdminLicense::checkLicense');
+$routes->post('api/license/generate-signature', 'Api\SignatureGenerator::generateSignature');
+$routes->options('api/license/grant-access', 'Api\SuperAdminLicense::options');
+$routes->options('api/license/revoke-access', 'Api\SuperAdminLicense::options');
+$routes->options('api/license/check-license', 'Api\SuperAdminLicense::options');
+$routes->options('api/license/generate-signature', 'Api\SignatureGenerator::options');
 
 //user login
 $routes->post('api/user/login', 'Api\AppUser::UserLogin');
