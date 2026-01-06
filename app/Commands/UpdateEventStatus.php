@@ -13,16 +13,16 @@ class UpdateEventStatus extends BaseCommand
     protected $description = 'Update events status based on end_time/end_date';
 
     // Event Status
-    const UPCOMING  = 1;
+    const UPCOMING = 1;
     const COMPLETED = 2;
-    const DELETED   = 3;
+    const DELETED = 3;
     const CANCELLED = 4;
 
     public function run(array $params = [])
     {
         $dateTime = date('Y-m-d H:i:s');
-        $date     = date('Y-m-d');
-        $time     = date('H:i:s');
+        $date = date('Y-m-d');
+        $time = date('H:i:s');
 
         $model = new EventModel();
 
@@ -46,9 +46,7 @@ class UpdateEventStatus extends BaseCommand
         --------------------------------------------------
         */
         $model->builder()
-            ->where('event_date_end', $date)
-            ->where('event_time_end IS NOT NULL', null, false)
-            ->where('event_time_end <=', $time)
+            ->where("TIMESTAMP(event_date_end, IFNULL(event_time_end,'23:59:59')) <= '{$dateTime}'", null, false)
             ->whereNotIn('status', $excludeStatuses)
             ->where('status !=', self::COMPLETED)
             ->update(['status' => self::COMPLETED]);
@@ -63,30 +61,47 @@ class UpdateEventStatus extends BaseCommand
         → expire on same day when end_time passes
         --------------------------------------------------
         */
-            $model->builder()
-                ->where('event_date_end IS NULL', null, false)
-                ->where('event_date_start', $date)
-                ->where('event_time_start IS NOT NULL', null, false)
-                ->where('event_time_end IS NOT NULL', null, false)
-                ->where('event_time_end <=', $time)
-                ->whereNotIn('status', $excludeStatuses)
-                ->where('status !=', self::COMPLETED)
-                ->update(['status' => self::COMPLETED]);
+        $model->builder()
+            ->where('event_date_end IS NULL', null, false)
+            ->where('event_time_end IS NOT NULL', null, false)
+            ->whereNotIn('status', $excludeStatuses)
+            ->where('status !=', self::COMPLETED)
+            ->where("TIMESTAMP(event_date_start, event_time_end) <= '{$dateTime}'", null, false)
+            ->update(['status' => self::COMPLETED]);
+
 
         /*
-        --------------------------------------------------
-        CASE 3: No end_date & end_time
-        → Complete after 1 day from start
-        --------------------------------------------------
-        */
+
+            --------------------------------------------------
+            CASE 2.8:
+            No end_date & no end_time
+            Expire at start_date 23:59:59
+            --------------------------------------------------
+            */
         $model->builder()
             ->where('event_date_end IS NULL', null, false)
             ->where('event_time_end IS NULL', null, false)
-            ->where('event_date_start IS NOT NULL', null, false)
-            ->where('event_date_start <', $date)
             ->whereNotIn('status', $excludeStatuses)
             ->where('status !=', self::COMPLETED)
+            ->where("TIMESTAMP(event_date_start, '23:59:59') <= '{$dateTime}'", null, false)
             ->update(['status' => self::COMPLETED]);
+
+        /*
+
+
+                --------------------------------------------------
+                CASE 3: No end_date & end_time
+                → Complete after 1 day from start
+                --------------------------------------------------
+                */
+        // $model->builder()
+        //     ->where('event_date_end IS NULL', null, false)
+        //     ->where('event_time_end IS NULL', null, false)
+        //     ->where('event_date_start IS NOT NULL', null, false)
+        //     ->where('event_date_start <', $date)
+        //     ->whereNotIn('status', $excludeStatuses)
+        //     ->where('status !=', self::COMPLETED)
+        //     ->update(['status' => self::COMPLETED]);
 
         /*
         --------------------------------------------------
