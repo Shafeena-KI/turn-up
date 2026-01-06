@@ -150,7 +150,12 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const API_BASE1 = 'https://dodgerblue-dogfish-415708.hostingersite.com/turnupeventadmin/backend';
         const API_BASE = 'https://dodgerblue-dogfish-415708.hostingersite.com/turnupeventadmin/backend/api/license';
+
+        // const API_BASE1 = 'http://localhost/turn-up';
+        // const API_BASE = 'http://localhost/turn-up/api/license';
+        
         let verifiedPrivateKey = null;
 
         async function verifyAccess() {
@@ -162,7 +167,7 @@
             }
 
             try {
-                const response = await fetch('/license-manager/verify-key', {
+                const response = await fetch(`${API_BASE1}/license-manager/verify-key`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ private_key: privateKey })
@@ -337,13 +342,34 @@
             results.style.display = 'block';
         }
 
+            
+        function licenseStatus(status) {
+            switch(status) {
+                case 1: return 'Active';
+                case 2: return 'Expired';
+                case 3: return 'Revoked';
+                default: return 'No License';
+            }
+        }
+
+        const formatDate = (dateStr) => {
+            const date = new Date(dateStr);
+            const dd = String(date.getDate()).padStart(2, '0');
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const yy = String(date.getFullYear());
+            return `${dd}-${mm}-${yy}`;
+        };
+
         function showUsersList(licenses, total) {
             let html = `<div class="card"><div class="card-header"><h5><i class="fas fa-users"></i> Users License Status (${total} users)</h5></div><div class="card-body"><div class="row">`;
             
             licenses.forEach(license => {
-                const status = license.license_status || 'No License';
-                const statusClass = status === 'Active' ? 'status-active' : status === 'Revoked' ? 'status-revoked' : 'status-none';
-                const expiry = license.license_expiry ? `<small class="text-muted">Expires: ${license.license_expiry}</small>` : '';
+
+                console.log(license.license_status)
+                const status = licenseStatus(license.license_status) || 'No License';
+                const statusClass = license.license_status === 1 ? 'status-active' : license.license_status === 3 ? 'status-revoked' : 'status-none';
+                const expiry = license.expiry_date ? `<small class="text-muted">Expires: ${formatDate(license.expiry_date)}</small>` : '';
+                const message = license.message || '';
                 
                 html += `<div class="col-md-6 mb-3">
                     <div class="user-card p-3">
@@ -358,6 +384,9 @@
                                 ${expiry}
                             </div>
                         </div>
+                        <div class="text-muted mt-2">
+                            ${message}
+                        </div>
                     </div>
                 </div>`;
             });
@@ -368,6 +397,7 @@
             results.innerHTML = html;
             results.style.display = 'block';
         }
+
     </script>
 </body>
 </html>
