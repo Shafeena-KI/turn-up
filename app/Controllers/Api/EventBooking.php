@@ -188,18 +188,40 @@ class EventBooking extends BaseController
 
         $totalPages = ceil($totalEvents / $limit);
 
-        return $this->response->setJSON([
-            'status' => 200,
-            'message' => 'Event booking counts fetched successfully',
-            'data' => [
-                'current_page' => $page,
-                'per_page' => $limit,
-                'keyword' => $keyword,
-                'total_records' => $totalEvents,
-                'total_pages' => $totalPages,
-                'events' => array_values($finalData)
-            ]
-        ]);
+$orderedEvents = [];
+
+foreach ($eventIds as $eid) {
+    if (isset($finalData[$eid])) {
+        $orderedEvents[] = $finalData[$eid];
+    }
+}
+
+return $this->response->setJSON([
+    'status' => 200,
+    'message' => 'Event booking counts fetched successfully',
+    'data' => [
+        'current_page' => $page,
+        'per_page' => $limit,
+        'keyword' => $keyword,
+        'total_records' => $totalEvents,
+        'total_pages' => $totalPages,
+        'events' => $orderedEvents
+    ]
+]);
+
+        
+        // return $this->response->setJSON([
+        //     'status' => 200,
+        //     'message' => 'Event booking counts fetched successfully',
+        //     'data' => [
+        //         'current_page' => $page,
+        //         'per_page' => $limit,
+        //         'keyword' => $keyword,
+        //         'total_records' => $totalEvents,
+        //         'total_pages' => $totalPages,
+        //         'events' => array_values($finalData)
+        //     ]
+        // ]);
     }
 
     // public function listBookings($event_id = null, $search = '')
