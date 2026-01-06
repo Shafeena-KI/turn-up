@@ -35,7 +35,8 @@ class Filters extends BaseFilters
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
         'PaymentFilter' => PaymentFilter::class,
-        'cors'          => Cors::class
+        'cors'          => Cors::class,
+        'license'       => \App\Filters\LicenseValidationFilter::class,
     ];
 
     /**

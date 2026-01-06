@@ -1,5 +1,8 @@
 <?php
 
+// Set the default timezone
+date_default_timezone_set('Asia/Kolkata');
+
 use CodeIgniter\Boot;
 use Config\Paths;
 

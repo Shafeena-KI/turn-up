@@ -20,7 +20,7 @@ class AdminModel extends Model
         return ['error' => true, 'message' => 'No admin found for this email.'];
     }
     if (!password_verify($password, $admin['password'])) {
-        return ['error' => true, 'message' => 'Incorrect password.'];
+        return ['error' => true, 'message' => 'Incorrect email or password.'];
     }
 
     return ['error' => false, 'data' => $admin];
