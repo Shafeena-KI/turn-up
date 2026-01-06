@@ -226,30 +226,56 @@ class EventInvite extends BaseController
                 FOR UPDATE
             ", [$event_id, $category_id])->getRow();
 
+            // $usedSeats = 0;
+
+            // if ($eventCounts) {
+
+            //     // APPROVED seats always block
+            //     $usedSeats += (int) $eventCounts->total_approved;
+
+            //     // NORMAL category → pending blocks seats
+            //     if ($categoryType === 2) {
+
+            //         $pendingCouples =
+            //             (int) $eventCounts->total_couple_invites -
+            //             (int) $eventCounts->total_couple_approved;
+
+            //         $pendingSingles =
+            //             ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
+            //             ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
+            //             ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
+
+            //         $usedSeats += ($pendingCouples * 2) + $pendingSingles;
+            //     }
+
+           //VIP → pending does NOT block seats
+            // }
+
             $usedSeats = 0;
+$approvedSeats = 0;
 
-            if ($eventCounts) {
+if ($eventCounts) {
 
-                // APPROVED seats always block
-                $usedSeats += (int) $eventCounts->total_approved;
+    // Hard block only approved seats
+    $approvedSeats = (int) $eventCounts->total_approved;
+    $usedSeats += $approvedSeats;
 
-                // NORMAL category → pending blocks seats
-                // if ($categoryType === 2) {
+    // Soft block: pending only blocks UNVERIFIED Normal users
+    if ($categoryType === 2 && $user->profile_status != 2) {
 
-                //     $pendingCouples =
-                //         (int) $eventCounts->total_couple_invites -
-                //         (int) $eventCounts->total_couple_approved;
+        $pendingCouples =
+            (int) $eventCounts->total_couple_invites -
+            (int) $eventCounts->total_couple_approved;
 
-                //     $pendingSingles =
-                //         ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
-                //         ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
-                //         ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
+        $pendingSingles =
+            ((int) $eventCounts->total_male_invites - (int) $eventCounts->total_male_approved) +
+            ((int) $eventCounts->total_female_invites - (int) $eventCounts->total_female_approved) +
+            ((int) $eventCounts->total_other_invites - (int) $eventCounts->total_other_approved);
 
-                //     $usedSeats += ($pendingCouples * 2) + $pendingSingles;
-                // }
+        $usedSeats += ($pendingCouples * 2) + $pendingSingles;
+    }
+}
 
-                // VIP → pending does NOT block seats
-            }
 
 
             $availableSeats = $totalSeatsAllowed - $usedSeats;
@@ -489,9 +515,6 @@ class EventInvite extends BaseController
     }
 
 
-
-
-
     // Approve or Reject Invite (manual)
     public function updateInviteStatus()
     {
@@ -535,7 +558,6 @@ class EventInvite extends BaseController
         ]);
         // INCREASE COUNT ONLY FOR PENDING → APPROVED
         if ($oldStatus === 0 && $newStatus === 1) {
-
             $db = $this->db;
 
             $entry_type = (int) $invite['entry_type']; // 1=M,2=F,3=O,4=C
@@ -563,6 +585,18 @@ class EventInvite extends BaseController
                 ->where('category_id', $category_id)
                 ->get()
                 ->getRow();
+
+                
+            $category = $this->categoryModel->find($category_id);
+
+            $availableSeats = $category['total_seats'] - ($row->total_approved ?? 0);
+
+            if ($availableSeats < $t) {
+                return $this->response->setJSON([
+                    'status' => false,
+                    'message' => 'No seats available for this category.'
+                ]);
+            }
 
             if ($row) {
                 $countsTable->where('id', $row->id)->update([
@@ -627,7 +661,9 @@ class EventInvite extends BaseController
             $countData = $this->db->table('event_counts')
                 ->select('total_booking')
                 ->where('event_id', $event_id)
-                ->where('category_id', $categoryType)   // match type
+                // ->where('category_id', $categoryType)   // match type
+                ->where('category_id', $catRowId)
+
                 ->get()
                 ->getRowArray();
 
@@ -949,7 +985,7 @@ class EventInvite extends BaseController
             ->join(
                 'event_counts ec',
                 'ec.event_id = event_invites.event_id 
-                AND ec.id = (SELECT MAX(id) FROM event_counts WHERE event_id = event_invites.event_id)',
+                AND ec.category_id = event_invites.category_id',
                 'left'
             );
 
