@@ -606,152 +606,382 @@ class PaymentController extends ResourceController
     public function linkCallback()
     {
         $orderId = $this->request->getGet('order_id');
-        $linkId = $this->request->getGet('link_id');
+        $linkId  = $this->request->getGet('link_id');
 
         if (!$orderId) {
             log_message('error', 'No order ID in payment link callback');
             return redirect()->to(base_url('api/payment/failed'));
         }
 
-        log_message('info', 'Processing payment link callback for order: ' . $orderId . ' link: ' . $linkId);
+        log_message('info', "Payment callback received | Order: {$orderId} | Link: {$linkId}");
 
-        // Use DB connection transactions (safer)
-        $db = $this->transactionModel->db ?? \Config\Database::connect();
-        $db->transStart();
+        $db = \Config\Database::connect();
+        $db->transBegin();
 
         try {
-            $linkIdToCheck = $linkId ?: 'link_' . $orderId;
-            $linkOrders = $this->cashfree->getLinkOrders($linkIdToCheck);
 
-            if (empty($linkOrders) || !$linkOrders['success'] || empty($linkOrders['data'])) {
-                log_message('error', 'No payment link orders found for: ' . $linkIdToCheck . ' response: ' . json_encode($linkOrders));
-                // rollback via transComplete (if needed) then redirect
-                $db->transRollback();
-                return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
+            /**
+             * ---------------------------------------------------------
+             * 1. Verify payment with Cashfree (SERVER SIDE – TRUSTED)
+             * ---------------------------------------------------------
+             */
+            $result = $this->cashfree->verifyPayment($orderId);
+            log_message('info', 'Cashfree verify response: ' . json_encode($result));
+
+            if (empty($result['success'])) {
+                throw new \RuntimeException('Cashfree verification failed');
             }
 
-            $latestOrder = $linkOrders['data'][0];
-            $status = strtolower($latestOrder['order_status'] ?? 'unknown');
-            log_message('info', 'Payment link order status: ' . $status);
+            $isVerified     = (bool) ($result['verified'] ?? false);
+            $orderStatus    = $result['order_status'] ?? 'unknown';
+            $paymentStatus  = $result['payment_status'] ?? null;
+            $paymentMethod  = $result['payment_method'] ?? 'unknown';
 
-            $cfOrderId = $latestOrder['order_id'] ?? null;
-            $paymentMethodData = null;
-            $paymentGroup = null;
+            /**
+             * ---------------------------------------------------------
+             * 2. Fetch transaction (IDEMPOTENCY CHECK)
+             * ---------------------------------------------------------
+             */
+            $transaction = $this->transactionModel
+                ->where('transaction_id', $orderId)
+                ->first();
 
-            if ($cfOrderId && $status === 'paid') {
-                log_message('info', 'Fetching payment details for order_id: ' . $cfOrderId);
-                $paymentDetails = $this->cashfree->getPaymentDetails($cfOrderId);
-                log_message('info', 'Payment details response: ' . json_encode($paymentDetails));
-                if (!empty($paymentDetails['success']) && isset($paymentDetails['data'])) {
-                    $paymentMethodData = $paymentDetails['data']['payment_method'] ?? null;
-                    $paymentGroup = $paymentDetails['data']['payment_group'] ?? null;
-                    log_message('info', 'Payment method from API: ' . json_encode($paymentMethodData));
-                    log_message('info', 'Payment group from API: ' . ($paymentGroup ?? 'NULL'));
-                } else {
-                    log_message('warning', 'Failed to get payment details or empty: ' . json_encode($paymentDetails));
-                }
-            }
-
-            // Find transaction by transaction_id (not primary key)
-            $transaction = $this->transactionModel->where('transaction_id', $orderId)->first();
             if (!$transaction) {
-                log_message('error', 'Transaction not found for order: ' . $orderId);
+                throw new \RuntimeException('Transaction not found for order ' . $orderId);
+            }
+
+            /**
+             * If already SUCCESS → do nothing (CRITICAL SAFETY)
+             */
+            if ($transaction['status'] === TransactionModel::SUCCESS) {
+                log_message('info', 'Transaction already SUCCESS, skipping reprocessing: ' . $orderId);
                 $db->transRollback();
-                return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
-            }
-
-
-            // Find payment using payment_id from transaction
-            $payment = $this->paymentModel->where('payment_id', $transaction['payment_id'])->first();
-            if (!$payment) {
-                log_message('error', 'Payment not found for transaction payment_id: ' . ($transaction['payment_id'] ?? 'NULL'));
-                $db->transRollback();
-                return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
-            }
-
-
-            $isSuccess = in_array($status, ['paid', 'success']);
-            log_message('info', 'Is payment successful? ' . ($isSuccess ? 'YES' : 'NO') . ' (Status: ' . $status . ')');
-
-            $updateData = [
-                'status' => $isSuccess ? TransactionModel::SUCCESS : TransactionModel::FAILED,
-                'gateway_transaction_id' => $latestOrder['cf_order_id'] ?? $latestOrder['link_id'] ?? $linkIdToCheck,
-                'completed_at' => date('Y-m-d H:i:s'),
-                'raw_response' => json_encode($latestOrder)
-            ];
-
-            // extract payment method details if available
-            if ($paymentMethodData || $paymentGroup) {
-                $paymentMethod = $this->extractPaymentMethod($paymentMethodData);
-                $finalPaymentMethod = $paymentMethod['type'] ?? $paymentGroup ?? 'unknown';
-                $updateData['payment_method'] = $finalPaymentMethod;
-                $updateData['payment_details'] = $paymentMethod['details'] ?? null;
-                log_message('info', 'Saving payment method: ' . $finalPaymentMethod);
-            } else {
-                log_message('warning', 'No payment method data found for order: ' . $orderId);
-                $updateData['payment_method'] = 'unknown';
-            }
-
-            // Update payment_status (use where()->update to avoid PK mismatch)
-            $paymentUpdateOk = $this->paymentModel
-                ->where('payment_id', $payment['payment_id'])
-                ->set(['payment_status' => $isSuccess ? PaymentModel::SUCCESS : PaymentModel::FAILED])
-                ->update();
-            log_message('info', 'Payment table update ok? ' . ($paymentUpdateOk ? 'YES' : 'NO'));
-            if (!$paymentUpdateOk) {
-                log_message('error', 'Payment update failed: ' . json_encode($this->paymentModel->errors()) . ' DB error: ' . json_encode($this->paymentModel->db->error()));
-                // don't throw yet — continue so we capture more logs; optionally throw to force rollback
-            }
-
-            // Update invite status
-            $inviteStatus = $isSuccess ? EventInviteModel::PAID : EventInviteModel::PAYMENT_PENDING;
-            $inviteUpdateOk = $this->eventInviteModel->where('invite_id', $payment['invite_id'])->set(['status' => $inviteStatus])->update();
-            log_message('info', 'Event invite update ok? ' . ($inviteUpdateOk ? 'YES' : 'NO'));
-            if (!$inviteUpdateOk) {
-                log_message('error', 'Event invite update failed. Errors: ' . json_encode($this->eventInviteModel->errors()) . ' DB error: ' . json_encode($this->eventInviteModel->db->error()));
-            }
-
-            // Update transaction row using where (avoid relying on PK name)
-            $transactionUpdateOk = $this->transactionModel
-                                            ->where('transaction_id', $orderId)
-                                            ->set($updateData)
-                                            ->update();
-
-            $getTransaction = $this->transactionModel
-                                            ->where('transaction_id', $orderId)
-                                            ->first();
-
-            // Create booking record only after marking paid
-            if ($getTransaction && $getTransaction['status'] == TransactionModel::SUCCESS) {
-                $this->createBookingRecord($getTransaction);
-                log_message('info', 'Created booking record for transaction id: ' . ($transaction['id'] ?? 'NULL'));
-            }
-
-            log_message('info', 'Transaction update ok? ' . ($transactionUpdateOk ? 'YES' : 'NO'));
-            if (!$transactionUpdateOk) {
-                log_message('error', 'Transaction update failed: ' . json_encode($this->transactionModel->errors()) . ' DB error: ' . json_encode($this->transactionModel->db->error()));
-                // optionally throw new \RuntimeException('Transaction update failed');
-            }
-
-            // Force commit regardless of individual update results
-            $db->transCommit();
-            log_message('info', 'Database transaction committed successfully');
-
-            if ($isSuccess) {
-                log_message('info', 'Payment link successful for order: ' . $orderId);
                 return redirect()->to(base_url('api/payment/success?order_id=' . $orderId));
             }
 
-        } catch (\Exception $e) {
-            // ensure rollback
-            if ($db->transStatus() !== null) {
-                $db->transRollback();
+            /**
+             * ---------------------------------------------------------
+             * 3. Fetch payment record
+             * ---------------------------------------------------------
+             */
+            $payment = $this->paymentModel->find($transaction['payment_id']);
+
+            if (!$payment) {
+                throw new \RuntimeException('Payment record not found');
             }
-            log_message('error', 'Payment link callback failed for order ' . $orderId . ': ' . $e->getMessage());
+
+            /**
+             * ---------------------------------------------------------
+             * 4. Prepare transaction update payload
+             * ---------------------------------------------------------
+             */
+            $updateData = [
+                'status'                 => $isVerified ? TransactionModel::SUCCESS : TransactionModel::FAILED,
+                'gateway_transaction_id' => $result['cf_payment_id'] ?? $orderId,
+                'payment_method'         => $paymentMethod,
+                'completed_at'           => date('Y-m-d H:i:s'),
+                'raw_response'           => json_encode($result)
+            ];
+
+            if (!empty($result['payment_time'])) {
+                $updateData['payment_details'] = json_encode([
+                    'payment_time'   => $result['payment_time'],
+                    'payment_amount' => $result['payment_amount'] ?? null,
+                    'order_amount'   => $result['order_amount'] ?? null,
+                    'details'        => $result['payment_details'] ?? null
+                ]);
+            }
+
+            /**
+             * ---------------------------------------------------------
+             * 5. Update payment + invite + booking
+             * ---------------------------------------------------------
+             */
+            if ($isVerified) {
+
+                // Payment table
+                $this->paymentModel->update(
+                    $payment['payment_id'],
+                    ['payment_status' => PaymentModel::SUCCESS]
+                );
+
+                // Invite table
+                $this->eventInviteModel->update(
+                    $payment['invite_id'],
+                    ['status' => EventInviteModel::PAID]
+                );
+
+                // Booking (CREATE ONLY ONCE)
+                if (empty($transaction['booking_id'])) {
+                    $this->createBookingRecord($transaction);
+                    log_message('info', 'Booking created for order: ' . $orderId);
+                }
+
+            } else {
+
+                $this->paymentModel->update(
+                    $payment['payment_id'],
+                    ['payment_status' => PaymentModel::FAILED]
+                );
+
+                $this->eventInviteModel->update(
+                    $payment['invite_id'],
+                    ['status' => EventInviteModel::PAYMENT_PENDING]
+                );
+            }
+
+            /**
+             * ---------------------------------------------------------
+             * 6. Update transaction safely (NO PK ASSUMPTION)
+             * ---------------------------------------------------------
+             */
+            $this->transactionModel
+                ->where('transaction_id', $orderId)
+                ->set($updateData)
+                ->update();
+
+            /**
+             * ---------------------------------------------------------
+             * 7. Commit transaction
+             * ---------------------------------------------------------
+             */
+            if ($db->transStatus() === false) {
+                throw new \RuntimeException('DB transaction failed');
+            }
+
+            $db->transCommit();
+            log_message('info', 'Payment callback processed successfully: ' . $orderId);
+
+            /**
+             * ---------------------------------------------------------
+             * 8. Redirect user
+             * ---------------------------------------------------------
+             */
+            if ($isVerified) {
+                return redirect()->to(base_url('api/payment/success?order_id=' . $orderId));
+            }
+
+        } catch (\Throwable $e) {
+
+            $db->transRollback();
+            log_message(
+                'error',
+                'Payment callback error | Order: ' . $orderId . ' | ' . $e->getMessage()
+            );
         }
 
         return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
     }
+
+    // public function linkCallback()
+    // {
+    //     $orderId = $this->request->getGet('order_id');
+    //     $linkId = $this->request->getGet('link_id');
+
+    //     if (!$orderId) {
+    //         log_message('error', 'No order ID in payment link callback');
+    //         return redirect()->to(base_url('api/payment/failed'));
+    //     }
+
+    //     log_message('info', 'Processing payment link callback for order: ' . $orderId . ' link: ' . $linkId);
+
+    //     // Use DB connection transactions (safer)
+    //     $db = $this->transactionModel->db ?? \Config\Database::connect();
+    //     $db->transStart();
+
+    //     try {
+    //         // $linkIdToCheck = $linkId ?: 'link_' . $orderId;
+    //         // $linkOrders = $this->cashfree->getLinkOrders($linkIdToCheck);
+
+    //         // if (empty($linkOrders) || !$linkOrders['success'] || empty($linkOrders['data'])) {
+    //         //     log_message('error', 'No payment link orders found for: ' . $linkIdToCheck . ' response: ' . json_encode($linkOrders));
+    //         //     // rollback via transComplete (if needed) then redirect
+    //         //     $db->transRollback();
+    //         //     return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
+    //         // }
+
+    //         // $latestOrder = $linkOrders['data'][0];
+    //         // $status = strtolower($latestOrder['order_status'] ?? 'unknown');
+    //         // log_message('info', 'Payment link order status: ' . $status);
+
+    //         // $cfOrderId = $latestOrder['order_id'] ?? null;
+    //         // $paymentMethodData = null;
+    //         // $paymentGroup = null;
+
+    //         // if ($cfOrderId && $status === 'paid') {
+    //         //     log_message('info', 'Fetching payment details for order_id: ' . $cfOrderId);
+    //         //     $paymentDetails = $this->cashfree->getPaymentDetails($cfOrderId);
+    //         //     log_message('info', 'Payment details response: ' . json_encode($paymentDetails));
+    //         //     if (!empty($paymentDetails['success']) && isset($paymentDetails['data'])) {
+    //         //         $paymentMethodData = $paymentDetails['data']['payment_method'] ?? null;
+    //         //         $paymentGroup = $paymentDetails['data']['payment_group'] ?? null;
+    //         //         log_message('info', 'Payment method from API: ' . json_encode($paymentMethodData));
+    //         //         log_message('info', 'Payment group from API: ' . ($paymentGroup ?? 'NULL'));
+    //         //     } else {
+    //         //         log_message('warning', 'Failed to get payment details or empty: ' . json_encode($paymentDetails));
+    //         //     }
+    //         // }
+
+    //         // // Find transaction by transaction_id (not primary key)
+    //         // $transaction = $this->transactionModel->where('transaction_id', $orderId)->first();
+    //         // if (!$transaction) {
+    //         //     log_message('error', 'Transaction not found for order: ' . $orderId);
+    //         //     $db->transRollback();
+    //         //     return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
+    //         // }
+
+
+    //         // // Find payment using payment_id from transaction
+    //         // $payment = $this->paymentModel->where('payment_id', $transaction['payment_id'])->first();
+    //         // if (!$payment) {
+    //         //     log_message('error', 'Payment not found for transaction payment_id: ' . ($transaction['payment_id'] ?? 'NULL'));
+    //         //     $db->transRollback();
+    //         //     return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
+    //         // }
+
+
+    //         // $isSuccess = in_array($status, ['paid', 'success']);
+    //         // log_message('info', 'Is payment successful? ' . ($isSuccess ? 'YES' : 'NO') . ' (Status: ' . $status . ')');
+
+    //         // $updateData = [
+    //         //     'status' => $isSuccess ? TransactionModel::SUCCESS : TransactionModel::FAILED,
+    //         //     'gateway_transaction_id' => $latestOrder['cf_order_id'] ?? $latestOrder['link_id'] ?? $linkIdToCheck,
+    //         //     'completed_at' => date('Y-m-d H:i:s'),
+    //         //     'raw_response' => json_encode($latestOrder)
+    //         // ];
+
+    //         // // extract payment method details if available
+    //         // if ($paymentMethodData || $paymentGroup) {
+    //         //     $paymentMethod = $this->extractPaymentMethod($paymentMethodData);
+    //         //     $finalPaymentMethod = $paymentMethod['type'] ?? $paymentGroup ?? 'unknown';
+    //         //     $updateData['payment_method'] = $finalPaymentMethod;
+    //         //     $updateData['payment_details'] = $paymentMethod['details'] ?? null;
+    //         //     log_message('info', 'Saving payment method: ' . $finalPaymentMethod);
+    //         // } else {
+    //         //     log_message('warning', 'No payment method data found for order: ' . $orderId);
+    //         //     $updateData['payment_method'] = 'unknown';
+    //         // }
+
+    //         // // Update payment_status (use where()->update to avoid PK mismatch)
+    //         // $paymentUpdateOk = $this->paymentModel
+    //         //     ->where('payment_id', $payment['payment_id'])
+    //         //     ->set(['payment_status' => $isSuccess ? PaymentModel::SUCCESS : PaymentModel::FAILED])
+    //         //     ->update();
+    //         // log_message('info', 'Payment table update ok? ' . ($paymentUpdateOk ? 'YES' : 'NO'));
+    //         // if (!$paymentUpdateOk) {
+    //         //     log_message('error', 'Payment update failed: ' . json_encode($this->paymentModel->errors()) . ' DB error: ' . json_encode($this->paymentModel->db->error()));
+    //         //     // don't throw yet — continue so we capture more logs; optionally throw to force rollback
+    //         // }
+
+    //         // // Update invite status
+    //         // $inviteStatus = $isSuccess ? EventInviteModel::PAID : EventInviteModel::PAYMENT_PENDING;
+    //         // $inviteUpdateOk = $this->eventInviteModel->where('invite_id', $payment['invite_id'])->set(['status' => $inviteStatus])->update();
+    //         // log_message('info', 'Event invite update ok? ' . ($inviteUpdateOk ? 'YES' : 'NO'));
+    //         // if (!$inviteUpdateOk) {
+    //         //     log_message('error', 'Event invite update failed. Errors: ' . json_encode($this->eventInviteModel->errors()) . ' DB error: ' . json_encode($this->eventInviteModel->db->error()));
+    //         // }
+
+    //         // // Update transaction row using where (avoid relying on PK name)
+    //         // $transactionUpdateOk = $this->transactionModel
+    //         //                                 ->where('transaction_id', $orderId)
+    //         //                                 ->set($updateData)
+    //         //                                 ->update();
+
+    //         // $getTransaction = $this->transactionModel
+    //         //                                 ->where('transaction_id', $orderId)
+    //         //                                 ->first();
+
+    //         // // Create booking record only after marking paid
+    //         // if ($getTransaction && $getTransaction['status'] == TransactionModel::SUCCESS) {
+    //         //     $this->createBookingRecord($getTransaction);
+    //         //     log_message('info', 'Created booking record for transaction id: ' . ($transaction['id'] ?? 'NULL'));
+    //         // }
+
+    //         // log_message('info', 'Transaction update ok? ' . ($transactionUpdateOk ? 'YES' : 'NO'));
+    //         // if (!$transactionUpdateOk) {
+    //         //     log_message('error', 'Transaction update failed: ' . json_encode($this->transactionModel->errors()) . ' DB error: ' . json_encode($this->transactionModel->db->error()));
+    //         //     // optionally throw new \RuntimeException('Transaction update failed');
+    //         // }
+
+    //         // // Force commit regardless of individual update results
+    //         // $db->transCommit();
+    //         // log_message('info', 'Database transaction committed successfully');
+
+
+    //         $result = $this->cashfree->verifyPayment($orderId);
+
+    //         log_message('info', 'Verify payment API response: ' . json_encode($result));
+
+    //         if (!$result['success']) {
+    //             throw new \RuntimeException('Payment verification failed: ' . ($result['error'] ?? 'Unknown error'));
+    //         }
+
+    //         // Handle the new structured response from CashfreePayment::verifyPayment
+    //         $isVerified = $result['verified'] ?? false;
+    //         $orderStatus = $result['order_status'] ?? 'unknown';
+    //         $paymentStatus = $result['payment_status'] ?? null;
+
+    //         log_message('info', 'Payment verification for ' . $orderId . ' - Verified: ' . ($isVerified ? 'YES' : 'NO') . ', Order Status: ' . $orderStatus . ', Payment Status: ' . ($paymentStatus ?? 'NULL'));
+
+    //         $transaction = $this->transactionModel->where('transaction_id', $orderId)->first();
+    //         if (!$transaction) {
+    //             throw new \RuntimeException('Transaction not found');
+    //         }
+
+    //         $payment = $this->paymentModel->find($transaction['payment_id']);
+    //         if (!$payment) {
+    //             throw new \RuntimeException('Payment not found');
+    //         }
+
+    //         $paymentMethod = $result['payment_method'] == 'wallet' ? 'app' : $result['payment_method'];
+
+    //         $updateData = [
+    //             'status' => $isVerified ? TransactionModel::SUCCESS : TransactionModel::FAILED,
+    //             'gateway_transaction_id' => $result['cf_payment_id'] ?? $orderId,
+    //             'payment_method' => $paymentMethod ?? 'unknown',
+    //             'completed_at' => date('Y-m-d H:i:s'),
+    //             'raw_response' => json_encode($result)
+    //         ];
+
+    //         if ($result['payment_time'] ?? null) {
+    //             $updateData['payment_details'] = json_encode([
+    //                 'details' => $result['payment_details'] ?? null,
+    //                 'payment_time' => $result['payment_time'],
+    //                 'payment_amount' => $result['payment_amount'] ?? null,
+    //                 'order_amount' => $result['order_amount'] ?? null
+    //             ]);
+    //         }
+
+
+    //         if ($isVerified) {
+    //             $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::SUCCESS]);
+    //             $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAID]);
+    //             $this->createBookingRecord($transaction);
+    //             log_message('info', 'Payment verified and marked as SUCCESS for order: ' . $orderId);
+    //         } else {
+    //             $this->paymentModel->update($payment['payment_id'], ['payment_status' => PaymentModel::FAILED]);
+    //             $this->eventInviteModel->update($payment['invite_id'], ['status' => EventInviteModel::PAYMENT_PENDING]);
+    //             log_message('info', 'Payment verification failed for order: ' . $orderId . ' - ' . ($result['message'] ?? 'Unknown reason'));
+    //         }
+
+    //         $this->transactionModel->update($transaction['id'], $updateData);
+    //         $db->transCommit();
+
+    //         if ($updateData['status'] == TransactionModel::SUCCESS) {
+    //             log_message('info', 'Payment link successful for order: ' . $orderId);
+    //             return redirect()->to(base_url('api/payment/success?order_id=' . $orderId));
+    //         }
+
+    //     } catch (\Exception $e) {
+    //         // ensure rollback
+    //         if ($db->transStatus() !== null) {
+    //             $db->transRollback();
+    //         }
+    //         log_message('error', 'Payment link callback failed for order ' . $orderId . ': ' . $e->getMessage());
+    //     }
+
+    //     return redirect()->to(base_url('api/payment/failed?order_id=' . $orderId));
+    // }
 
     public function success()
     {
