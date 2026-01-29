@@ -1091,19 +1091,41 @@ class EventController extends BaseController
 
         $db = db_connect();
 
-        // 🔹 Check in event_invites table
+        /* 🔹 Get event status */
+        $event = $db->table('events')
+            ->select('status')
+            ->where('event_id', $id)
+            ->get()
+            ->getRow();
+
+        if (!$event) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Event not found'
+            ]);
+        }
+
+        /* ❌ Upcoming events cannot be deleted */
+        if ($event->status == 1) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Upcoming events cannot be deleted'
+            ]);
+        }
+
+        /* 🔹 Check in event_invites table */
         $inviteCount = $db->table('event_invites')
             ->where('event_id', $id)
             ->countAllResults();
 
-        if ($inviteCount > 0) {
-            return $this->response->setJSON([
-                'status' => false,
-                'message' => 'Event cannot be deleted because invites already exist for this event.'
-            ]);
-        }
+        // if ($inviteCount > 0) {
+        //     return $this->response->setJSON([
+        //         'status' => false,
+        //         'message' => 'Event cannot be deleted because invites already exist for this event.'
+        //     ]);
+        // }
 
-        // 🔹 Soft delete event
+        /* Soft delete only for completed / cancelled */
         $updated = $this->eventModel->update($id, ['status' => 4]);
 
         return $this->response->setJSON([
