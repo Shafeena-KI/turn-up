@@ -32,14 +32,14 @@ class EventInvite extends BaseController
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
-        $this->db                   = Database::connect();
-        $this->eventModel           = new EventModel();
-        $this->userModel            = new AppUserModel();
-        $this->inviteModel          = new EventInviteModel();
-        $this->bookingModel         = new EventBookingModel();
-        $this->categoryModel        = new EventCategoryModel();
-        $this->bookingLibrary       = new BookingLibrary();
-        $this->notificationLibrary  = new NotificationLibrary();
+        $this->db = Database::connect();
+        $this->eventModel = new EventModel();
+        $this->userModel = new AppUserModel();
+        $this->inviteModel = new EventInviteModel();
+        $this->bookingModel = new EventBookingModel();
+        $this->categoryModel = new EventCategoryModel();
+        $this->bookingLibrary = new BookingLibrary();
+        $this->notificationLibrary = new NotificationLibrary();
 
     }
 
@@ -283,9 +283,6 @@ class EventInvite extends BaseController
                     $usedSeats += ($pendingCouples * 2) + $pendingSingles;
                 }
             }
-
-
-
             $availableSeats = $totalSeatsAllowed - $usedSeats;
 
 
@@ -310,10 +307,6 @@ class EventInvite extends BaseController
                     $inviteStatus = 0;
                 }
             }
-
-            // print_r($inviteStatus); 
-            // print_r($availableSeats); 
-            // print_r($requiredSeats); exit;
             // --- event_counters (INVITE COUNTER ONLY) ---
             $counterTable = $db->table('event_counters');
             // $counter = $counterTable->get()->getRow();
@@ -494,7 +487,7 @@ class EventInvite extends BaseController
 
 
                 // Approve invites with zero price for verified users
-                if ((int)$user->profile_status == 2 && $category) {
+                if ((int) $user->profile_status == 2 && $category) {
 
                     // Determine applicable price based on entry type
                     $price = ($entryTypeValue == 4)
@@ -708,15 +701,187 @@ class EventInvite extends BaseController
     //     ]);
     // }
 
+
+    // public function updateInviteStatus()
+    // {
+    //     $data = $this->request->getJSON(true);
+    //     $invite_id = $data['invite_id'] ?? null;
+    //     $status    = $data['status'] ?? null;
+
+    //     if (!$invite_id || !in_array($status, [1, 2])) {
+    //         return $this->response->setJSON([
+    //             'status'  => false,
+    //             'message' => 'invite_id and valid status (1=approved, 2=rejected) are required.'
+    //         ]);
+    //     }
+
+    //     $invite = $this->inviteModel->find($invite_id);
+    //     if (!$invite) {
+    //         return $this->response->setJSON([
+    //             'status'  => false,
+    //             'message' => 'Invite not found.'
+    //         ]);
+    //     }
+
+    //     if ($invite['status'] == 1 && $status == 1) {
+    //         return $this->response->setJSON([
+    //             'status'  => false,
+    //             'message' => 'Invite already approved.'
+    //         ]);
+    //     }
+
+    //     $oldStatus = (int) $invite['status'];
+    //     $newStatus = (int) $status;
+
+    //     $db = $this->db;
+    //     $db->transBegin();
+
+    //     try {
+
+    //         // Update invite status
+    //         $this->inviteModel->update($invite_id, [
+    //             'status'      => $newStatus,
+    //             'approved_at' => ($newStatus == 1)
+    //                 ? Time::now('Asia/Kolkata')->toDateTimeString()
+    //                 : null
+    //         ]);
+
+    //         /**
+    //          * INCREASE COUNTS ONLY: PENDING → APPROVED
+    //          */
+    //         // if ($oldStatus === 0 && $newStatus === 1) {
+
+    //             $entry_type  = (int) $invite['entry_type']; // 1=M,2=F,3=O,4=C
+    //         //     $event_id    = $invite['event_id'];
+    //         //     $category_id = $invite['category_id'];
+
+    //         //     $m = $f = $o = $c = 0;
+
+    //         //     if ($entry_type == 1) $m = 1;
+    //         //     if ($entry_type == 2) $f = 1;
+    //         //     if ($entry_type == 3) $o = 1;
+    //         //     if ($entry_type == 4) $c = 1;
+
+    //         //     $t = $m + $f + $o + ($c * 2);
+
+    //         //     $countsTable = $db->table('event_counts');
+
+    //         //     $row = $countsTable
+    //         //         ->where('event_id', $event_id)
+    //         //         ->where('category_id', $category_id)
+    //         //         ->get()
+    //         //         ->getRow();
+
+    //         //     $category = $this->categoryModel->find($category_id);
+
+    //         //     $availableSeats = $category['total_seats'] - ($row->total_approved ?? 0);
+
+    //         //     if ($availableSeats < $t) {
+    //         //         $db->transRollback();
+    //         //         return $this->response->setJSON([
+    //         //             'status'  => false,
+    //         //             'message' => 'No seats available for this category.'
+    //         //         ]);
+    //         //     }
+
+    //         //     if ($row) {
+    //         //         $countsTable->where('id', $row->id)->update([
+    //         //             'total_approved'         => $row->total_approved + $t,
+    //         //             'total_male_approved'    => $row->total_male_approved + $m,
+    //         //             'total_female_approved'  => $row->total_female_approved + $f,
+    //         //             'total_other_approved'   => $row->total_other_approved + $o,
+    //         //             'total_couple_approved'  => $row->total_couple_approved + $c,
+    //         //             'updated_at'             => date('Y-m-d H:i:s')
+    //         //         ]);
+    //         //     }
+    //         // }
+
+    //         /**
+    //          * WHATSAPP + AUTO BOOKING (AFTER DB SAFETY)
+    //          */
+    //         if ($newStatus == 1) {
+
+    //             $user  = $this->userModel->find($invite['user_id']);
+    //             $event = $this->eventModel->find($invite['event_id']);
+
+    //             if ($user && $event) {
+    //                 $this->notificationLibrary->sendEventConfirmation(
+    //                     $user['phone'],
+    //                     $user['name'],
+    //                     $event['event_name']
+    //                 );
+    //             }
+
+    //             if (!empty($category)) {
+
+    //                 $price = ($entry_type == 4)
+    //                     ? (int) ($category['couple_price'] ?? 0)
+    //                     : (int) ($category['price'] ?? 0);
+
+    //                 if ($price === 0) {
+
+    //                     $this->bookingLibrary->BookEvent($invite_id, $invite['user_id']);
+
+    //                     $booking = $db->table('event_booking')
+    //                         ->where('invite_id', $invite_id)
+    //                         ->where('user_id', $invite['user_id'])
+    //                         ->get()
+    //                         ->getRow();
+
+    //                     if ($booking) {
+    //                         $this->inviteModel->update(
+    //                             $invite_id,
+    //                             ['status' => $this->inviteModel::PAID]
+    //                         );
+    //                     }
+    //                 }
+    //             }
+    //         }
+
+    //         if ($newStatus == 2) {
+
+    //             $user  = $this->userModel->find($invite['user_id']);
+    //             $event = $this->eventModel->find($invite['event_id']);
+
+    //             if ($user && $event) {
+    //                 $this->notificationLibrary->sendEventRejection(
+    //                     $user['phone'],
+    //                     $user['name'],
+    //                     $event['event_name']
+    //                 );
+    //             }
+    //         }
+
+    //         // Commit only once everything succeeds
+    //         $db->transCommit();
+
+    //         return $this->response->setJSON([
+    //             'status'  => true,
+    //             'message' => 'Invite status updated successfully.'
+    //         ]);
+
+    //     } catch (\Throwable $e) {
+
+    //         $db->transRollback();
+
+    //         log_message('error', 'Invite Update Failed: ' . $e->getMessage());
+
+    //         return $this->response->setJSON([
+    //             'status'  => false,
+    //             'message' => 'Something went wrong. Please try again.'
+    //         ]);
+    //     }
+    // }
+
     public function updateInviteStatus()
     {
         $data = $this->request->getJSON(true);
         $invite_id = $data['invite_id'] ?? null;
-        $status    = $data['status'] ?? null;
+        $status = $data['status'] ?? null;
 
         if (!$invite_id || !in_array($status, [1, 2])) {
             return $this->response->setJSON([
-                'status'  => false,
+                'status' => false,
                 'message' => 'invite_id and valid status (1=approved, 2=rejected) are required.'
             ]);
         }
@@ -724,92 +889,46 @@ class EventInvite extends BaseController
         $invite = $this->inviteModel->find($invite_id);
         if (!$invite) {
             return $this->response->setJSON([
-                'status'  => false,
+                'status' => false,
                 'message' => 'Invite not found.'
-            ]);
-        }
-
-        if ($invite['status'] == 1 && $status == 1) {
-            return $this->response->setJSON([
-                'status'  => false,
-                'message' => 'Invite already approved.'
             ]);
         }
 
         $oldStatus = (int) $invite['status'];
         $newStatus = (int) $status;
 
+        // Prevent re-approval
+        if ($oldStatus === 1 && $newStatus === 1) {
+            return $this->response->setJSON([
+                'status' => false,
+                'message' => 'Invite already approved.'
+            ]);
+        }
+
         $db = $this->db;
         $db->transBegin();
 
         try {
 
-            // Update invite status
+            /* 🔹 Update invite status */
             $this->inviteModel->update($invite_id, [
-                'status'      => $newStatus,
-                'approved_at' => ($newStatus == 1)
+                'status' => $newStatus,
+                'approved_at' => ($newStatus === 1)
                     ? Time::now('Asia/Kolkata')->toDateTimeString()
                     : null
             ]);
 
             /**
-             * INCREASE COUNTS ONLY: PENDING → APPROVED
+             * ==============================
+             * APPROVAL FLOW (PENDING → APPROVED)
+             * ==============================
              */
             if ($oldStatus === 0 && $newStatus === 1) {
 
-                $entry_type  = (int) $invite['entry_type']; // 1=M,2=F,3=O,4=C
-                $event_id    = $invite['event_id'];
-                $category_id = $invite['category_id'];
-
-                $m = $f = $o = $c = 0;
-
-                if ($entry_type == 1) $m = 1;
-                if ($entry_type == 2) $f = 1;
-                if ($entry_type == 3) $o = 1;
-                if ($entry_type == 4) $c = 1;
-
-                $t = $m + $f + $o + ($c * 2);
-
-                $countsTable = $db->table('event_counts');
-
-                $row = $countsTable
-                    ->where('event_id', $event_id)
-                    ->where('category_id', $category_id)
-                    ->get()
-                    ->getRow();
-
-                $category = $this->categoryModel->find($category_id);
-
-                $availableSeats = $category['total_seats'] - ($row->total_approved ?? 0);
-
-                if ($availableSeats < $t) {
-                    $db->transRollback();
-                    return $this->response->setJSON([
-                        'status'  => false,
-                        'message' => 'No seats available for this category.'
-                    ]);
-                }
-
-                if ($row) {
-                    $countsTable->where('id', $row->id)->update([
-                        'total_approved'         => $row->total_approved + $t,
-                        'total_male_approved'    => $row->total_male_approved + $m,
-                        'total_female_approved'  => $row->total_female_approved + $f,
-                        'total_other_approved'   => $row->total_other_approved + $o,
-                        'total_couple_approved'  => $row->total_couple_approved + $c,
-                        'updated_at'             => date('Y-m-d H:i:s')
-                    ]);
-                }
-            }
-
-            /**
-             * WHATSAPP + AUTO BOOKING (AFTER DB SAFETY)
-             */
-            if ($newStatus == 1) {
-
-                $user  = $this->userModel->find($invite['user_id']);
+                $user = $this->userModel->find($invite['user_id']);
                 $event = $this->eventModel->find($invite['event_id']);
 
+                /* 📲 WhatsApp approval */
                 if ($user && $event) {
                     $this->notificationLibrary->sendEventConfirmation(
                         $user['phone'],
@@ -818,35 +937,49 @@ class EventInvite extends BaseController
                     );
                 }
 
-                if (!empty($category)) {
+                /* 💰 ZERO PAYMENT AUTO BOOKING */
+                $category = $this->categoryModel->find($invite['category_id']);
+                $entry_type = (int) $invite['entry_type']; // 1=M,2=F,3=O,4=C
 
-                    $price = ($entry_type == 4)
+                if ($category) {
+
+                    $price = ($entry_type === 4)
                         ? (int) ($category['couple_price'] ?? 0)
                         : (int) ($category['price'] ?? 0);
 
                     if ($price === 0) {
 
-                        $this->bookingLibrary->BookEvent($invite_id, $invite['user_id']);
-
-                        $booking = $db->table('event_booking')
+                        // Prevent duplicate booking
+                        $existingBooking = $db->table('event_booking')
                             ->where('invite_id', $invite_id)
                             ->where('user_id', $invite['user_id'])
                             ->get()
                             ->getRow();
 
-                        if ($booking) {
-                            $this->inviteModel->update(
+                        if (!$existingBooking) {
+
+                            $this->bookingLibrary->BookEvent(
                                 $invite_id,
-                                ['status' => $this->inviteModel::PAID]
+                                $invite['user_id']
                             );
+
+                            // Mark invite as PAID / BOOKED
+                            $this->inviteModel->update($invite_id, [
+                                'status' => $this->inviteModel::PAID
+                            ]);
                         }
                     }
                 }
             }
 
-            if ($newStatus == 2) {
+            /**
+             * ==============================
+             * REJECTION FLOW
+             * ==============================
+             */
+            if ($newStatus === 2) {
 
-                $user  = $this->userModel->find($invite['user_id']);
+                $user = $this->userModel->find($invite['user_id']);
                 $event = $this->eventModel->find($invite['event_id']);
 
                 if ($user && $event) {
@@ -858,11 +991,10 @@ class EventInvite extends BaseController
                 }
             }
 
-            // ✅ Commit only once everything succeeds
             $db->transCommit();
 
             return $this->response->setJSON([
-                'status'  => true,
+                'status' => true,
                 'message' => 'Invite status updated successfully.'
             ]);
 
@@ -873,7 +1005,7 @@ class EventInvite extends BaseController
             log_message('error', 'Invite Update Failed: ' . $e->getMessage());
 
             return $this->response->setJSON([
-                'status'  => false,
+                'status' => false,
                 'message' => 'Something went wrong. Please try again.'
             ]);
         }
