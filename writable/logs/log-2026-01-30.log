@@ -1,0 +1,73 @@
+CRITICAL - 2026-01-30 15:31:22 --> Error: Call to undefined method App\Controllers\Api\AppUser::formatPhone()
+[Method: POST, Route: api/user/login]
+in APPPATH\Controllers\Api\AppUser.php on line 39.
+ 1 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\AppUser->UserLogin()
+ 2 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\AppUser))
+ 3 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 4 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2026-01-30 15:35:54 --> Error: Call to undefined method App\Controllers\Api\AppUser::formatPhone()
+[Method: POST, Route: api/user/login]
+in APPPATH\Controllers\Api\AppUser.php on line 39.
+ 1 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\AppUser->UserLogin()
+ 2 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\AppUser))
+ 3 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 4 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2026-01-30 15:35:58 --> Error: Call to undefined method App\Controllers\Api\AppUser::formatPhone()
+[Method: POST, Route: api/user/login]
+in APPPATH\Controllers\Api\AppUser.php on line 39.
+ 1 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\AppUser->UserLogin()
+ 2 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\AppUser))
+ 3 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 4 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2026-01-30 15:39:34 --> WhatsApp Payload: {"phone":"917034467880","name":"Test","otp":"942265"}
+ERROR - 2026-01-30 15:39:34 --> WhatsApp HTTP Code: 200
+ERROR - 2026-01-30 15:39:34 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"69390736f0b34297f83d8bf3","name":"OTP Sending","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"917034467880","recipientName":"Test","whatsappMessageId":"wamid.HBgMOTE3MDM0NDY3ODgwFQIAERgSNThGMzU0OTMwMEI2MTA2NzBEAA==","templateName":"login_otp_template"},"actionResults":[]}]}}'
+ERROR - 2026-01-30 15:40:14 --> WhatsApp Payload: {"phone":"9717034467880","name":"Test","otp":"804451"}
+ERROR - 2026-01-30 15:40:14 --> WhatsApp HTTP Code: 200
+ERROR - 2026-01-30 15:40:14 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"69390736f0b34297f83d8bf3","name":"OTP Sending","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"9717034467880","recipientName":"Test","whatsappMessageId":"wamid.HBgNOTcxNzAzNDQ2Nzg4MBUCABEYEjI3NjhFMjQ3NkE3OUYxNkU3QwA=","templateName":"login_otp_template"},"actionResults":[]}]}}'
+ERROR - 2026-01-30 15:41:30 --> WhatsApp Payload: {"phone":"817034467880","name":"Test","otp":"327214"}
+ERROR - 2026-01-30 15:41:30 --> WhatsApp HTTP Code: 200
+ERROR - 2026-01-30 15:41:30 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"69390736f0b34297f83d8bf3","name":"OTP Sending","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"817034467880","recipientName":"Test","whatsappMessageId":"wamid.HBgMODE3MDM0NDY3ODgwFQIAERgSNDY5Q0UwRkJDNzcyMzBBRTA2AA==","templateName":"login_otp_template"},"actionResults":[]}]}}'
+ERROR - 2026-01-30 15:45:48 --> WhatsApp Payload: {"phone":"917034467880","name":"Test","otp":"202089"}
+ERROR - 2026-01-30 15:45:48 --> WhatsApp HTTP Code: 200
+ERROR - 2026-01-30 15:45:48 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"69390736f0b34297f83d8bf3","name":"OTP Sending","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"917034467880","recipientName":"Test","whatsappMessageId":"wamid.HBgMOTE3MDM0NDY3ODgwFQIAERgSM0Q1NTk4RDVBQTk0RkIzODFEAA==","templateName":"login_otp_template"},"actionResults":[]}]}}'
+CRITICAL - 2026-01-30 15:47:53 --> Exception: Country code is required
+[Method: POST, Route: api/user/login]
+in APPPATH\Libraries\NotificationLibrary.php on line 27.
+ 1 APPPATH\Libraries\NotificationLibrary.php(71): App\Libraries\NotificationLibrary->formatPhone('917034467880')
+ 2 APPPATH\Controllers\Api\AppUser.php(115): App\Libraries\NotificationLibrary->sendWhatsAppOtp('91-7034467880', 455966)
+ 3 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\AppUser->UserLogin()
+ 4 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\AppUser))
+ 5 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 6 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 7 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 8 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2026-01-30 15:48:02 --> Exception: Country code is required
+[Method: POST, Route: api/user/login]
+in APPPATH\Libraries\NotificationLibrary.php on line 27.
+ 1 APPPATH\Libraries\NotificationLibrary.php(71): App\Libraries\NotificationLibrary->formatPhone('7034467880')
+ 2 APPPATH\Controllers\Api\AppUser.php(115): App\Libraries\NotificationLibrary->sendWhatsAppOtp('7034467880', 756314)
+ 3 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Api\AppUser->UserLogin()
+ 4 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Api\AppUser))
+ 5 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 6 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 7 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 8 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ERROR - 2026-01-30 15:48:59 --> WhatsApp Payload: {"phone":"+917034467880","name":"Test","otp":"551604"}
+ERROR - 2026-01-30 15:48:59 --> WhatsApp HTTP Code: 200
+ERROR - 2026-01-30 15:48:59 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"69390736f0b34297f83d8bf3","name":"OTP Sending","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"+917034467880","recipientName":"Test","whatsappMessageId":"wamid.HBgMOTE3MDM0NDY3ODgwFQIAERgSNTZGOUQzRkIyRkRGRENBMDZGAA==","templateName":"login_otp_template"},"actionResults":[]}]}}'
+ERROR - 2026-01-30 15:51:17 --> WhatsApp Payload: {"phone":"+971525751486","name":"Test","otp":"212289"}
+ERROR - 2026-01-30 15:51:17 --> WhatsApp HTTP Code: 200
+ERROR - 2026-01-30 15:51:17 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"69390736f0b34297f83d8bf3","name":"OTP Sending","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"+971525751486","recipientName":"Test","whatsappMessageId":"wamid.HBgMOTcxNTI1NzUxNDg2FQIAERgSOTU2MDZBMUVGQUNGRDA4QjRDAA==","templateName":"login_otp_template"},"actionResults":[]}]}}'
+ERROR - 2026-01-30 16:06:20 --> WhatsApp Payload: {"phone":"+917034467880","name":"Test","otp":"286391"}
+ERROR - 2026-01-30 16:06:20 --> WhatsApp HTTP Code: 200
+ERROR - 2026-01-30 16:06:20 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"69390736f0b34297f83d8bf3","name":"OTP Sending","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"+917034467880","recipientName":"Test","whatsappMessageId":"wamid.HBgMOTE3MDM0NDY3ODgwFQIAERgSNTUzODZDQ0I4MkU3MDZFMDA5AA==","templateName":"login_otp_template"},"actionResults":[]}]}}'
+ERROR - 2026-01-30 16:07:46 --> WhatsApp Payload: {"phone":"+919847332221","name":"Test","otp":"722727"}
+ERROR - 2026-01-30 16:07:46 --> WhatsApp HTTP Code: 200
+ERROR - 2026-01-30 16:07:46 --> WhatsApp Response: '{"success":true,"data":{"results":[{"workflowId":"69390736f0b34297f83d8bf3","name":"OTP Sending","executed":true,"templateResult":{"success":true,"message":"Template sent successfully","recipientNumber":"+919847332221","recipientName":"Test","whatsappMessageId":"wamid.HBgMOTE5ODQ3MzMyMjIxFQIAERgSQzcyM0YwRDNDRjNBNkY2MDQwAA==","templateName":"login_otp_template"},"actionResults":[]}]}}'

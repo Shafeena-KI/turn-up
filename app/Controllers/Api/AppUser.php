@@ -23,6 +23,33 @@ class AppUser extends BaseController
         $this->appUserModel = new AppUserModel();
         $this->notificationLibrary = new NotificationLibrary();
     }
+
+    private function cleanPhone($phone)
+    {
+        // Remove +, -, spaces, brackets → digits only
+        return preg_replace('/\D/', '', $phone);
+    }
+
+    private function last10Digits($phone)
+    {
+        $digits = $this->cleanPhone($phone);
+        return substr($digits, -10);
+    }
+
+    private function toInternational($phone)
+    {
+        $digits = $this->cleanPhone($phone);
+
+        // If already has country code
+        if (strlen($digits) > 10) {
+            return '+' . $digits;
+        }
+
+        // If only local number → DO NOT guess country
+        // Keep as is or prepend default if you want
+        return $digits;
+    }
+
     public function UserLogin()
     {
         $data = $this->request->getJSON(true);
@@ -37,7 +64,36 @@ class AppUser extends BaseController
         }
 
         // Check if user exists
-        $user = $this->appUserModel->where('phone', $phone)->first();
+        $rawPhone = $phone;
+        $clean = $this->cleanPhone($rawPhone);
+        $last10 = $this->last10Digits($rawPhone);
+        $intlPhone = $this->toInternational($rawPhone);
+
+        /**
+         * 1️⃣ Try exact match (already international)
+         */
+        $user = $this->appUserModel
+            ->where('phone', $intlPhone)
+            ->first();
+
+        /**
+         * 2️⃣ If not found → try last 10 digits match
+         */
+        if (!$user) {
+            $user = $this->appUserModel
+                ->like('phone', $last10, 'after')
+                ->first();
+
+            /**
+             * 3️⃣ If found → UPGRADE phone with country code
+             */
+            if ($user && strpos($intlPhone, '+') === 0) {
+                $this->appUserModel->update($user['user_id'], [
+                    'phone' => $intlPhone,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+            }
+        }
 
         // If user exists → check if BLOCKED / SUSPENDED / DELETED
         if ($user) {
@@ -120,7 +176,7 @@ class AppUser extends BaseController
             'message' => 'OTP has been sent to your WhatsApp.',
             'data' => [
                 'user_id' => $user['user_id'],
-                'otp' => $otp,
+                // 'otp' => $otp,
                 'whatsapp_response' => $whatsappResponse
             ]
         ]);
@@ -1392,14 +1448,14 @@ class AppUser extends BaseController
             ->get()
             ->getRowArray();
 
-            if ($uv && (int)$uv['email_verified'] === 1) {
-                return $this->response->setJSON([
-                    'status' => 200,
-                    'success' => true,
-                    'already_verified' => true,
-                    'message' => 'Your email is already verified.'
-                ]);
-            }
+        if ($uv && (int) $uv['email_verified'] === 1) {
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'already_verified' => true,
+                'message' => 'Your email is already verified.'
+            ]);
+        }
 
         if (!$uv) {
             $db->table('user_verifications')
@@ -1521,61 +1577,64 @@ class AppUser extends BaseController
 
 
 
-public function verifyEmail($hash = null)
-{
-    if (!$hash) return view('email_status', [
-        'type' => 'error',
-        'title' => 'Invalid Link',
-        'message' => 'This verification link is invalid or expired.'
-    ]);
+    public function verifyEmail($hash = null)
+    {
+        if (!$hash)
+            return view('email_status', [
+                'type' => 'error',
+                'title' => 'Invalid Link',
+                'message' => 'This verification link is invalid or expired.'
+            ]);
 
-    $db = db_connect();
+        $db = db_connect();
 
-    $user = $db->table('app_users')->where('email_verify_hash', $hash)->get()->getRowArray();
-    if (!$user) return view('email_status', [
-        'type' => 'error',
-        'title' => 'Invalid Link',
-        'message' => 'This verification link is invalid or expired.'
-    ]);
+        $user = $db->table('app_users')->where('email_verify_hash', $hash)->get()->getRowArray();
+        if (!$user)
+            return view('email_status', [
+                'type' => 'error',
+                'title' => 'Invalid Link',
+                'message' => 'This verification link is invalid or expired.'
+            ]);
 
-    $verify = $db->table('user_verifications')->where('user_id', $user['user_id'])->get()->getRowArray();
-    if (!$verify) return view('email_status', [
-        'type' => 'error',
-        'title' => 'Invalid Link',
-        'message' => 'This verification link is invalid or expired.'
-    ]);
+        $verify = $db->table('user_verifications')->where('user_id', $user['user_id'])->get()->getRowArray();
+        if (!$verify)
+            return view('email_status', [
+                'type' => 'error',
+                'title' => 'Invalid Link',
+                'message' => 'This verification link is invalid or expired.'
+            ]);
 
-    if ((int)$verify['email_verified'] === 1) {
+        if ((int) $verify['email_verified'] === 1) {
+            return view('email_status', [
+                'type' => 'info',
+                'title' => 'Already Verified',
+                'message' => 'This email has already been verified earlier.'
+            ]);
+        }
+
+        $profileScore = (int) $user['profile_score'];
+        $updateVerify = [
+            'email_verified' => 1,
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+
+        if ((int) $verify['email_score_added'] === 0) {
+            $profileScore += 15;
+            $updateVerify['email_score_added'] = 1;
+        }
+
+        $db->table('user_verifications')->where('user_id', $user['user_id'])->update($updateVerify);
+        $db->table('app_users')->where('user_id', $user['user_id'])->update([
+            'profile_score' => $profileScore,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+
         return view('email_status', [
-            'type' => 'info',
-            'title' => 'Already Verified',
-            'message' => 'This email has already been verified earlier.'
+            'type' => 'success',
+            'title' => 'Email Verified Successfully',
+            'message' => 'Your email has been verified. You can return to the app.'
         ]);
     }
-
-    $profileScore = (int) $user['profile_score'];
-    $updateVerify = [
-        'email_verified' => 1,
-        'updated_at' => date('Y-m-d H:i:s')
-    ];
-
-    if ((int) $verify['email_score_added'] === 0) {
-        $profileScore += 15;
-        $updateVerify['email_score_added'] = 1;
-    }
-
-    $db->table('user_verifications')->where('user_id', $user['user_id'])->update($updateVerify);
-    $db->table('app_users')->where('user_id', $user['user_id'])->update([
-        'profile_score' => $profileScore,
-        'updated_at' => date('Y-m-d H:i:s')
-    ]);
-
-    return view('email_status', [
-        'type' => 'success',
-        'title' => 'Email Verified Successfully',
-        'message' => 'Your email has been verified. You can return to the app.'
-    ]);
-}
 
 
 

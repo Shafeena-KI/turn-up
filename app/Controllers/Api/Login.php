@@ -10,6 +10,9 @@ use App\Models\AppUserModel;
 use App\Models\AdminLicenseModel;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Firebase\JWT\ExpiredException;
+use Firebase\JWT\SignatureInvalidException;
+use Firebase\JWT\BeforeValidException;
 
 class Login extends BaseController
 {
@@ -25,52 +28,52 @@ class Login extends BaseController
         $this->adminModel = new AdminModel();
         $this->licenseModel = new AdminLicenseModel();
     }
-    public function index()
-    {
-        $authHeader = $this->request->getHeaderLine('Authorization');
+    // public function index()
+    // {
+    //     $authHeader = $this->request->getHeaderLine('Authorization');
 
-        if (empty($authHeader)) {
-            return $this->response
-                ->setStatusCode(401)
-                ->setJSON([
-                    'status' => 401,
-                    'success' => false,
-                    'message' => 'Authorization token is required.'
-                ]);
-        }
+    //     if (empty($authHeader)) {
+    //         return $this->response
+    //             ->setStatusCode(401)
+    //             ->setJSON([
+    //                 'status' => 401,
+    //                 'success' => false,
+    //                 'message' => 'Authorization token is required.'
+    //             ]);
+    //     }
 
 
-        // Format: Bearer tokenvalue
-        $token = str_replace('Bearer ', '', $authHeader);
+    //     // Format: Bearer tokenvalue
+    //     $token = str_replace('Bearer ', '', $authHeader);
 
-        if (empty($token)) {
-            return $this->response->setJSON([
-                'status' => 400,
-                'success' => false,
-                'message' => 'Invalid token format.'
-            ]);
-        }
+    //     if (empty($token)) {
+    //         return $this->response->setJSON([
+    //             'status' => 400,
+    //             'success' => false,
+    //             'message' => 'Invalid token format.'
+    //         ]);
+    //     }
 
-        // Decode token
-        $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
-        $decoded = JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
+    //     // Decode token
+    //     $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+    //     $decoded = JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
 
-        $admin_id = $decoded->data->admin_id ?? null;
+    //     $admin_id = $decoded->data->admin_id ?? null;
 
-        if (!$admin_id) {
-            return $this->response->setJSON([
-                'status' => 401,
-                'success' => false,
-                'message' => 'Invalid token.'
-            ]);
-        }
-        return $this->response->setJSON([
-            'status' => 200,
-            'success' => true,
-            'message' => 'Hello'
-        ]);
-    }
-    
+    //     if (!$admin_id) {
+    //         return $this->response->setJSON([
+    //             'status' => 401,
+    //             'success' => false,
+    //             'message' => 'Invalid token.'
+    //         ]);
+    //     }
+    //     return $this->response->setJSON([
+    //         'status' => 200,
+    //         'success' => true,
+    //         'message' => 'Hello'
+    //     ]);
+    // }
+
     // public function adminLogin()
     // {
     //     try {
@@ -174,7 +177,96 @@ class Login extends BaseController
     // }
 
 
+    public function index()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
 
+        /* ---------- NO TOKEN ---------- */
+        if (empty($authHeader)) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Authorization token is required.'
+                ]);
+        }
+
+        /* ---------- FORMAT CHECK ---------- */
+        if (!str_starts_with($authHeader, 'Bearer ')) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Invalid token format.'
+                ]);
+        }
+
+        $token = trim(str_replace('Bearer ', '', $authHeader));
+
+        if (empty($token)) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Token missing.'
+                ]);
+        }
+
+        try {
+            /* ---------- DECODE TOKEN ---------- */
+            $key = getenv('JWT_SECRET') ?: 'default_fallback_key';
+            $decoded = JWT::decode($token, new \Firebase\JWT\Key($key, 'HS256'));
+
+            $admin_id = $decoded->data->admin_id ?? null;
+
+            if (!$admin_id) {
+                return $this->response
+                    ->setStatusCode(401)
+                    ->setJSON([
+                        'status' => 401,
+                        'success' => false,
+                        'message' => 'Invalid token.'
+                    ]);
+            }
+
+            /* ---------- SUCCESS ---------- */
+            return $this->response->setJSON([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Hello'
+            ]);
+
+        } catch (\Firebase\JWT\ExpiredException $e) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Token expired. Please login again.'
+                ]);
+
+        } catch (\Firebase\JWT\SignatureInvalidException $e) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Invalid token signature.'
+                ]);
+
+        } catch (\Exception $e) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Invalid token.'
+                ]);
+        }
+    }
     public function adminLogin()
     {
         try {
@@ -531,7 +623,7 @@ class Login extends BaseController
 
         $license = $this->licenseModel->getCurrentLicense($admin['admin_id']);
         $licenseStatus = LicenseHelper::getLicenseStatusResponse($license, $admin['admin_id']);
-        
+
         if (!$licenseStatus['license_valid']) {
             return [
                 'status' => 402,

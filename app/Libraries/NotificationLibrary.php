@@ -6,14 +6,28 @@ class NotificationLibrary
 {
     private function formatPhone($phone)
     {
-        $phone = preg_replace('/\D/', '', $phone); // remove +, spaces
+        // Remove spaces, brackets, hyphens
+        $phone = preg_replace('/[^0-9+]/', '', $phone);
 
-        if (strlen($phone) === 10) {
-            $phone = '91' . $phone;
+        // Convert 00 prefix to +
+        if (strpos($phone, '00') === 0) {
+            $phone = '+' . substr($phone, 2);
         }
 
-        return $phone;
+        // Must start with + and be valid length
+        if (strpos($phone, '+') === 0) {
+            $digits = preg_replace('/\D/', '', $phone);
+
+            if (strlen($digits) >= 8 && strlen($digits) <= 15) {
+                return '+' . $digits;
+            }
+        }
+
+        // If no country code provided → reject
+        throw new \Exception('Country code is required');
     }
+
+
     private function sendWebhook($url, $payload)
     {
         $ch = curl_init($url);
