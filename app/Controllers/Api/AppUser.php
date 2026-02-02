@@ -176,7 +176,7 @@ class AppUser extends BaseController
             'message' => 'OTP has been sent to your WhatsApp.',
             'data' => [
                 'user_id' => $user['user_id'],
-                // 'otp' => $otp,
+                'otp' => $otp,
                 'whatsapp_response' => $whatsappResponse
             ]
         ]);
