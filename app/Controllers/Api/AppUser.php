@@ -36,25 +36,25 @@ class AppUser extends BaseController
         return substr($digits, -10);
     }
 
-    private function toInternational($phone)
+    private function toInternational($phone, $countryCode = '+91')
     {
         $digits = $this->cleanPhone($phone);
 
-        // If already has country code
+        // Already international (starts with country code)
         if (strlen($digits) > 10) {
             return '+' . $digits;
         }
 
-        // If only local number → DO NOT guess country
-        // Keep as is or prepend default if you want
-        return $digits;
+        // Local number → prepend country code
+        return $countryCode . $digits;
     }
+
 
     public function UserLogin()
     {
         $data = $this->request->getJSON(true);
         $phone = $data['phone'] ?? $this->request->getPost('phone');
-
+        $countryCode = $data['country_code'] ?? '+91';
         if (empty($phone)) {
             return $this->response->setJSON([
                 'status' => 400,
@@ -67,7 +67,7 @@ class AppUser extends BaseController
         $rawPhone = $phone;
         $clean = $this->cleanPhone($rawPhone);
         $last10 = $this->last10Digits($rawPhone);
-        $intlPhone = $this->toInternational($rawPhone);
+        $intlPhone = $this->toInternational($rawPhone, $countryCode);
 
         /**
          * 1️⃣ Try exact match (already international)
@@ -129,16 +129,19 @@ class AppUser extends BaseController
         if ($user) {
 
             // Existing user → update OTP only
-            $this->appUserModel->update($user['user_id'], [
-                'otp' => $otp,
-                'updated_at' => date('Y-m-d H:i:s')
-            ]);
+            if ($user && strpos($intlPhone, '+') === 0) {
+                $this->appUserModel->update($user['user_id'], [
+                    'phone' => $intlPhone,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+            }
+
 
         } else {
 
             // NEW USER → Insert
             $this->appUserModel->insert([
-                'phone' => $phone,
+                'phone' => $intlPhone,
                 'otp' => $otp,
                 'profile_status' => 0,
                 'profile_score' => 20,
